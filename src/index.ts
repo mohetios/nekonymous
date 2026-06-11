@@ -4,7 +4,7 @@ import { InboxDurableObject } from "./bot/inboxDU";
 import { AboutPageContent } from "./front/about";
 import { HomePageContent } from "./front/home";
 import pageLayout from "./front/layout";
-import { Environment } from "./types";
+import type { Environment } from "./types";
 import { Router } from "./utils/router";
 
 // INBOX DURABLE OBJECTS
@@ -19,7 +19,7 @@ const router = new Router();
  */
 router.get(
   "/",
-  async (request: Request, env: Environment, ctx: ExecutionContext) => {
+  async (_request: Request, env: Environment, _ctx: ExecutionContext) => {
     const content = await HomePageContent(env);
     const html = pageLayout("ارسال پیام تلگرام ناشناس", env.BOT_NAME, content);
     return new Response(html, {
@@ -36,7 +36,7 @@ router.get(
  */
 router.get(
   "/about",
-  async (request: Request, env: Environment, ctx: ExecutionContext) => {
+  (_request: Request, env: Environment, _ctx: ExecutionContext) => {
     const content = AboutPageContent();
     const html = pageLayout("درباره", env.BOT_NAME, content);
     return new Response(html, {
@@ -57,7 +57,7 @@ router.get(
  */
 router.post(
   "/bot",
-  async (request: Request, env: Environment, ctx: ExecutionContext) => {
+  async (request: Request, env: Environment, _ctx: ExecutionContext) => {
     try {
       // Validate the request method; it should be POST for webhooks
       if (request.method === "POST") {
@@ -70,7 +70,7 @@ router.post(
       } else {
         return new Response("Invalid request method", { status: 405 });
       }
-    } catch (error) {
+    } catch {
       // Handle any errors that occur during bot initialization or webhook handling
       return new Response("Error initializing bot", { status: 500 });
     }

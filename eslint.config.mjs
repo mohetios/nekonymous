@@ -1,59 +1,59 @@
+import ESLint from "@eslint/js";
+import ESLintConfigPrettier from "eslint-config-prettier";
+import Oxlint from "eslint-plugin-oxlint";
 import globals from "globals";
-
-// // ESLint Configuration
-// export default [
-//   {
-//     files: ["**/*.{js,mjs,cjs,ts}"],
-//     languageOptions: {
-//       parser: tsParser,
-//       globals: globals.browser,
-//     },
-//     plugins: {
-//       "@typescript-eslint": tsPlugin,
-//     },
-//     // Including the recommended configurations directly
-//     rules: {
-//       ...pluginJs.configs.recommended.rules,  // JavaScript recommended rules
-//       ...tsPlugin.configs.recommended.rules,  // TypeScript recommended rules
-//       "@typescript-eslint/no-unused-vars": "warn",
-//       "@typescript-eslint/explicit-function-return-type": "off",
-//       "no-console": "warn",
-//       "semi": ["error", "always"],
-//       "quotes": ["error", "double"],
-//       "indent": ["error", 2],
-//     },
-//     ignores: ["node_modules/"],  
-//   }
-// ];
-
-
-import ESLint from '@eslint/js';
-import ESLintConfigPrettier from 'eslint-config-prettier';
-import Oxlint from 'eslint-plugin-oxlint';
-import TSESLint from 'typescript-eslint';
+import TSESLint from "typescript-eslint";
 
 export default TSESLint.config(
   {
-    // config with just ignores is the replacement for `.eslintignore`
-    ignores: ["node_modules/"],
+    ignores: [
+      "node_modules/",
+      ".wrangler/",
+      "dist/",
+      "pnpm-lock.yaml",
+    ],
   },
   ESLint.configs.recommended,
   ...TSESLint.configs.recommended,
-  Oxlint.configs['flat/recommended'],
+  Oxlint.configs["flat/recommended"],
   ESLintConfigPrettier,
   {
-    files: ['**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
-    linterOptions: {
-      reportUnusedDisableDirectives: true,
-    },
+    files: ["**/*.{js,mjs,cjs}"],
     languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.browser,
-        ...globals.es2021,
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
+    },
+  },
+  {
+    files: ["src/**/*.ts"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.worker,
+      parserOptions: {
+        project: "./tsconfig.json",
+        tsconfigRootDir: import.meta.dirname,
       },
     },
-    plugins: {},
-    rules: {},
-  },
-)
+    extends: [...TSESLint.configs.recommendedTypeChecked],
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+      "@typescript-eslint/no-unused-private-class-members": "error",
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { prefer: "type-imports", fixStyle: "inline-type-imports" },
+      ],
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/require-await": "error",
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+    },
+  }
+);

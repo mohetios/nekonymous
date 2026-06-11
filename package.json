@@ -1,36 +1,37 @@
 {
-  "name": "anonymous-gap",
+  "name": "nekonymous",
   "version": "0.1.0",
   "devDependencies": {
-    "@eslint/js": "^9.25.1",
-    "@types/node": "^22.15.3",
-    "@typescript-eslint/eslint-plugin": "^8.31.1",
-    "@typescript-eslint/parser": "^8.31.1",
-    "eslint": "^9.25.1",
-    "eslint-config-prettier": "^10.1.2",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-oxlint": "^0.16.8",
-    "eslint-plugin-prettier": "^5.2.6",
-    "eslint-plugin-promise": "^7.2.1",
-    "globals": "^16.0.0",
-    "prettier": "^3.5.3",
-    "typescript-eslint": "^8.31.1",
-    "wrangler": "4.13.2"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-oxlint": "^1.69.0",
+    "globals": "^17.6.0",
+    "knip": "^6.16.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.61.0",
+    "wrangler": "4.100.0"
   },
   "private": true,
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --local --port 8787",
+    "dev:telegram": "bash tools/dev-telegram.sh",
+    "webhook:info": "node tools/telegram-webhook.mjs info",
+    "webhook:local": "node tools/telegram-webhook.mjs local",
+    "webhook:restore": "node tools/telegram-webhook.mjs restore",
+    "webhook:delete": "node tools/telegram-webhook.mjs delete",
     "deploy": "wrangler deploy --minify",
-    "clean:kv": "node tools/clear",
-    "lint": "eslint '**/*.{js,mjs,cjs,ts}'",
-    "lint:fix": "eslint '**/*.{js,mjs,cjs,ts}' --fix"
+    "clean:kv": "node tools/clear.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "knip": "knip",
+    "test:crypto": "node tools/verify-crypto.mjs",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test:crypto"
   },
   "dependencies": {
-    "@cloudflare/workers-types": "^4.20250429.0",
-    "@noble/curves": "1.9.0",
-    "@noble/hashes": "^1.8.0",
-    "grammy": "^1.36.1",
-    "web-uuid": "0.1.0-pre.1"
+    "@cloudflare/workers-types": "^4.20260611.1",
+    "grammy": "^1.43.0"
   }
 }

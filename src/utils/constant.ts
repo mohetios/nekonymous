@@ -1,4 +1,4 @@
-import { Context, InlineKeyboard, Keyboard } from "grammy";
+import { InlineKeyboard, Keyboard, type Context } from "grammy";
 import { ABOUT_PRIVACY_COMMAND_MESSAGE, USER_LINK_MESSAGE } from "./messages";
 import { escapeMarkdownV2 } from "./tools";
 

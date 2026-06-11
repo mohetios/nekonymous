@@ -35,16 +35,16 @@ Nekonymous is a secure and anonymous messaging bot for Telegram, allowing users 
 
 The bot uses a robust ticketing system to manage message encryption and decryption. Each conversation is secured using a unique ticket ID that functions as a private key. This key is generated for each new conversation and is never stored in plain text.
 
-- **Ticket ID (Private Key)**: Generated using secure methods, the private key is central to the encryption process.
-- **APP_SECURE_KEY**: Enhances security by combining the ticket ID with an APP_SECURE_KEY stored securely in Cloudflare environment variables.
-- **Public Key (Conversation ID)**: Derived from the ticket ID and APP_SECURE_KEY, it serves as the conversation identifier.
+- **Ticket ID**: Random entropy mixed with `APP_SECURE_KEY` via SHA-256; stored in the inbox as an opaque handle.
+- **APP_SECURE_KEY**: Worker secret used with each ticket to derive encryption and lookup keys.
+- **Conversation ID**: A separate SHA-256 digest used as the KV storage key (not stored in plaintext on the inbox).
 
 ### 2. Encryption and Decryption Process
 
 Messages sent through the bot are encrypted using AES-GCM encryption, ensuring that only the intended recipient can read the messages, even if intercepted by unauthorized parties.
 
-- **Encryption**: A secure AES key is derived from the combined private key and APP_SECURE_KEY. This key encrypts the message payload, which includes the sender, recipient, and message content.
-- **Decryption**: The same AES key derivation process is used to decrypt messages for the recipient.
+- **Encryption**: AES-GCM via the Workers Web Crypto API. Key material is SHA-256(ticket bytes + `APP_SECURE_KEY`).
+- **Decryption**: The same derivation path decrypts the payload when the recipient opens their inbox.
 
 ### 3. Cloudflare Workers and Durable Objects
 
@@ -64,12 +64,60 @@ Follow these steps to set up the development environment and get the bot running
 
 ### Prerequisites
 
-Ensure you have the following installed:
+- **Node.js** 22+ (matches CI)
+- **pnpm** 9+
+- **Cloudflare account** with Workers, KV, and Durable Objects
+- **`wrangler.toml`** in the project root (gitignored; copy from your deployment config)
 
-- **Node.js** (v16.x or higher recommended)
-- **npm** (comes with Node.js)
-- **Git** (for version control)
-- **Cloudflare Account** (for deployment)
-- **Wrangler** (Cloudflare's CLI tool)
+### Install
 
+```bash
+pnpm install
+```
+
+### Local environment
+
+1. Copy the template: `cp .env.example .env` and `cp .env.example .dev.vars`
+2. Fill in `SECRET_TELEGRAM_API_TOKEN`, `BOT_SECRET_KEY`, `APP_SECURE_KEY`, `BOT_INFO` (`getMe` JSON), and `PRODUCTION_WEBHOOK_URL`.
+3. Run `pnpm dev` — Wrangler loads secrets from `.dev.vars`.
+
+Do not commit `.env` or `.dev.vars`.
+
+### Quality checks
+
+```bash
+pnpm check   # typecheck, lint, knip, crypto roundtrip test
+```
+
+CI runs `pnpm check` on every push and pull request.
+
+### Deploy
+
+```bash
+pnpm deploy
+```
+
+Pushes to `master` also deploy via GitHub Actions (requires `CF_API_TOKEN`, `CF_ACCOUNT_ID`, and `CF_ZONE_ID` secrets).
+
+See [AGENTS.md](AGENTS.md) for architecture notes and contributor conventions.
+
+### Local Telegram bot (without hitting deployed worker)
+
+One command (wrangler + tunnel + webhook setup):
+
+```bash
+pnpm dev:telegram
+```
+
+Requires `.dev.vars` with `SECRET_TELEGRAM_API_TOKEN`, `BOT_SECRET_KEY`, and `PRODUCTION_WEBHOOK_URL` for auto-restore on Ctrl+C.
+
+Plain local worker only (no Telegram redirect):
+
+```bash
+pnpm dev
+```
+
+**Safer alternative:** use a second @BotFather bot token in `.dev.vars` so production webhook stays untouched.
+
+Check webhook: `pnpm webhook:info` · Restore manually: `pnpm webhook:restore`
 

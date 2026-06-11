@@ -1,7 +1,7 @@
-import { Context } from "grammy";
-import { Conversation, User } from "../types";
+import type { Context } from "grammy";
+import type { Conversation, User } from "../types";
 import { createMessageKeyboard } from "../utils/constant";
-import { KVModel } from "../utils/kv-storage";
+import type { KVModel } from "../utils/kv-storage";
 import { incrementStat } from "../utils/logs";
 import {
   HuhMessage,
@@ -34,11 +34,21 @@ export const handleReplyAction = async (
   statsModel: KVModel<number>,
   APP_SECURE_KEY: string
 ): Promise<void> => {
-  const ticketId = ctx.match[1];
-  const currentUserId = ctx.from?.id!;
+  const ticketId = ctx.match?.[1];
+  const currentUserId = ctx.from?.id;
+  const callbackMessageId = ctx.callbackQuery?.message?.message_id;
+
+  if (
+    !ticketId ||
+    currentUserId === undefined ||
+    callbackMessageId === undefined
+  ) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
 
   // Retrieve the conversation data
-  const conversationId = getConversationId(ticketId, APP_SECURE_KEY);
+  const conversationId = await getConversationId(ticketId, APP_SECURE_KEY);
   const conversationData = await conversationModel.get(conversationId);
 
   if (!conversationData) {
@@ -52,7 +62,7 @@ export const handleReplyAction = async (
     conversationData,
     APP_SECURE_KEY
   );
-  const parentConversation: Conversation = JSON.parse(rawConversation);
+  const parentConversation = JSON.parse(rawConversation) as Conversation;
 
   try {
     const otherUser = await userModel.get(
@@ -82,7 +92,7 @@ export const handleReplyAction = async (
 
     const conversation = {
       to: parentConversation.connection.from,
-      parent_message_id: ctx.callbackQuery?.message?.message_id!,
+      parent_message_id: callbackMessageId,
       reply_to_message_id: parentConversation.connection.parent_message_id,
     };
 
@@ -94,13 +104,13 @@ export const handleReplyAction = async (
     );
 
     // Increment the reply stat
-    incrementStat(statsModel, "newConversation");
+    await incrementStat(statsModel, "newConversation");
 
     await ctx.reply(REPLAY_TO_MESSAGE, {
       reply_markup: { force_reply: true },
-      reply_to_message_id: ctx.callbackQuery?.message?.message_id!,
+      reply_to_message_id: callbackMessageId,
     });
-  } catch (error) {
+  } catch {
     await ctx.reply(HuhMessage);
   } finally {
     await ctx.answerCallbackQuery();
@@ -125,11 +135,23 @@ export const handleBlockAction = async (
   statsModel: KVModel<number>,
   APP_SECURE_KEY: string
 ): Promise<void> => {
-  const ticketId = ctx.match[1];
-  const currentUserId = ctx.from?.id!;
+  const ticketId = ctx.match?.[1];
+  const currentUserId = ctx.from?.id;
+  const chatId = ctx.chat?.id;
+  const callbackMessageId = ctx.callbackQuery?.message?.message_id;
+
+  if (
+    !ticketId ||
+    currentUserId === undefined ||
+    chatId === undefined ||
+    callbackMessageId === undefined
+  ) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
 
   // Retrieve the conversation data
-  const conversationId = getConversationId(ticketId, APP_SECURE_KEY);
+  const conversationId = await getConversationId(ticketId, APP_SECURE_KEY);
   const conversationData = await conversationModel.get(conversationId);
 
   if (!conversationData) {
@@ -143,7 +165,7 @@ export const handleBlockAction = async (
     conversationData,
     APP_SECURE_KEY
   );
-  const parentConversation: Conversation = JSON.parse(rawConversation);
+  const parentConversation = JSON.parse(rawConversation) as Conversation;
 
   try {
     // Block the user
@@ -159,19 +181,15 @@ export const handleBlockAction = async (
 
     // Send confirmation to the user
     await ctx.api.sendMessage(currentUserId, USER_BLOCKED_MESSAGE, {
-      reply_to_message_id: ctx.callbackQuery?.message?.message_id!,
+      reply_to_message_id: callbackMessageId,
     });
 
     // Update the reply markup to reflect the block
     const replyKeyboard = createMessageKeyboard(ticketId, true);
-    await ctx.api.editMessageReplyMarkup(
-      ctx.chat?.id!,
-      ctx.callbackQuery?.message?.message_id!,
-      {
-        reply_markup: replyKeyboard,
-      }
-    );
-  } catch (error) {
+    await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
+      reply_markup: replyKeyboard,
+    });
+  } catch {
     await ctx.reply(HuhMessage);
   } finally {
     await ctx.answerCallbackQuery();
@@ -196,11 +214,23 @@ export const handleUnblockAction = async (
   statsModel: KVModel<number>,
   APP_SECURE_KEY: string
 ): Promise<void> => {
-  const ticketId = ctx.match[1];
-  const currentUserId = ctx.from?.id!;
+  const ticketId = ctx.match?.[1];
+  const currentUserId = ctx.from?.id;
+  const chatId = ctx.chat?.id;
+  const callbackMessageId = ctx.callbackQuery?.message?.message_id;
+
+  if (
+    !ticketId ||
+    currentUserId === undefined ||
+    chatId === undefined ||
+    callbackMessageId === undefined
+  ) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
 
   // Retrieve the conversation data
-  const conversationId = getConversationId(ticketId, APP_SECURE_KEY);
+  const conversationId = await getConversationId(ticketId, APP_SECURE_KEY);
   const conversationData = await conversationModel.get(conversationId);
 
   if (!conversationData) {
@@ -214,7 +244,7 @@ export const handleUnblockAction = async (
     conversationData,
     APP_SECURE_KEY
   );
-  const parentConversation: Conversation = JSON.parse(rawConversation);
+  const parentConversation = JSON.parse(rawConversation) as Conversation;
 
   try {
     const currentUser = await userModel.get(currentUserId.toString());
@@ -236,22 +266,18 @@ export const handleUnblockAction = async (
 
       // Send confirmation to the user
       await ctx.api.sendMessage(currentUserId, USER_UNBLOCKED_MESSAGE, {
-        reply_to_message_id: ctx.callbackQuery?.message?.message_id!,
+        reply_to_message_id: callbackMessageId,
       });
 
       // Update the reply markup to reflect the unblock
       const replyKeyboard = createMessageKeyboard(ticketId, false);
-      await ctx.api.editMessageReplyMarkup(
-        ctx.chat?.id!,
-        ctx.callbackQuery?.message?.message_id!,
-        {
-          reply_markup: replyKeyboard,
-        }
-      );
+      await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
+        reply_markup: replyKeyboard,
+      });
     } else {
       await ctx.reply(HuhMessage);
     }
-  } catch (error) {
+  } catch {
     await ctx.reply(HuhMessage);
   } finally {
     await ctx.answerCallbackQuery();

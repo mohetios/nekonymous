@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "tools/dev-telegram.sh",
+    "tools/verify-crypto.mjs",
+    "tools/telegram-webhook.mjs"
+  ],
+  "project": ["src/**/*.ts", "tools/**/*.{js,mjs}"],
+  "ignoreIssues": {
+    "src/bot/inboxDU.ts": ["unlisted"]
+  },
+  "ignoreDependencies": ["@cloudflare/workers-types"]
+}

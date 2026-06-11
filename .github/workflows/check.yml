@@ -1,12 +1,13 @@
-name: Deploy to Cloudflare Workers
+name: Check
 
 on:
   push:
     branches:
       - master
+  pull_request:
 
 jobs:
-  deploy:
+  check:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,10 +28,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Publish to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-        env:
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+      - name: Typecheck, lint, and unused-code scan
+        run: pnpm check

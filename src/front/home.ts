@@ -1,6 +1,17 @@
-import { Environment } from "../types";
+import type { Environment } from "../types";
 import { KVModel } from "../utils/kv-storage";
 import { getTotalStats } from "../utils/logs";
+
+interface GitHubCommitResponse {
+  sha: string;
+  html_url: string;
+  commit: {
+    message: string;
+    author: {
+      date: string;
+    };
+  };
+}
 
 export const HomePageContent = async (env: Environment) => {
   const statsModel = new KVModel<number>("stats", env.NekonymousKV);
@@ -28,7 +39,7 @@ export const HomePageContent = async (env: Environment) => {
   );
 
   if (commitInfo.ok) {
-    const commitData: any = await commitInfo.json();
+    const commitData: GitHubCommitResponse = await commitInfo.json();
     commitHash = commitData.sha.substring(0, 7); // Shortened commit hash
     commitDate = new Date(commitData.commit.author.date).toLocaleDateString();
     commitMessage = commitData.commit.message.split("\n")[0]; // Extract first line of commit message
@@ -88,5 +99,3 @@ export const HomePageContent = async (env: Environment) => {
     </div>
   `;
 };
-
-export default HomePageContent;

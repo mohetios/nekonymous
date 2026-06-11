@@ -36,7 +36,11 @@ export const convertToPersianNumbers = (input: string | number): string => {
  * @param lastMessage - The timestamp of the user's last message in milliseconds.
  * @returns {boolean} - Returns true if the user is within the rate limit, otherwise false.
  */
-export const checkRateLimit = (lastMessage: number): boolean => {
+export const checkRateLimit = (lastMessage?: number): boolean => {
+  if (lastMessage === undefined) {
+    return false;
+  }
+
   const currentTime = Date.now();
   const timeDifference = currentTime - lastMessage;
 

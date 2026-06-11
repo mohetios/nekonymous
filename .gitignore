@@ -170,6 +170,8 @@ dist
 
 .dev.vars
 
+tools/.bin/
+
 .wrangler
 wrangler.local.toml
 wrangler.toml

@@ -1,4 +1,4 @@
-import { KVModel } from "./kv-storage";
+import type { KVModel } from "./kv-storage";
 import { convertToPersianNumbers } from "./tools";
 
 /**

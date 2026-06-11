@@ -51,23 +51,9 @@ export const REPLAY_TO_MESSAGE = `
 پیام شما مستقیماً به فرستنده ارسال خواهد شد.
 `;
 
-export const MESSAGE_SEEN_MESSAGE = `
-پیام شما توسط گیرنده مشاهده شد.
-`;
-
-export const YOU_ARE_BLOCKED_MESSAGE = `
-شما توسط این کاربر بلاک شده‌اید و نمی‌توانید پیام ارسال کنید.
-لطفاً از ارسال پیام بیشتر خودداری کنید.
-`;
-
 export const USER_IS_BLOCKED_MESSAGE = `
 شما بلاک شده‌اید و نمی‌توانید با این کاربر ارتباط برقرار کنید.
 ارتباط شما با این کاربر محدود شده است.
-`;
-
-export const YOU_ARE_UNBLOCKED_MESSAGE = `
-شما از بلاک خارج شدید و اکنون می‌توانید پیام ارسال کنید.
-محدودیت‌های قبلی برداشته شده است.
 `;
 
 export const ABOUT_PRIVACY_COMMAND_MESSAGE = `

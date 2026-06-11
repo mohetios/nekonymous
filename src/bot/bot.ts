@@ -1,5 +1,7 @@
 import { Bot } from "grammy";
-import { Environment, User } from "../types";
+import type { Environment, User } from "../types";
+
+type BotConfig = NonNullable<ConstructorParameters<typeof Bot>[1]>;
 import { KVModel } from "../utils/kv-storage";
 import {
   handleBlockAction,
@@ -32,7 +34,7 @@ export const createBot = (env: Environment) => {
 
   // Initialize the bot with the provided API SECRET_TELEGRAM_API_TOKEN and bot information
   const bot = new Bot(SECRET_TELEGRAM_API_TOKEN, {
-    botInfo: JSON.parse(BOT_INFO),
+    botInfo: JSON.parse(BOT_INFO) as BotConfig["botInfo"],
   });
 
   // Initialize KV models for different data types

@@ -4,7 +4,7 @@
 export interface User {
   userName: string;
   userUUID: string;
-  blockList: number[];
+  blockList: string[];
   lastMessage?: number;
   currentConversation?: {
     to?: number;
@@ -12,6 +12,7 @@ export interface User {
     parent_message_id?: number;
   };
 }
+
 export interface InboxMessage {
   timestamp: number;
   ticketId: string;
@@ -45,7 +46,6 @@ export interface Conversation {
 /**
  * Interface representing the Environment variables used in the bot.
  */
-
 export interface Environment {
   SECRET_TELEGRAM_API_TOKEN: string;
   BOT_SECRET_KEY: string;
@@ -56,11 +56,8 @@ export interface Environment {
   INBOX_DO: DurableObjectNamespace;
 }
 
-/**
- * Handler
- */
 export type Handler = (
   request: Request,
-  env: Record<string, any>, // Updated to a more specific type
+  env: Environment,
   ctx: ExecutionContext
 ) => Response | Promise<Response>;

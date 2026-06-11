@@ -1,13 +1,11 @@
-import { DurableObjectNamespace } from "@cloudflare/workers-types"; // Ensure your environment is set up correctly
-import { Context } from "grammy";
-import { WebUUID } from "web-uuid";
-import { Conversation, InboxMessage, User } from "../types";
+import type { Context } from "grammy";
+import type { Conversation, Environment, InboxMessage, User } from "../types";
 import {
   createMessageKeyboard,
   handleMenuCommand,
   mainMenu,
 } from "../utils/constant";
-import { KVModel } from "../utils/kv-storage";
+import type { KVModel } from "../utils/kv-storage";
 import { incrementStat } from "../utils/logs";
 import {
   EMPTY_INBOX_MESSAGE,
@@ -30,6 +28,7 @@ import {
   getConversationId,
 } from "../utils/ticket";
 import { checkRateLimit, convertToPersianNumbers } from "../utils/tools";
+import { generateUserLinkId } from "../utils/uuid";
 
 /**
  * Handles the /start command to initiate or continue a user's interaction with the bot.
@@ -46,7 +45,11 @@ export const handleStartCommand = async (
   userUUIDtoId: KVModel<string>,
   statsModel: KVModel<number>
 ): Promise<void> => {
-  const currentUserId = ctx.from?.id!;
+  const from = ctx.from;
+  if (!from) {
+    return;
+  }
+  const currentUserId = from.id;
 
   if (!ctx.match) {
     try {
@@ -54,7 +57,7 @@ export const handleStartCommand = async (
       const currentUser = await userModel.get(currentUserId.toString());
 
       if (!currentUser) {
-        currentUserUUID = new WebUUID().toString();
+        currentUserUUID = generateUserLinkId();
         await userUUIDtoId.save(currentUserUUID, currentUserId.toString());
         await userModel.save(currentUserId.toString(), {
           userUUID: currentUserUUID,
@@ -88,7 +91,7 @@ export const handleStartCommand = async (
     let currentUser = await userModel.get(currentUserId.toString());
 
     if (!currentUser) {
-      const currentUserUUID = new WebUUID().toString();
+      const currentUserUUID = generateUserLinkId();
       await userUUIDtoId.save(currentUserUUID, currentUserId.toString());
       await userModel.save(currentUserId.toString(), {
         userUUID: currentUserUUID,
@@ -99,6 +102,11 @@ export const handleStartCommand = async (
       });
       await incrementStat(statsModel, "newUser");
       currentUser = await userModel.get(currentUserId.toString());
+    }
+
+    if (!currentUser) {
+      await ctx.reply(NoUserFoundMessage);
+      return;
     }
 
     // Check rate limit
@@ -122,7 +130,10 @@ export const handleStartCommand = async (
       }
 
       const newConversation = await ctx.reply(
-        StartConversationMessage.replace("USER_NAME", otherUser.userName!)
+        StartConversationMessage.replace(
+          "USER_NAME",
+          otherUser?.userName ?? "کاربر"
+        )
       );
       await userModel.updateField(
         currentUserId.toString(),
@@ -155,19 +166,23 @@ export const handleMessage = async (
   userModel: KVModel<User>,
   conversationModel: KVModel<string>,
   userUUIDtoId: KVModel<string>,
-  inboxNamespace: DurableObjectNamespace,
+  inboxNamespace: Environment["INBOX_DO"],
   statsModel: KVModel<number>,
   APP_SECURE_KEY: string
 ): Promise<void> => {
-  const currentUserId = ctx.from?.id!;
+  const from = ctx.from;
+  if (!from) {
+    return;
+  }
+  const currentUserId = from.id;
   let currentUser = await userModel.get(currentUserId.toString());
 
   if (!currentUser) {
-    const currentUserUUID = new WebUUID().toString();
+    const currentUserUUID = generateUserLinkId();
     await userUUIDtoId.save(currentUserUUID, currentUserId.toString());
     await userModel.save(currentUserId.toString(), {
       userUUID: currentUserUUID,
-      userName: ctx.from?.first_name ?? "بدون نام!",
+      userName: from.first_name ?? "بدون نام!",
       blockList: [],
       lastMessage: Date.now(),
       currentConversation: {},
@@ -189,7 +204,7 @@ export const handleMessage = async (
   }
 
   try {
-    const ticketId = generateTicketId(APP_SECURE_KEY);
+    const ticketId = await generateTicketId(APP_SECURE_KEY);
 
     const conversation: Conversation = {
       connection: {
@@ -242,7 +257,7 @@ export const handleMessage = async (
         conversation.payload.caption = ctx.message.caption;
     }
 
-    const conversationId = getConversationId(ticketId, APP_SECURE_KEY);
+    const conversationId = await getConversationId(ticketId, APP_SECURE_KEY);
     const conversationData = await encryptedPayload(
       ticketId,
       JSON.stringify(conversation),
@@ -289,7 +304,7 @@ export const handleMessage = async (
       Date.now()
     );
     await incrementStat(statsModel, "newConversation");
-  } catch (error) {
+  } catch {
     await ctx.reply(HuhMessage, {
       reply_markup: mainMenu,
     });
@@ -309,10 +324,14 @@ export const handleInboxCommand = async (
   ctx: Context,
   userModel: KVModel<User>,
   conversationModel: KVModel<string>,
-  inboxNamespace: DurableObjectNamespace,
+  inboxNamespace: Environment["INBOX_DO"],
   APP_SECURE_KEY: string
 ): Promise<void> => {
-  const currentUserId = ctx.from?.id!;
+  const from = ctx.from;
+  if (!from) {
+    return;
+  }
+  const currentUserId = from.id;
 
   try {
     // Fetch the Durable Object associated with this user's inbox
@@ -325,20 +344,23 @@ export const handleInboxCommand = async (
     if (inbox.length > 0) {
       for (const { ticketId } of inbox) {
         try {
-          const conversationId = getConversationId(ticketId, APP_SECURE_KEY);
+          const conversationId = await getConversationId(ticketId, APP_SECURE_KEY);
           const conversationData = await conversationModel.get(conversationId);
-          const decryptedMessage: Conversation = JSON.parse(
+          const decryptedMessage = JSON.parse(
             await decryptPayload(ticketId, conversationData!, APP_SECURE_KEY)
-          );
+          ) as Conversation;
 
           const otherUser = await userModel.get(
             decryptedMessage.connection.from.toString()
           );
-          const isBlocked = !!otherUser?.blockList.some(
-            (item: number) => item === currentUserId
+          const isBlocked = !!otherUser?.blockList.includes(
+            currentUserId.toString()
           );
 
-          const replyOptions: any = {
+          const replyOptions: {
+            reply_markup: ReturnType<typeof createMessageKeyboard>;
+            reply_to_message_id?: number;
+          } = {
             reply_markup: createMessageKeyboard(ticketId, isBlocked),
           };
 
