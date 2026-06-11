@@ -55,6 +55,7 @@ import {
   checkRateLimit,
   convertToPersianNumbers,
   escapeHtml,
+  replyHtml,
   withHtml,
 } from "../utils/tools";
 import { ensureUser } from "../utils/user";
@@ -200,7 +201,10 @@ export const handleMessage = async (
     return;
   }
 
-  const pendingNickname = currentUser.currentConversation?.pendingNickname;
+  const activeUser =
+    (await userModel.get(from.id.toString())) ?? currentUser;
+
+  const pendingNickname = activeUser.currentConversation?.pendingNickname;
   if (pendingNickname) {
     if (!message.text) {
       await ctx.reply(
@@ -210,7 +214,7 @@ export const handleMessage = async (
       return;
     }
 
-    if (checkRateLimit(currentUser.lastMessage)) {
+    if (checkRateLimit(activeUser.lastMessage)) {
       await ctx.reply(RATE_LIMIT_MESSAGE);
       return;
     }
@@ -244,13 +248,13 @@ export const handleMessage = async (
     return;
   }
 
-  const recipientId = currentUser.currentConversation?.to;
+  const recipientId = activeUser.currentConversation?.to;
   if (!recipientId) {
     await ctx.reply(HuhMessage, { reply_markup: mainMenu });
     return;
   }
 
-  if (checkRateLimit(currentUser.lastMessage)) {
+  if (checkRateLimit(activeUser.lastMessage)) {
     await ctx.reply(RATE_LIMIT_MESSAGE);
     return;
   }
@@ -264,11 +268,20 @@ export const handleMessage = async (
     return;
   }
 
-  if (recipient?.paused) {
+  const isThreadReply =
+    activeUser.currentConversation?.reply_to_message_id !== undefined;
+
+  if (recipient?.paused && !isThreadReply) {
+    const senderLabel = await getContactLabelForSender(
+      from.id,
+      Number(recipientId),
+      activeUser.contactLabels,
+      appSecureKey
+    );
     await ctx.reply(
       RECIPIENT_PAUSED_MESSAGE.replace(
         "USER_NAME",
-        escapeHtml(recipient.userName ?? "این کاربر")
+        escapeHtml(senderLabel ?? recipient.userName ?? "این کاربر")
       ),
       withHtml()
     );
@@ -285,7 +298,7 @@ export const handleMessage = async (
         from: from.id,
         to: Number(recipientId),
         parent_message_id: message.message_id,
-        reply_to_message_id: currentUser.currentConversation?.reply_to_message_id,
+        reply_to_message_id: activeUser.currentConversation?.reply_to_message_id,
       },
       payload: {},
     };
@@ -318,7 +331,7 @@ export const handleMessage = async (
 
     const pendingCount = addResult.pendingCount ?? 1;
 
-    await ctx.reply(MESSAGE_SENT_MESSAGE, {
+    await replyHtml(ctx, MESSAGE_SENT_MESSAGE, {
       reply_to_message_id: conversation.connection.parent_message_id,
     });
     await ctx.api.sendMessage(
