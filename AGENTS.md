@@ -67,8 +67,8 @@ Public brand: **Nekonymous** / **نِکونیموس** (`package.json` name: `nek
 - **Grammy** — Telegram bot framework (`grammy`)
 - **Cloudflare KV** — users, conversations, UUID mapping, stats
 - **Cloudflare Durable Objects** — per-user inbox queue (`InboxDurableObject`)
-- **Web Crypto API** — SHA-256 key derivation and AES-GCM encryption
-- **Web Crypto** — user link IDs via `crypto.getRandomValues` (`src/utils/uuid.ts`)
+- **Web Crypto API** — HKDF-SHA-256 key derivation and AES-256-GCM encryption
+- **Web Crypto** — user link IDs via `crypto.getRandomValues` (`src/utils/user.ts`)
 - **Tailwind CSS 2 (CDN)** — static HTML pages only
 - **Wrangler 4** — dev and deploy
 - **pnpm** — package manager (lockfile present; CI still uses `npm install`)
@@ -165,30 +165,30 @@ Encryption is ticket-based. Read `src/utils/ticket.ts` before changing storage o
 
 | Concept          | Role                                                        |
 |------------------|-------------------------------------------------------------|
-| `ticketId`       | Per-message private key (Base64), stored in DO inbox only |
-| `conversationId` | SHA-256 digest used as KV key (derived from ticket + `APP_SECURE_KEY`) |
-| `APP_SECURE_KEY` | Worker secret mixed into ticket key material                         |
+| `ticketId`       | 256-bit random opaque handle (base64url), stored in DO inbox only |
+| `conversationId` | HKDF-derived KV key (separate info label from AES key) |
+| `APP_SECURE_KEY` | HKDF input key material (IKM); keep ≥32 bytes of entropy |
 
 Flow:
 
-1. `await generateTicketId(APP_SECURE_KEY)` on send.
+1. `generateTicketId()` on send.
 2. `await getConversationId(ticketId, APP_SECURE_KEY)` → KV key.
 3. `await encryptedPayload(ticketId, json, APP_SECURE_KEY)` → stored in `conversation` KV namespace.
-4. Inbox DO stores `{ timestamp, ticketId }` only — not plaintext.
-5. On `/inbox`, decrypt via `decryptPayload`, send through `sendDecryptedMessage`, then clear `payload` in KV while keeping `connection` metadata.
+4. Inbox DO stores `{ ref, ticketId, conversationId, ciphertext }` until delivery — not plaintext in Telegram APIs.
+5. On `/inbox`, decrypt from DO ciphertext, send through `sendDecryptedMessage`, clear `payload` in KV, mark entry `delivered` in DO (keep `ref` for callbacks).
 
-Derivation (all via `crypto.subtle` / `crypto.getRandomValues` in `src/utils/ticket.ts`):
+Derivation (Web Crypto in `src/utils/ticket.ts`):
 
-- Ticket: `SHA-256(random32 || APP_SECURE_KEY)` → Base64 ticket ID.
-- Key material: `SHA-256(ticketBytes || APP_SECURE_KEY)` → 32-byte AES-256 key.
-- Conversation ID: `SHA-256(keyMaterial || "nekonymous:conversation")` → Base64 KV key.
+- Ticket: `crypto.getRandomValues(32)` → base64url (no secret mixed in).
+- AES key: `HKDF-SHA-256` with IKM=`APP_SECURE_KEY`, salt=ticket bytes, info=`nekonymous:aes:v1`.
+- Conversation ID: same HKDF inputs, info=`nekonymous:conversation:v1` → 256 bits as base64url KV key.
+- Ciphertext wire format: `{iv_base64url}.{ciphertext_base64url}` (12-byte random IV per message).
 
 Rules:
 
 - Never log `ticketId`, `APP_SECURE_KEY`, decrypted payloads, or Telegram tokens.
 - Never store plaintext message bodies in KV or DO storage.
 - Use Web Crypto only — no Node `crypto`, no third-party crypto libraries.
-- Do not replace the ticket model with ad-hoc encryption without an explicit migration plan.
 - `blockList` stores Telegram user IDs as strings/numbers — match existing comparisons in `commands.ts` / `actions.ts`.
 
 ## KV Rules
@@ -200,18 +200,21 @@ Current namespaces (constructed in `bot.ts`):
 | Namespace      | Value type        | Purpose                              |
 |----------------|-------------------|--------------------------------------|
 | `user`         | `User`            | profile, block list, conversation state |
-| `conversation` | encrypted string  | encrypted `Conversation` JSON        |
+| `conversation` | opaque ciphertext | AES blob via `saveText` / `getText`  |
 | `userUUIDtoId` | Telegram user id  | UUID → user id lookup                |
 | `stats`        | number            | daily counters (`key:YYYY-MM-DD`)    |
 
 Prefer:
 
-- `get` / `save` / `updateField` / `popItemFromField` on `KVModel`
+- `save` / `get` — JSON records (`User`, stats, UUID map); uses Workers `get(key, "json")`
+- `saveText` / `getText` — opaque strings (conversation ciphertext); never `JSON.parse` blobs
+- `updateField` / `popItemFromField` on JSON records only
 - namespaced keys via the model — not raw `kv.put` scattered in new code
 - bounded `list()` usage with explicit prefixes (see `logs.ts`)
 
 Avoid:
 
+- `save()` / `get()` on ciphertext (double JSON encoding breaks decrypt)
 - loading all users or conversations without prefix/limit
 - storing decrypted message text in KV
 - new parallel KV access patterns when `KVModel` already fits
@@ -224,11 +227,13 @@ KV is eventually consistent. Do not use it for inbox ordering truth — the Dura
 
 Internal routes (via stub `fetch`):
 
-| Method | Path        | Behavior                          |
-|--------|-------------|-----------------------------------|
-| POST   | `/add`      | append `{ timestamp, ticketId }`  |
-| GET    | `/counter`  | return inbox array (used for count notification) |
-| GET    | `/retrieve` | return inbox and delete storage |
+| Method | Path               | Behavior                                      |
+|--------|--------------------|-----------------------------------------------|
+| POST   | `/add`             | append pending entry with ciphertext copy     |
+| POST   | `/mark-delivered`  | flag delivered, drop ciphertext, keep `ref`   |
+| GET    | `/list`            | pending (undelivered) entries only            |
+| GET    | `/entry?ref=`      | lookup one entry for reply/block callbacks    |
+| DELETE | `/purge`           | wipe inbox (ops cleanup)                      |
 
 Prefer:
 
@@ -239,7 +244,7 @@ Prefer:
 Avoid:
 
 - moving user profiles or encrypted conversations into DO storage without a deliberate redesign
-- unbounded inbox growth without a product decision — `/retrieve` currently drains the full inbox
+- unbounded inbox growth — cap is 50 pending entries per DO
 
 ## Cloudflare Worker Performance Rules
 
@@ -357,7 +362,7 @@ Validate at the boundary:
 
 - Telegram update context (`ctx.from`, `ctx.match`, message payload type)
 - deep-link UUID on `/start`
-- callback query ticket IDs (`reply_`, `block_`, `unblock_` prefixes)
+- callback query inbox refs (`rpl:`, `blk:`, `ubl:` + 8 hex chars)
 - HTTP route params sanitized by `router.ts`
 
 Prefer small explicit checks in the handler. Do not add a validation framework.
@@ -429,9 +434,8 @@ Only run when explicitly requested or clearly required:
 
 ```bash
 pnpm dev
-pnpm dev:telegram
 pnpm deploy
-pnpm clean:kv
+pnpm cleanup
 wrangler deploy
 wrangler kv:*
 ```
