@@ -1,5 +1,5 @@
 /**
- * Wipe stale conversation KV + all inbox DO queues via the worker admin route.
+ * Full reset: purge all inbox DOs + delete all KV (user, conversation, UUID map, stats).
  * Run: WORKER_URL=https://nekonymous.mohet.ir BOT_SECRET_KEY=... pnpm cleanup
  */
 

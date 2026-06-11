@@ -77,59 +77,18 @@ Revert `getTotalStats` / `incrementStat` in `src/utils/logs.ts`; daily keys rema
 
 ---
 
-### Phase 2 — Inbox DO: JSON array → SQLite rows (medium risk, scale-triggered)
+### Phase 2 — Inbox DO: SQLite rows — **shipped**
 
-**Problem today**
+**Implemented in** `src/bot/inboxDU.ts` + `wrangler.jsonc.example`:
 
-`InboxDurableObject` stores the full inbox as one JSON array under key `"inbox"`. Every `/add`, `/list`, `/mark-delivered`, and `/entry` reads and rewrites the entire array — O(n) with n ≤ 50 plus delivered refs kept for callbacks.
+- SQLite-backed `InboxSqliteDurableObject` (`new_sqlite_classes` migration tag `v3-inbox-sqlite` or equivalent).
+- Table `inbox_entries` with indexed pending lookups; O(1) row ops instead of full JSON array rewrite.
+- External routes unchanged: `/add`, `/list`, `/entry`, `/mark-delivered`, `/purge`.
+- `/purge` runs `DELETE FROM inbox_entries` then `storage.deleteAll()`.
 
-**When to do it**
+**Deploy note:** No legacy KV-array import. Existing KV-backed inbox data is **not** carried over — add the SQLite migration tag and accept empty inboxes until new traffic, or run ops cleanup first.
 
-- p95 DO latency climbs with inbox depth, or
-- Product needs inbox cap **above 50**, or
-- CPU profile shows array serialize/deserialize as hot in DO.
-
-**When not to**
-
-Current cap of 50 and Tier 1 optimizations are sufficient for typical anonymous messaging load.
-
-**Target schema**
-
-```sql
-CREATE TABLE inbox_entries (
-  ref TEXT PRIMARY KEY,
-  ticket_id TEXT NOT NULL,
-  conversation_id TEXT NOT NULL,
-  ciphertext TEXT,
-  delivered INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL
-);
-
-CREATE INDEX idx_inbox_pending ON inbox_entries(delivered) WHERE delivered = 0;
-```
-
-**Migration mechanics**
-
-1. Configure SQLite-backed DO class in Wrangler (`new_sqlite_classes` / migration tag per current Wrangler docs).
-2. Run schema creation in DO constructor inside `ctx.blockConcurrencyWhile()`.
-3. Track version in `_sql_schema_migrations` (not `PRAGMA user_version`).
-4. **Keep external HTTP routes unchanged:** `/add`, `/list`, `/entry`, `/mark-delivered`, `/purge`.
-
-**Dual-read period**
-
-- On first access: if SQL empty but legacy `"inbox"` array exists → import into SQL, then serve.
-- Optional one-release mirror: write SQL + legacy array behind feature flag.
-- Admin-only diff route to compare `/list` output (staging only).
-
-**Files likely touched**
-
-- `src/bot/inboxDU.ts`
-- `wrangler.toml` / `wrangler.jsonc` (local, gitignored — document binding change in this file and `.env.example` if needed)
-- `src/utils/inbox.ts` (only if response shapes change — prefer no change)
-
-**Rollback**
-
-Feature flag reads legacy `"inbox"` array; SQL data retained but ignored until fix-forward.
+**Rollback:** Revert `inboxDU.ts` and Wrangler migration; redeploy previous Worker version.
 
 ---
 
@@ -241,16 +200,10 @@ These must remain true across all migrations:
 
 **Design**
 
-- [ ] Wrangler SQLite DO class configured
-- [ ] `_sql_schema_migrations` table + version 1 schema applied in constructor
-- [ ] External routes unchanged (`/add`, `/list`, `/entry`, `/mark-delivered`, `/purge`)
-- [ ] Legacy array import on first read documented and tested
-
-**Dual-read / dual-write**
-
-- [ ] Import legacy `"inbox"` → SQL when SQL empty
-- [ ] Optional mirror writes behind flag for one release
-- [ ] Staging diff: SQL list vs legacy list for sample user
+- [x] Wrangler SQLite DO class configured (`InboxSqliteDurableObject`)
+- [x] `_sql_schema_migrations` table + version 1 schema applied in constructor
+- [x] External routes unchanged (`/add`, `/list`, `/entry`, `/mark-delivered`, `/purge`)
+- [x] No legacy KV-array import (fresh SQLite inboxes; ops cleanup for reset)
 
 **Test matrix (must pass)**
 
@@ -262,18 +215,17 @@ These must remain true across all migrations:
 - [ ] Reply (`rpl:`) on **delivered** message
 - [ ] Block / unblock on delivered message
 - [ ] Nickname (`nnk:`) on delivered message
-- [ ] Account delete → `/purge` clears SQL and legacy key
+- [ ] Account delete → `/purge` clears SQL inbox
 - [ ] Two rapid sends → both queued, order preserved
 
 **Deploy**
 
 - [ ] Deploy during low traffic
 - [ ] Monitor DO errors 24–48 h
-- [ ] Remove legacy array writes after 1–2 weeks stable
 
 **Rollback**
 
-- [ ] Flag: read legacy `"inbox"` array only
+- [ ] Revert `inboxDU.ts` and Wrangler migration; redeploy previous Worker version
 
 ---
 
@@ -282,7 +234,7 @@ These must remain true across all migrations:
 **Pre-conditions**
 
 - [ ] Phase 0 metrics justify effort (document threshold)
-- [ ] Phase 2 stable **or** consciously skipped with accepted array limits
+- [ ] Phase 2 stable **or** consciously skipped
 - [ ] Authority model (KV vs DO) chosen and written in this doc’s appendix
 
 **Implementation**
@@ -324,7 +276,7 @@ Today ──► Phase 0 (metrics) ──► optional Phase 1 (stats)
 
 - `AGENTS.md` — agent rules, crypto flow, KV/DO contracts (update when a phase ships)
 - `src/utils/ticket.ts` — encryption implementation
-- `src/bot/inboxDU.ts` — current inbox Durable Object
+- `src/bot/inboxDU.ts` — `InboxSqliteDurableObject`
 - `tools/verify-crypto.ts` — crypto smoke tests (`pnpm test:crypto`)
 
 ---

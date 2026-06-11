@@ -36,8 +36,10 @@ import {
   withHtml,
 } from "../utils/tools";
 import {
+  buildUserDeepLink,
   deleteUserAccount,
   ensureUser,
+  publicDisplayName,
   sanitizeDisplayName,
 } from "../utils/user";
 
@@ -48,12 +50,12 @@ export type SettingsDeps = {
   inbox: Environment["INBOX_DO"];
 };
 
-const botLink = (userUUID: string): string =>
-  `https://t.me/nekonymous_bot?start=${userUUID}`;
-
 const formatSettingsHome = (user: User): string => {
   const paused = !!user.paused;
-  return SETTINGS_HOME_MESSAGE.replace("USER_NAME", escapeHtml(user.userName))
+  return SETTINGS_HOME_MESSAGE.replace(
+    "USER_NAME",
+    escapeHtml(publicDisplayName(user, "تنظیم نشده"))
+  )
     .replace("PAUSE_STATUS", paused ? "غیرفعال" : "فعال")
     .replace(
       "PAUSE_ACTION_LABEL",
@@ -318,7 +320,7 @@ export const handleSettingsMenu = async (
         await ctx.reply(
           SETTINGS_CLEAR_DATA_DONE_MESSAGE.replace(
             "UUID_USER_URL",
-            botLink(freshUser.userUUID)
+            buildUserDeepLink(freshUser.userUUID)
           ),
           withHtml({ reply_markup: mainMenu })
         );

@@ -51,7 +51,7 @@ flowchart TB
 | `GET` | `/` | Landing page and aggregate stats |
 | `GET` | `/about` | About and privacy copy |
 | `POST` | `/bot` | Telegram webhook (`BOT_SECRET_KEY` header) |
-| `POST` | `/admin/cleanup` | Ops: wipe stale conversation KV + inbox DOs (`Authorization: Bearer BOT_SECRET_KEY`) |
+| `POST` | `/admin/cleanup` | Ops: purge all inbox DOs + wipe KV (`user`, `conversation`, `userUUIDtoId`, `stats`) — `Authorization: Bearer BOT_SECRET_KEY` |
 
 ### Storage layout
 
@@ -60,11 +60,11 @@ flowchart TB
 | `user:{telegramId}` | `user:123456` | Name, link UUID, block list, contact labels, draft conversation |
 | `userUUIDtoId:{uuid}` | `userUUIDtoId:abc…` | Shareable link token → Telegram user ID |
 | `conversation:{id}` | `conversation:xY…` | Encrypted JSON (connection + payload or metadata-only after read) |
-| `stats:*` | `stats:newUser:2026-06-11` | Daily counters for the home page |
+| `stats:*` | `stats:newUser:2026-06-11`, `stats:total:newUser` | Daily counters + running totals for the home page |
 
 | Durable Object | One per | Contents |
 |----------------|---------|----------|
-| `InboxDurableObject` | recipient Telegram ID | `{ ref, ticketId, conversationId, ciphertext?, delivered? }[]` |
+| `InboxSqliteDurableObject` | recipient Telegram ID | SQLite table `inbox_entries` (per-message rows; cap 50) |
 
 **Anonymity:** Recipients do not see sender usernames in Telegram. The operator can map UUIDs to Telegram IDs and decrypt bodies with `APP_SECURE_KEY` — this is a hosted relay, not E2E encryption.
 
@@ -82,9 +82,9 @@ Each anonymous message uses a fresh random **ticket** (256-bit, base64url):
 
 #### Send message
 
-1. Sender writes after opening a `/start {uuid}` link.
-2. Bot encrypts conversation JSON → saves to KV → enqueues in recipient's inbox DO (with ciphertext copy).
-3. Sender gets confirmation; recipient gets an inbox count notification.
+1. Sender opens a `/start {uuid}` deep link (22-char base64url token).
+2. Bot encrypts conversation JSON via `encryptConversationPayload` → saves to KV → enqueues in recipient's inbox DO (with ciphertext copy).
+3. Sender gets confirmation; recipient gets an inbox count notification (`pendingCount` from DO `/add`).
 
 #### Read inbox (`/inbox`)
 
@@ -107,27 +107,35 @@ Nicknames are per recipient and per anonymous sender. The same person can have d
 
 ```
 src/
-├── index.ts              Worker entry, routes, DO export
+├── index.ts              Worker entry, routes, DO export, deferred stats wiring
 ├── types.ts              User, Conversation, Environment
-├── admin/cleanup.ts      Stale data wipe endpoint
+├── admin/cleanup.ts      Full KV + inbox purge endpoint
 ├── bot/
-│   ├── bot.ts            Grammy wiring
+│   ├── bot.ts            Grammy wiring, bot instance cache
 │   ├── commands.ts       /start, /inbox, outbound messages
 │   ├── actions.ts        Inline reply / block / unblock / nickname
-│   └── inboxDU.ts        Per-user inbox (Durable Object)
+│   ├── settings.ts       /settings, display name, pause, account delete
+│   └── inboxDU.ts        InboxSqliteDurableObject (SQLite inbox)
 ├── front/                Public HTML
 └── utils/
-    ├── ticket.ts         HKDF + AES-GCM, sender alias derivation
+    ├── ticket.ts         HKDF + AES-GCM, encryptConversationPayload
     ├── contact.ts        Nickname sanitize, lookup, save
     ├── inbox.ts          Inbox DO client + decrypt helpers
     ├── kv-storage.ts     KVModel wrapper
-    ├── user.ts           ensureUser()
-    ├── payload.ts        Telegram message → conversation payload
+    ├── user.ts           ensureUser, deep links, display-name guards
+    ├── payload.ts        Conversation JSON parse
+    ├── worker.ts         scheduleWork / waitUntil for stats
+    ├── logs.ts           Daily + running homepage stats
     ├── sender.ts         Deliver decrypted media to Telegram
     ├── telegram-limits.ts  Callback size, text/caption truncation
-    ├── messages.ts       Persian copy
-    ├── constant.ts       Keyboards
-    └── tools.ts          Rate limit, Markdown escaping
+    ├── messages.ts       Persian bot copy
+    ├── messages-settings.ts  Settings menu copy
+    ├── constant.ts       Keyboards, reserved display-name checks
+    └── tools.ts          Rate limit, HTML helpers, Persian digits
+
+tools/
+├── cleanup.mjs           Ops CLI → POST /admin/cleanup
+└── verify-crypto.ts      Crypto smoke tests (pnpm test:crypto)
 ```
 
 ### Operational limits
@@ -137,15 +145,18 @@ src/
 - **Inbox cap** — 50 pending messages per recipient DO.
 - **Callbacks** — Only `connection.to` may reply, block, or set a nickname using a ticket ref.
 - **Contact labels** — Up to 200 nicknames per user; opaque alias keys (HKDF), plain label text on the recipient profile only.
+- **Display names** — Menu button labels (e.g. plain «تنظیمات») cannot be saved as a public name; senders see a safe fallback («کاربر») when the owner has no valid name.
+- **Pause inbox** — Recipients can stop **new** link messages via settings; thread replies from an existing conversation still work.
 
 ---
 
 ## How It Works (user view)
 
-1. **Get your link** — `/start` returns your personal `t.me/...?start=…` URL.
+1. **Get your link** — `/start` or **🔗 دریافت لینک** returns your personal `t.me/...?start=…` URL.
 2. **Receive anonymously** — Others open your link and send; you read via `/inbox`.
-3. **Reply, block, or label** — Use **پاسخ** / **بلاک** / **نام مستعار** on each delivered message. Nicknames appear on future messages from that sender (e.g. `📩 از علی:`) and in the reply prompt; only you see them.
-4. **Protection** — Rate limits, self-message blocking, and per-sender block lists.
+3. **Reply, block, or label** — Use **پاسخ** / **بلاک** / **🏷️ نام مستعار** on each delivered message. Nicknames appear on future messages from that sender (e.g. `📩 از علی:`) and in the reply prompt; only you see them.
+4. **Settings** — `/settings` or **⚙️ تنظیمات**: edit display name, pause/resume receiving, clear block list, or delete account and get a fresh link.
+5. **Protection** — Rate limits, self-message blocking, and per-sender block lists.
 
 ---
 
@@ -156,7 +167,7 @@ src/
 - **Node.js** 22+
 - **pnpm** 9+
 - **Cloudflare account** (Workers, KV, Durable Objects)
-- **`wrangler.toml`** in the project root (gitignored locally)
+- **`wrangler.toml`** or **`wrangler.jsonc`** in the project root (gitignored locally; copy from `wrangler.jsonc.example`)
 
 ### Install
 
@@ -175,6 +186,12 @@ Copy `.env.example` to `.dev.vars` and fill in:
 - `BOT_NAME` — shown on public pages
 
 Set the same values as Wrangler secrets for production (`wrangler secret put …`).
+
+### Wrangler / Durable Objects
+
+Copy `wrangler.jsonc.example` to `wrangler.jsonc` (or merge into your `wrangler.toml`) and set your KV namespace id.
+
+The inbox uses a **SQLite-backed** `InboxSqliteDurableObject`. New projects: `new_sqlite_classes` in migrations. Existing KV `InboxDurableObject` deployments need `deleted_classes` + `new_sqlite_classes` (see `wrangler.toml`).
 
 ### Local worker
 
@@ -200,13 +217,15 @@ pnpm deploy
 
 Pushes to `master` also deploy via GitHub Actions (`CF_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_ZONE_ID`).
 
-### Stale data cleanup
+### Ops cleanup (full reset)
 
 ```bash
 WORKER_URL=https://your-worker.example.com BOT_SECRET_KEY=... pnpm cleanup
 ```
 
-Calls `POST /admin/cleanup` to delete all `conversation:*` KV keys and purge inbox Durable Objects for known users.
+Calls `POST /admin/cleanup`: purges every inbox Durable Object for known users, then deletes all KV under `conversation:`, `user:`, `userUUIDtoId:`, and `stats:`. **Destructive** — users must `/start` again and share new links.
+
+See [docs/migration-plan.md](docs/migration-plan.md) for optional storage evolution (stats totals, SQLite inbox — both shipped).
 
 ---
 

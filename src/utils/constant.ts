@@ -7,6 +7,7 @@ import {
 } from "./messages";
 import { assertCallbackData } from "./telegram-limits";
 import { withHtml } from "./tools";
+import { buildUserDeepLink } from "./user";
 
 export const MENU = {
   about: "🛡️ درباره و حریم خصوصی",
@@ -34,6 +35,29 @@ const INBOX_BUTTON = {
 const MENU_LABELS = new Set<string>(Object.values(MENU));
 
 export const isMenuLabel = (text: string): boolean => MENU_LABELS.has(text);
+
+/** Strip emoji/symbols so "تنظیمات" matches "⚙️ تنظیمات". */
+const plainMenuLabel = (text: string): string =>
+  text.replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, "").trim();
+
+export const isReservedDisplayName = (text: string): boolean => {
+  if (isMenuLabel(text)) {
+    return true;
+  }
+
+  const plain = plainMenuLabel(text);
+  if (!plain) {
+    return false;
+  }
+
+  for (const label of MENU_LABELS) {
+    if (plainMenuLabel(label) === plain) {
+      return true;
+    }
+  }
+
+  return false;
+};
 
 const INBOX_CALLBACK = {
   reply: (ref: string) => `rpl:${ref}`,
@@ -98,7 +122,7 @@ export const handleMenuCommand = async (
     case MENU.link: {
       const linkText = USER_LINK_MESSAGE.replace(
         "UUID_USER_URL",
-        `https://t.me/nekonymous_bot?start=${user.userUUID}`
+        buildUserDeepLink(user.userUUID)
       );
       await ctx.reply(
         user.paused ? `${OWNER_PAUSED_NOTE}\n\n${linkText}` : linkText,

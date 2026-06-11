@@ -171,10 +171,6 @@ const parseCiphertext = (
   return { iv, ciphertext };
 };
 
-/**
- * Encrypts a conversation payload with AES-256-GCM (random 12-byte IV per call).
- * Wire format: `{iv_base64url}.{ciphertext_base64url}`
- */
 /** Re-encrypts a payload when only ciphertext is needed (e.g. clearing KV after delivery). */
 export const encryptedPayload = async (
   ticketId: string,

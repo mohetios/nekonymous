@@ -4,10 +4,62 @@ import { generateInboxRef } from "../utils/inbox";
 
 const INBOX_MAX_MESSAGES = 50;
 
-const isValidEntry = (entry: InboxMessage): boolean =>
-  !!entry.ref && !!entry.ticketId && !!entry.conversationId;
+type InboxRow = {
+  ref: string;
+  ticket_id: string;
+  conversation_id: string;
+  ciphertext: string | null;
+  delivered: number;
+};
 
-export class InboxDurableObject extends DurableObject<Environment> {
+const rowToMessage = (row: InboxRow): InboxMessage => ({
+  ref: row.ref,
+  ticketId: row.ticket_id,
+  conversationId: row.conversation_id,
+  ...(row.ciphertext ? { ciphertext: row.ciphertext } : {}),
+  ...(row.delivered ? { delivered: true } : {}),
+});
+
+export class InboxSqliteDurableObject extends DurableObject<Environment> {
+  constructor(ctx: DurableObjectState, env: Environment) {
+    super(ctx, env);
+    void ctx.blockConcurrencyWhile(() => {
+      this.ensureSchema();
+      return Promise.resolve();
+    });
+  }
+
+  private ensureSchema(): void {
+    this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS _sql_schema_migrations (
+        id INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    const version = this.ctx.storage.sql
+      .exec<{ version: number }>(
+        "SELECT COALESCE(MAX(id), 0) AS version FROM _sql_schema_migrations"
+      )
+      .one().version;
+
+    if (version < 1) {
+      this.ctx.storage.sql.exec(`
+        CREATE TABLE IF NOT EXISTS inbox_entries (
+          ref TEXT PRIMARY KEY,
+          ticket_id TEXT NOT NULL,
+          conversation_id TEXT NOT NULL,
+          ciphertext TEXT,
+          delivered INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_inbox_pending
+          ON inbox_entries(delivered) WHERE delivered = 0;
+        INSERT INTO _sql_schema_migrations (id) VALUES (1);
+      `);
+    }
+  }
+
   async fetch(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
 
@@ -24,23 +76,10 @@ export class InboxDurableObject extends DurableObject<Environment> {
       return this.getEntry(request);
     }
     if (request.method === "DELETE" && pathname === "/purge") {
-      await this.ctx.storage.delete("inbox");
-      return new Response("Inbox purged", { status: 200 });
+      return this.purgeInbox();
     }
 
     return new Response("Not Found", { status: 404 });
-  }
-
-  private async readInbox(): Promise<InboxMessage[]> {
-    return (await this.ctx.storage.get<InboxMessage[]>("inbox")) ?? [];
-  }
-
-  private async writeInbox(inbox: InboxMessage[]): Promise<void> {
-    if (inbox.length === 0) {
-      await this.ctx.storage.delete("inbox");
-      return;
-    }
-    await this.ctx.storage.put("inbox", inbox);
   }
 
   private async addMessage(request: Request): Promise<Response> {
@@ -51,40 +90,67 @@ export class InboxDurableObject extends DurableObject<Environment> {
       return new Response("Missing fields", { status: 400 });
     }
 
-    const inbox = (await this.readInbox()).filter(isValidEntry);
-    if (inbox.length >= INBOX_MAX_MESSAGES) {
+    const total = this.ctx.storage.sql
+      .exec<{ count: number }>("SELECT COUNT(*) AS count FROM inbox_entries")
+      .one().count;
+
+    if (total >= INBOX_MAX_MESSAGES) {
       return new Response("Inbox full", { status: 429 });
     }
 
-    inbox.push({
-      ref: generateInboxRef(),
+    const ref = generateInboxRef();
+
+    this.ctx.storage.sql.exec(
+      `INSERT INTO inbox_entries (ref, ticket_id, conversation_id, ciphertext, delivered, created_at)
+       VALUES (?, ?, ?, ?, 0, ?)`,
+      ref,
       ticketId,
       conversationId,
       ciphertext,
-    });
+      Date.now()
+    );
 
-    await this.writeInbox(inbox);
-    const pendingCount = inbox.filter((entry) => !entry.delivered).length;
+    const pendingCount = this.ctx.storage.sql
+      .exec<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM inbox_entries WHERE delivered = 0"
+      )
+      .one().count;
+
     return Response.json({ pendingCount });
   }
 
-  private async listInbox(): Promise<Response> {
-    const raw = await this.readInbox();
-    const inbox = raw.filter(isValidEntry);
-    if (inbox.length !== raw.length) {
-      await this.writeInbox(inbox);
-    }
-    return Response.json(inbox.filter((entry) => !entry.delivered));
+  private listInbox(): Response {
+    const rows = this.ctx.storage.sql
+      .exec<InboxRow>(
+        `SELECT ref, ticket_id, conversation_id, ciphertext, delivered
+         FROM inbox_entries
+         WHERE delivered = 0 AND ciphertext IS NOT NULL
+         ORDER BY created_at ASC`
+      )
+      .toArray();
+
+    return Response.json(rows.map(rowToMessage));
   }
 
-  private async getEntry(request: Request): Promise<Response> {
+  private getEntry(request: Request): Response {
     const ref = new URL(request.url).searchParams.get("ref");
     if (!ref) {
       return new Response("Missing ref", { status: 400 });
     }
 
-    const entry = (await this.readInbox()).find((item) => item.ref === ref);
-    return entry ? Response.json(entry) : new Response("Not found", { status: 404 });
+    const rows = this.ctx.storage.sql
+      .exec<InboxRow>(
+        `SELECT ref, ticket_id, conversation_id, ciphertext, delivered
+         FROM inbox_entries WHERE ref = ?`,
+        ref
+      )
+      .toArray();
+
+    if (rows.length === 0) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    return Response.json(rowToMessage(rows[0]));
   }
 
   private async markDelivered(request: Request): Promise<Response> {
@@ -93,20 +159,25 @@ export class InboxDurableObject extends DurableObject<Environment> {
       return new Response("Missing ref", { status: 400 });
     }
 
-    const inbox = await this.readInbox();
-    const index = inbox.findIndex((entry) => entry.ref === ref);
-    if (index === -1) {
+    const rows = this.ctx.storage.sql
+      .exec<{ ref: string }>("SELECT ref FROM inbox_entries WHERE ref = ?", ref)
+      .toArray();
+
+    if (rows.length === 0) {
       return new Response("Not found", { status: 404 });
     }
 
-    inbox[index] = {
-      ref: inbox[index].ref,
-      ticketId: inbox[index].ticketId,
-      conversationId: inbox[index].conversationId,
-      delivered: true,
-    };
+    this.ctx.storage.sql.exec(
+      "UPDATE inbox_entries SET ciphertext = NULL, delivered = 1 WHERE ref = ?",
+      ref
+    );
 
-    await this.writeInbox(inbox);
     return new Response("OK", { status: 200 });
+  }
+
+  private async purgeInbox(): Promise<Response> {
+    this.ctx.storage.sql.exec("DELETE FROM inbox_entries");
+    await this.ctx.storage.deleteAll();
+    return new Response("Inbox purged", { status: 200 });
   }
 }

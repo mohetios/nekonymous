@@ -1,5 +1,12 @@
 import type { Environment } from "../types";
 
+const KV_PREFIXES = [
+  "conversation:",
+  "user:",
+  "userUUIDtoId:",
+  "stats:",
+] as const;
+
 const listKeys = async (kv: KVNamespace, prefix: string): Promise<string[]> => {
   const names: string[] = [];
   let cursor: string | undefined;
@@ -26,11 +33,6 @@ export const handleAdminCleanup = async (
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const conversationKeys = await listKeys(env.NekonymousKV, "conversation:");
-  await Promise.all(
-    conversationKeys.map((name) => env.NekonymousKV.delete(name))
-  );
-
   const userKeys = await listKeys(env.NekonymousKV, "user:");
   let inboxesPurged = 0;
 
@@ -47,8 +49,21 @@ export const handleAdminCleanup = async (
     }
   }
 
+  const deletedByPrefix: Record<string, number> = {};
+  let keysDeleted = 0;
+
+  for (const prefix of KV_PREFIXES) {
+    const keys = await listKeys(env.NekonymousKV, prefix);
+    if (keys.length > 0) {
+      await Promise.all(keys.map((name) => env.NekonymousKV.delete(name)));
+    }
+    deletedByPrefix[prefix] = keys.length;
+    keysDeleted += keys.length;
+  }
+
   return Response.json({
-    conversationsDeleted: conversationKeys.length,
     inboxesPurged,
+    keysDeleted,
+    deletedByPrefix,
   });
 };

@@ -66,7 +66,7 @@ Public brand: **Nekonymous** / **نِکونیموس** (`package.json` name: `nek
 - **Cloudflare Workers** — single Worker entry (`src/index.ts`)
 - **Grammy** — Telegram bot framework (`grammy`)
 - **Cloudflare KV** — users, conversations, UUID mapping, stats
-- **Cloudflare Durable Objects** — per-user inbox queue (`InboxDurableObject`)
+- **Cloudflare Durable Objects** — per-user inbox queue (`InboxSqliteDurableObject`, SQLite-backed)
 - **Web Crypto API** — HKDF-SHA-256 key derivation and AES-256-GCM encryption
 - **Web Crypto** — user link IDs via `crypto.getRandomValues` (`src/utils/user.ts`)
 - **Tailwind CSS 2 (CDN)** — static HTML pages only
@@ -84,8 +84,9 @@ src/
 ├── bot/
 │   ├── bot.ts         # createBot(), Grammy wiring
 │   ├── commands.ts    # /start, /inbox, message routing
-│   ├── actions.ts     # inline keyboard: reply, block, unblock
-│   └── inboxDU.ts     # InboxDurableObject
+│   ├── actions.ts     # inline keyboard: reply, block, unblock, nickname
+│   ├── settings.ts    # /settings, display name, pause, account delete
+│   └── inboxDU.ts     # InboxSqliteDurableObject
 ├── front/
 │   ├── layout.ts      # shared HTML shell (RTL, Persian)
 │   ├── home.ts        # / landing page + public stats
@@ -96,12 +97,21 @@ src/
     ├── ticket.ts      # encryption, ticket ID, conversation ID
     ├── sender.ts      # decrypt + forward media to Telegram
     ├── messages.ts    # Persian bot copy strings
+    ├── messages-settings.ts # settings menu copy
     ├── constant.ts    # keyboards, menu handlers
-    ├── tools.ts       # rate limit, MarkdownV2 escape, Persian digits
-    └── logs.ts        # daily stats in KV
+    ├── tools.ts       # rate limit, HTML helpers, Persian digits
+    ├── user.ts        # ensureUser, display names, deep links
+    ├── inbox.ts       # inbox DO client
+    ├── payload.ts     # conversation JSON parse
+    ├── worker.ts      # deferred stats via waitUntil
+    └── logs.ts        # daily + running totals in KV
+
+src/admin/
+└── cleanup.ts         # POST /admin/cleanup — full KV + inbox purge
 
 tools/
-└── clear.js           # KV bulk delete helper (uses wrangler CLI)
+├── cleanup.mjs        # ops CLI → /admin/cleanup
+└── verify-crypto.ts   # crypto smoke tests (pnpm test:crypto)
 
 migrations/            # does not exist — no D1
 ```
@@ -122,7 +132,7 @@ Do not create alternative roots unless the project already uses them.
 
 Use `src/utils/router.ts` for new HTTP routes. Do not add a second router or framework.
 
-Export `InboxDurableObject` from `src/index.ts` for Wrangler DO binding.
+Export `InboxSqliteDurableObject` from `src/index.ts` for Wrangler DO binding.
 
 ## Bot Architecture Rules
 
@@ -202,7 +212,7 @@ Current namespaces (constructed in `bot.ts`):
 | `user`         | `User`            | profile, block list, conversation state |
 | `conversation` | opaque ciphertext | AES blob via `saveText` / `getText`  |
 | `userUUIDtoId` | Telegram user id  | UUID → user id lookup                |
-| `stats`        | number            | daily counters (`key:YYYY-MM-DD`)    |
+| `stats`        | number            | daily counters (`key:YYYY-MM-DD`) + running totals (`total:newUser`, `total:newConversation`) |
 
 Prefer:
 
@@ -223,7 +233,7 @@ KV is eventually consistent. Do not use it for inbox ordering truth — the Dura
 
 ## Durable Object Rules
 
-`InboxDurableObject` (`src/bot/inboxDU.ts`) is one DO instance per recipient Telegram user ID (`idFromName(userId)`).
+`InboxSqliteDurableObject` (`src/bot/inboxDU.ts`) is one DO instance per recipient Telegram user ID (`idFromName(userId)`).
 
 Internal routes (via stub `fetch`):
 
@@ -235,16 +245,18 @@ Internal routes (via stub `fetch`):
 | GET    | `/entry?ref=`      | lookup one entry for reply/block callbacks    |
 | DELETE | `/purge`           | wipe inbox (ops cleanup)                      |
 
+Storage: **SQLite-backed** DO (`new_sqlite_classes` in Wrangler migrations). Inbox rows live in table `inbox_entries` (see `inboxDU.ts`); schema version tracked in `_sql_schema_migrations` (`PRAGMA user_version` is not supported in DO SQLite).
+
 Prefer:
 
 - DO for per-user inbox serialization only
-- short DO methods, direct `state.storage` access
+- short DO methods, synchronous `ctx.storage.sql.exec()` per operation (no full-array read/write)
 - stub calls from `commands.ts` using the existing URL pattern (`https://inbox/...`)
 
 Avoid:
 
 - moving user profiles or encrypted conversations into DO storage without a deliberate redesign
-- unbounded inbox growth — cap is 50 pending entries per DO
+- unbounded inbox growth — cap is 50 entries per DO (pending + delivered refs for callbacks)
 
 ## Cloudflare Worker Performance Rules
 

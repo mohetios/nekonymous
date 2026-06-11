@@ -1,7 +1,7 @@
 import { handleAdminCleanup } from "./admin/cleanup";
 import { webhookCallback } from "grammy";
 import { createBot } from "./bot/bot";
-import { InboxDurableObject } from "./bot/inboxDU";
+import { InboxSqliteDurableObject } from "./bot/inboxDU";
 import { AboutPageContent } from "./front/about";
 import { HomePageContent } from "./front/home";
 import pageLayout from "./front/layout";
@@ -13,7 +13,7 @@ import {
 } from "./utils/worker";
 
 // INBOX DURABLE OBJECTS
-export { InboxDurableObject };
+export { InboxSqliteDurableObject };
 
 // Initialize a Router instance for handling different routes
 const router = new Router();
@@ -66,26 +66,20 @@ router.post(
   "/bot",
   async (request: Request, env: Environment, executionCtx: ExecutionContext) => {
     try {
-      // Validate the request method; it should be POST for webhooks
-      if (request.method === "POST") {
-        const update = await request.clone().json<{ update_id: number }>();
-        registerUpdateDefer(update.update_id, (promise) =>
-          executionCtx.waitUntil(promise)
-        );
+      const update = await request.clone().json<{ update_id: number }>();
+      registerUpdateDefer(update.update_id, (promise) =>
+        executionCtx.waitUntil(promise)
+      );
 
-        try {
-          const bot = createBot(env);
-          return await webhookCallback(bot, "cloudflare-mod", {
-            secretToken: env.BOT_SECRET_KEY,
-          })(request);
-        } finally {
-          unregisterUpdateDefer(update.update_id);
-        }
-      } else {
-        return new Response("Invalid request method", { status: 405 });
+      try {
+        const bot = createBot(env);
+        return await webhookCallback(bot, "cloudflare-mod", {
+          secretToken: env.BOT_SECRET_KEY,
+        })(request);
+      } finally {
+        unregisterUpdateDefer(update.update_id);
       }
     } catch {
-      // Handle any errors that occur during bot initialization or webhook handling
       return new Response("Error initializing bot", { status: 500 });
     }
   }

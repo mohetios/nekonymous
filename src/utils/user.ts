@@ -1,19 +1,46 @@
 import type { Context } from "grammy";
 import type { Environment, User } from "../types";
+import { isReservedDisplayName } from "./constant";
 import type { KVModel } from "./kv-storage";
 import { purgeInbox } from "./inbox";
 import { incrementStat } from "./logs";
 import { scheduleWork } from "./worker";
 
 const DISPLAY_NAME_MAX_CHARS = 64;
+const LINK_ID_RE = /^[A-Za-z0-9_-]{20,24}$/;
+
+export const buildUserDeepLink = (userUUID: string): string =>
+  `https://t.me/nekonymous_bot?start=${userUUID}`;
+
+export const isUserLinkId = (value: string): boolean => LINK_ID_RE.test(value);
 
 export const sanitizeDisplayName = (input: string): string | null => {
   const cleaned = input.replace(/[\u0000-\u001F\u007F]/g, "").trim();
-  if (!cleaned) {
+  if (!cleaned || isReservedDisplayName(cleaned)) {
     return null;
   }
 
   return [...cleaned].slice(0, DISPLAY_NAME_MAX_CHARS).join("");
+};
+
+export const publicDisplayName = (
+  user: User | null | undefined,
+  fallback = "کاربر"
+): string => {
+  const name = user?.userName?.trim();
+  if (!name || name === "بدون نام!" || isReservedDisplayName(name)) {
+    return fallback;
+  }
+
+  return name;
+};
+
+const initialDisplayName = (firstName: string | undefined): string => {
+  if (!firstName) {
+    return "بدون نام!";
+  }
+
+  return sanitizeDisplayName(firstName) ?? "کاربر";
 };
 
 export const deleteUserAccount = async (
@@ -56,7 +83,7 @@ export const ensureUser = async (
   const userUUID = generateUserLinkId();
   const created: User = {
     userUUID,
-    userName: firstName ?? "بدون نام!",
+    userName: initialDisplayName(firstName),
     blockList: [],
     lastMessage: Date.now(),
     currentConversation: {},

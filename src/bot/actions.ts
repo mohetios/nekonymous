@@ -27,7 +27,6 @@ import { scheduleWork } from "../utils/worker";
 type ActionContext = {
   userModel: KVModel<User>;
   conversationModel: KVModel<string>;
-  statsModel: KVModel<number>;
   inbox: Environment["INBOX_DO"];
   appSecureKey: string;
 };
@@ -61,7 +60,6 @@ export const handleReplyAction = async (
   const deps: ActionContext = {
     userModel,
     conversationModel,
-    statsModel,
     inbox,
     appSecureKey,
   };
@@ -134,14 +132,13 @@ export const handleBlockAction = async (
   ctx: Context,
   userModel: KVModel<User>,
   conversationModel: KVModel<string>,
-  statsModel: KVModel<number>,
+  _statsModel: KVModel<number>,
   inbox: Environment["INBOX_DO"],
   appSecureKey: string
 ): Promise<void> => {
   const deps: ActionContext = {
     userModel,
     conversationModel,
-    statsModel,
     inbox,
     appSecureKey,
   };
@@ -178,7 +175,6 @@ export const handleBlockAction = async (
       conversation.connection.from.toString(),
       true
     );
-    await scheduleWork(ctx, incrementStat(statsModel, "blockedUsers"));
 
     await ctx.api.sendMessage(
       currentUserId,
@@ -199,14 +195,13 @@ export const handleUnblockAction = async (
   ctx: Context,
   userModel: KVModel<User>,
   conversationModel: KVModel<string>,
-  statsModel: KVModel<number>,
+  _statsModel: KVModel<number>,
   inbox: Environment["INBOX_DO"],
   appSecureKey: string
 ): Promise<void> => {
   const deps: ActionContext = {
     userModel,
     conversationModel,
-    statsModel,
     inbox,
     appSecureKey,
   };
@@ -250,7 +245,6 @@ export const handleUnblockAction = async (
       "blockList",
       senderId
     );
-    await scheduleWork(ctx, incrementStat(statsModel, "unblockedUsers"));
 
     await ctx.api.sendMessage(
       currentUserId,
@@ -271,14 +265,13 @@ export const handleNicknameAction = async (
   ctx: Context,
   userModel: KVModel<User>,
   conversationModel: KVModel<string>,
-  statsModel: KVModel<number>,
+  _statsModel: KVModel<number>,
   inbox: Environment["INBOX_DO"],
   appSecureKey: string
 ): Promise<void> => {
   const deps: ActionContext = {
     userModel,
     conversationModel,
-    statsModel,
     inbox,
     appSecureKey,
   };

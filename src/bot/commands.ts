@@ -58,7 +58,12 @@ import {
   replyHtml,
   withHtml,
 } from "../utils/tools";
-import { ensureUser } from "../utils/user";
+import {
+  buildUserDeepLink,
+  ensureUser,
+  isUserLinkId,
+  publicDisplayName,
+} from "../utils/user";
 import { scheduleWork } from "../utils/worker";
 
 export const handleStartCommand = async (
@@ -87,7 +92,7 @@ export const handleStartCommand = async (
 
       const welcome = WelcomeMessage.replace(
         "UUID_USER_URL",
-        `https://t.me/nekonymous_bot?start=${user.userUUID}`
+        buildUserDeepLink(user.userUUID)
       );
       await ctx.reply(
         user.paused ? `${OWNER_PAUSED_NOTE}\n\n${welcome}` : welcome,
@@ -105,7 +110,13 @@ export const handleStartCommand = async (
     return;
   }
 
-  const otherUserId = await userUUIDtoId.get(ctx.match);
+  const linkId = ctx.match.trim();
+  if (!isUserLinkId(linkId)) {
+    await ctx.reply(NoUserFoundMessage);
+    return;
+  }
+
+  const otherUserId = await userUUIDtoId.get(linkId);
   const currentUser = await ensureUser(
     currentUserId,
     from.first_name,
@@ -127,17 +138,23 @@ export const handleStartCommand = async (
     return;
   }
 
-  const otherUser = await userModel.get(otherUserId);
-  if (otherUser?.blockList.includes(currentUserId.toString())) {
+  const otherUser = await userModel.get(otherUserId.toString());
+  if (!otherUser) {
+    await userUUIDtoId.remove(linkId);
+    await ctx.reply(NoUserFoundMessage);
+    return;
+  }
+
+  if (otherUser.blockList.includes(currentUserId.toString())) {
     await ctx.reply(USER_IS_BLOCKED_MESSAGE);
     return;
   }
 
-  if (otherUser?.paused) {
+  if (otherUser.paused) {
     await ctx.reply(
       RECIPIENT_PAUSED_MESSAGE.replace(
         "USER_NAME",
-        escapeHtml(otherUser.userName ?? "این کاربر")
+        escapeHtml(publicDisplayName(otherUser, "این کاربر"))
       ),
       withHtml()
     );
@@ -147,7 +164,7 @@ export const handleStartCommand = async (
   const prompt = await ctx.reply(
     StartConversationMessage.replace(
       "USER_NAME",
-      escapeHtml(otherUser?.userName ?? "کاربر")
+      escapeHtml(publicDisplayName(otherUser))
     ),
     withHtml({ reply_markup: buildDraftMenu() })
   );
@@ -281,7 +298,9 @@ export const handleMessage = async (
     await ctx.reply(
       RECIPIENT_PAUSED_MESSAGE.replace(
         "USER_NAME",
-        escapeHtml(senderLabel ?? recipient.userName ?? "این کاربر")
+        escapeHtml(
+          senderLabel ?? publicDisplayName(recipient, "این کاربر")
+        )
       ),
       withHtml()
     );
