@@ -12,13 +12,15 @@ export const MENU = {
   about: "درباره و حریم خصوصی",
   link: "دریافت لینک",
   settings: "تنظیمات",
-  editName: "ویرایش نام نمایشی",
+  editName: "نام نمایشی",
   cancelDraft: "لغو پیام ناتمام",
-  pauseInbox: "توقف دریافت پیام",
-  resumeInbox: "از سرگیری دریافت پیام",
-  clearData: "پاک کردن همه داده‌ها",
-  back: "بازگشت به منو",
+  pauseInbox: "توقف دریافت",
+  resumeInbox: "فعال‌سازی دریافت",
+  clearBlockList: "حذف بلاک‌ها",
+  clearData: "پاک کردن حساب",
+  back: "بازگشت",
   confirmClear: "بله، همه را پاک کن",
+  confirmClearBlocks: "بله، بلاک‌ها را پاک کن",
   cancel: "انصراف",
 } as const;
 
@@ -41,17 +43,28 @@ export const mainMenu = new Keyboard()
   .text(MENU.settings)
   .resized();
 
+/**
+ * Grouped settings keyboard (RTL: first button = right on screen).
+ * حساب | دریافت → خروج → حریم خصوصی → خطر
+ */
 export const buildSettingsMenu = (paused: boolean): Keyboard =>
   new Keyboard()
     .text(MENU.editName)
-    .row()
     .text(paused ? MENU.resumeInbox : MENU.pauseInbox)
     .row()
     .text(MENU.cancelDraft)
-    .text(MENU.clearData)
-    .row()
     .text(MENU.back)
+    .row()
+    .text(MENU.clearBlockList)
+    .row()
+    .text(MENU.clearData)
     .resized();
+
+export const confirmClearBlocksMenu = new Keyboard()
+  .text(MENU.confirmClearBlocks)
+  .row()
+  .text(MENU.cancel)
+  .resized();
 
 export const confirmClearMenu = new Keyboard()
   .text(MENU.confirmClear)

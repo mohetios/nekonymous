@@ -2,6 +2,7 @@ import type { Context } from "grammy";
 import type { Environment, User } from "../types";
 import {
   buildSettingsMenu,
+  confirmClearBlocksMenu,
   confirmClearMenu,
   isMenuLabel,
   MENU,
@@ -11,6 +12,10 @@ import type { KVModel } from "../utils/kv-storage";
 import { logBotError } from "../utils/logs";
 import {
   SETTINGS_BACK_MESSAGE,
+  SETTINGS_BLOCK_LIST_EMPTY_MESSAGE,
+  SETTINGS_CLEAR_BLOCKS_CANCELLED_MESSAGE,
+  SETTINGS_CLEAR_BLOCKS_DONE_MESSAGE,
+  SETTINGS_CLEAR_BLOCKS_WARNING_MESSAGE,
   SETTINGS_CLEAR_DATA_CANCELLED_MESSAGE,
   SETTINGS_CLEAR_DATA_DONE_MESSAGE,
   SETTINGS_CLEAR_DATA_WARNING_MESSAGE,
@@ -24,7 +29,7 @@ import {
   SETTINGS_NAME_TEXT_ONLY_MESSAGE,
 } from "../utils/messages-settings";
 import { HuhMessage, RATE_LIMIT_MESSAGE } from "../utils/messages";
-import { checkRateLimit } from "../utils/tools";
+import { checkRateLimit, convertToPersianNumbers } from "../utils/tools";
 import {
   deleteUserAccount,
   ensureUser,
@@ -52,8 +57,8 @@ const formatSettingsHome = (user: User): string => {
     .replace(
       "PAUSE_ACTION_DESC",
       paused
-        ? "فعال‌سازی مجدد لینک برای دریافت پیام‌های جدید."
-        : "موقتاً جلوگیری از دریافت پیام ناشناس از طریق لینک."
+        ? "روشن کردن دوبارهٔ لینک برای دریافت پیام‌های جدید."
+        : "خاموش کردن موقت لینک؛ پیام جدید نمی‌رسد."
     );
 };
 
@@ -243,6 +248,51 @@ export const handleSettingsMenu = async (
       });
       return true;
 
+    case MENU.clearBlockList:
+      if (user.blockList.length === 0) {
+        await ctx.reply(SETTINGS_BLOCK_LIST_EMPTY_MESSAGE, {
+          reply_markup: buildSettingsMenu(!!user.paused),
+        });
+        return true;
+      }
+
+      await deps.userModel.updateField(
+        userId.toString(),
+        "pendingSettings",
+        "confirmClearBlockList"
+      );
+      await ctx.reply(
+        SETTINGS_CLEAR_BLOCKS_WARNING_MESSAGE.replace(
+          "COUNT",
+          convertToPersianNumbers(user.blockList.length)
+        ),
+        { reply_markup: confirmClearBlocksMenu }
+      );
+      return true;
+
+    case MENU.confirmClearBlocks:
+      if (user.pendingSettings !== "confirmClearBlockList") {
+        return false;
+      }
+
+      try {
+        await deps.userModel.updateField(userId.toString(), "blockList", []);
+        await deps.userModel.updateField(
+          userId.toString(),
+          "pendingSettings",
+          undefined
+        );
+        await ctx.reply(SETTINGS_CLEAR_BLOCKS_DONE_MESSAGE, {
+          reply_markup: buildSettingsMenu(!!user.paused),
+        });
+      } catch (error) {
+        logBotError("handleSettingsMenu:clearBlockList", error);
+        await ctx.reply(HuhMessage, {
+          reply_markup: buildSettingsMenu(!!user.paused),
+        });
+      }
+      return true;
+
     case MENU.clearData:
       await deps.userModel.updateField(
         userId.toString(),
@@ -293,6 +343,17 @@ export const handleSettingsMenu = async (
       return true;
 
     case MENU.cancel:
+      if (user.pendingSettings === "confirmClearBlockList") {
+        await deps.userModel.updateField(
+          userId.toString(),
+          "pendingSettings",
+          undefined
+        );
+        await ctx.reply(SETTINGS_CLEAR_BLOCKS_CANCELLED_MESSAGE, {
+          reply_markup: buildSettingsMenu(!!user.paused),
+        });
+        return true;
+      }
       if (user.pendingSettings === "confirmClearData") {
         await deps.userModel.updateField(
           userId.toString(),
