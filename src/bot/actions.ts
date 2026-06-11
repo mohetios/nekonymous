@@ -21,7 +21,7 @@ import {
   USER_UNBLOCKED_MESSAGE,
 } from "../utils/messages";
 import { getSenderAlias } from "../utils/ticket";
-import { checkRateLimit } from "../utils/tools";
+import { checkRateLimit, escapeHtml, withHtml } from "../utils/tools";
 
 type ActionContext = {
   userModel: KVModel<User>;
@@ -118,13 +118,16 @@ export const handleReplyAction = async (
     await incrementStat(statsModel, "newConversation");
 
     const replyPrompt = senderLabel
-      ? REPLAY_TO_NICKNAME_MESSAGE.replace("NICKNAME", senderLabel)
+      ? REPLAY_TO_NICKNAME_MESSAGE.replace("NICKNAME", escapeHtml(senderLabel))
       : REPLAY_TO_MESSAGE;
 
-    await ctx.reply(replyPrompt, {
-      reply_markup: { force_reply: true },
-      reply_to_message_id: callbackMessageId,
-    });
+    await ctx.reply(
+      replyPrompt,
+      withHtml({
+        reply_markup: { force_reply: true as const },
+        reply_to_message_id: callbackMessageId,
+      })
+    );
   } catch {
     await ctx.reply(HuhMessage);
   } finally {
@@ -182,9 +185,11 @@ export const handleBlockAction = async (
     );
     await incrementStat(statsModel, "blockedUsers");
 
-    await ctx.api.sendMessage(currentUserId, USER_BLOCKED_MESSAGE, {
-      reply_to_message_id: callbackMessageId,
-    });
+    await ctx.api.sendMessage(
+      currentUserId,
+      USER_BLOCKED_MESSAGE,
+      withHtml({ reply_to_message_id: callbackMessageId })
+    );
     await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
       reply_markup: createMessageKeyboard(entry.ref, true),
     });
@@ -252,9 +257,11 @@ export const handleUnblockAction = async (
     );
     await incrementStat(statsModel, "unblockedUsers");
 
-    await ctx.api.sendMessage(currentUserId, USER_UNBLOCKED_MESSAGE, {
-      reply_to_message_id: callbackMessageId,
-    });
+    await ctx.api.sendMessage(
+      currentUserId,
+      USER_UNBLOCKED_MESSAGE,
+      withHtml({ reply_to_message_id: callbackMessageId })
+    );
     await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
       reply_markup: createMessageKeyboard(entry.ref, false),
     });
@@ -322,11 +329,11 @@ export const handleNicknameAction = async (
     });
 
     await ctx.reply(
-      NICKNAME_PROMPT_MESSAGE.replace("CURRENT_NICK", currentNick),
-      {
-        reply_markup: { force_reply: true },
+      NICKNAME_PROMPT_MESSAGE.replace("CURRENT_NICK", escapeHtml(currentNick)),
+      withHtml({
+        reply_markup: { force_reply: true as const },
         reply_to_message_id: callbackMessageId,
-      }
+      })
     );
   } catch {
     await ctx.reply(HuhMessage);

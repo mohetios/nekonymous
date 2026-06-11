@@ -29,7 +29,12 @@ import {
   SETTINGS_NAME_TEXT_ONLY_MESSAGE,
 } from "../utils/messages-settings";
 import { HuhMessage, RATE_LIMIT_MESSAGE } from "../utils/messages";
-import { checkRateLimit, convertToPersianNumbers } from "../utils/tools";
+import {
+  checkRateLimit,
+  convertToPersianNumbers,
+  escapeHtml,
+  withHtml,
+} from "../utils/tools";
 import {
   deleteUserAccount,
   ensureUser,
@@ -48,7 +53,7 @@ const botLink = (userUUID: string): string =>
 
 const formatSettingsHome = (user: User): string => {
   const paused = !!user.paused;
-  return SETTINGS_HOME_MESSAGE.replace("USER_NAME", user.userName)
+  return SETTINGS_HOME_MESSAGE.replace("USER_NAME", escapeHtml(user.userName))
     .replace("PAUSE_STATUS", paused ? "متوقف ⏸" : "فعال ✓")
     .replace(
       "PAUSE_ACTION_LABEL",
@@ -57,8 +62,8 @@ const formatSettingsHome = (user: User): string => {
     .replace(
       "PAUSE_ACTION_DESC",
       paused
-        ? "روشن کردن دوبارهٔ لینک برای دریافت پیام‌های جدید."
-        : "خاموش کردن موقت لینک؛ پیام جدید نمی‌رسد."
+        ? "لینکت رو دوباره روشن می‌کنه."
+        : "موقتاً پیام جدید نمی‌رسه."
     );
 };
 
@@ -66,9 +71,10 @@ const showSettingsHome = async (
   ctx: Context,
   user: User
 ): Promise<void> => {
-  await ctx.reply(formatSettingsHome(user), {
-    reply_markup: buildSettingsMenu(!!user.paused),
-  });
+  await ctx.reply(
+    formatSettingsHome(user),
+    withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+  );
 };
 
 export const handleSettingsCommand = async (
@@ -106,9 +112,10 @@ export const handlePendingSettingsInput = async (
 
   const text = ctx.message?.text;
   if (!text) {
-    await ctx.reply(SETTINGS_NAME_TEXT_ONLY_MESSAGE, {
-      reply_markup: buildSettingsMenu(!!user.paused),
-    });
+    await ctx.reply(
+      SETTINGS_NAME_TEXT_ONLY_MESSAGE,
+      withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+    );
     return true;
   }
 
@@ -130,9 +137,10 @@ export const handlePendingSettingsInput = async (
 
   const displayName = sanitizeDisplayName(text);
   if (!displayName) {
-    await ctx.reply(SETTINGS_NAME_INVALID_MESSAGE, {
-      reply_markup: buildSettingsMenu(!!user.paused),
-    });
+    await ctx.reply(
+      SETTINGS_NAME_INVALID_MESSAGE,
+      withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+    );
     return true;
   }
 
@@ -150,8 +158,8 @@ export const handlePendingSettingsInput = async (
     );
     const updated = await deps.userModel.get(userId.toString());
     await ctx.reply(
-      SETTINGS_NAME_SAVED_MESSAGE.replace("NAME", displayName),
-      { reply_markup: buildSettingsMenu(!!updated?.paused) }
+      SETTINGS_NAME_SAVED_MESSAGE.replace("NAME", escapeHtml(displayName)),
+      withHtml({ reply_markup: buildSettingsMenu(!!updated?.paused) })
     );
   } catch (error) {
     logBotError("handlePendingSettingsInput", error);
@@ -194,7 +202,7 @@ export const handleSettingsMenu = async (
           undefined
         );
       }
-      await ctx.reply(SETTINGS_BACK_MESSAGE, { reply_markup: mainMenu });
+      await ctx.reply(SETTINGS_BACK_MESSAGE, withHtml({ reply_markup: mainMenu }));
       return true;
 
     case MENU.editName:
@@ -208,9 +216,10 @@ export const handleSettingsMenu = async (
         "pendingSettings",
         "editName"
       );
-      await ctx.reply(SETTINGS_EDIT_NAME_MESSAGE, {
-        reply_markup: { force_reply: true },
-      });
+      await ctx.reply(
+        SETTINGS_EDIT_NAME_MESSAGE,
+        withHtml({ reply_markup: { force_reply: true as const } })
+      );
       return true;
 
     case MENU.cancelDraft:
@@ -224,9 +233,10 @@ export const handleSettingsMenu = async (
         "pendingSettings",
         undefined
       );
-      await ctx.reply(SETTINGS_CANCEL_DRAFT_MESSAGE, {
-        reply_markup: buildSettingsMenu(!!user.paused),
-      });
+      await ctx.reply(
+        SETTINGS_CANCEL_DRAFT_MESSAGE,
+        withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+      );
       return true;
 
     case MENU.pauseInbox:
@@ -236,23 +246,26 @@ export const handleSettingsMenu = async (
         "currentConversation",
         undefined
       );
-      await ctx.reply(SETTINGS_PAUSE_ON_MESSAGE, {
-        reply_markup: buildSettingsMenu(true),
-      });
+      await ctx.reply(
+        SETTINGS_PAUSE_ON_MESSAGE,
+        withHtml({ reply_markup: buildSettingsMenu(true) })
+      );
       return true;
 
     case MENU.resumeInbox:
       await deps.userModel.updateField(userId.toString(), "paused", false);
-      await ctx.reply(SETTINGS_RESUME_MESSAGE, {
-        reply_markup: buildSettingsMenu(false),
-      });
+      await ctx.reply(
+        SETTINGS_RESUME_MESSAGE,
+        withHtml({ reply_markup: buildSettingsMenu(false) })
+      );
       return true;
 
     case MENU.clearBlockList:
       if (user.blockList.length === 0) {
-        await ctx.reply(SETTINGS_BLOCK_LIST_EMPTY_MESSAGE, {
-          reply_markup: buildSettingsMenu(!!user.paused),
-        });
+        await ctx.reply(
+          SETTINGS_BLOCK_LIST_EMPTY_MESSAGE,
+          withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+        );
         return true;
       }
 
@@ -266,7 +279,7 @@ export const handleSettingsMenu = async (
           "COUNT",
           convertToPersianNumbers(user.blockList.length)
         ),
-        { reply_markup: confirmClearBlocksMenu }
+        withHtml({ reply_markup: confirmClearBlocksMenu })
       );
       return true;
 
@@ -282,9 +295,10 @@ export const handleSettingsMenu = async (
           "pendingSettings",
           undefined
         );
-        await ctx.reply(SETTINGS_CLEAR_BLOCKS_DONE_MESSAGE, {
-          reply_markup: buildSettingsMenu(!!user.paused),
-        });
+        await ctx.reply(
+          SETTINGS_CLEAR_BLOCKS_DONE_MESSAGE,
+          withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+        );
       } catch (error) {
         logBotError("handleSettingsMenu:clearBlockList", error);
         await ctx.reply(HuhMessage, {
@@ -304,9 +318,10 @@ export const handleSettingsMenu = async (
         "pendingSettings",
         "confirmClearData"
       );
-      await ctx.reply(SETTINGS_CLEAR_DATA_WARNING_MESSAGE, {
-        reply_markup: confirmClearMenu,
-      });
+      await ctx.reply(
+        SETTINGS_CLEAR_DATA_WARNING_MESSAGE,
+        withHtml({ reply_markup: confirmClearMenu })
+      );
       return true;
 
     case MENU.confirmClear:
@@ -334,7 +349,7 @@ export const handleSettingsMenu = async (
             "UUID_USER_URL",
             botLink(freshUser.userUUID)
           ),
-          { reply_markup: mainMenu }
+          withHtml({ reply_markup: mainMenu })
         );
       } catch (error) {
         logBotError("handleSettingsMenu:clearData", error);
@@ -349,9 +364,10 @@ export const handleSettingsMenu = async (
           "pendingSettings",
           undefined
         );
-        await ctx.reply(SETTINGS_CLEAR_BLOCKS_CANCELLED_MESSAGE, {
-          reply_markup: buildSettingsMenu(!!user.paused),
-        });
+        await ctx.reply(
+          SETTINGS_CLEAR_BLOCKS_CANCELLED_MESSAGE,
+          withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+        );
         return true;
       }
       if (user.pendingSettings === "confirmClearData") {
@@ -360,9 +376,10 @@ export const handleSettingsMenu = async (
           "pendingSettings",
           undefined
         );
-        await ctx.reply(SETTINGS_CLEAR_DATA_CANCELLED_MESSAGE, {
-          reply_markup: buildSettingsMenu(!!user.paused),
-        });
+        await ctx.reply(
+          SETTINGS_CLEAR_DATA_CANCELLED_MESSAGE,
+          withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+        );
         return true;
       }
       if (user.pendingSettings === "editName") {

@@ -6,7 +6,7 @@ import {
   USER_LINK_MESSAGE,
 } from "./messages";
 import { assertCallbackData } from "./telegram-limits";
-import { escapeMarkdownV2 } from "./tools";
+import { withHtml } from "./tools";
 
 export const MENU = {
   about: "درباره و حریم خصوصی",
@@ -85,16 +85,16 @@ export const handleMenuCommand = async (
         `https://t.me/nekonymous_bot?start=${user.userUUID}`
       );
       await ctx.reply(
-        user.paused ? `${OWNER_PAUSED_NOTE}\n${linkText}` : linkText,
-        { reply_markup: mainMenu }
+        user.paused ? `${OWNER_PAUSED_NOTE}\n\n${linkText}` : linkText,
+        withHtml({ reply_markup: mainMenu })
       );
       break;
     }
     case MENU.about:
-      await ctx.reply(escapeMarkdownV2(ABOUT_PRIVACY_COMMAND_MESSAGE), {
-        reply_markup: mainMenu,
-        parse_mode: "MarkdownV2",
-      });
+      await ctx.reply(
+        ABOUT_PRIVACY_COMMAND_MESSAGE,
+        withHtml({ reply_markup: mainMenu })
+      );
       break;
     default:
       return false;

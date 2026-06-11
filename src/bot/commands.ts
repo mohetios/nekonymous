@@ -50,7 +50,12 @@ import {
   generateTicketId,
   getConversationId,
 } from "../utils/ticket";
-import { checkRateLimit, convertToPersianNumbers } from "../utils/tools";
+import {
+  checkRateLimit,
+  convertToPersianNumbers,
+  escapeHtml,
+  withHtml,
+} from "../utils/tools";
 import { ensureUser } from "../utils/user";
 
 export const handleStartCommand = async (
@@ -81,8 +86,8 @@ export const handleStartCommand = async (
         `https://t.me/nekonymous_bot?start=${user.userUUID}`
       );
       await ctx.reply(
-        user.paused ? `${OWNER_PAUSED_NOTE}\n${welcome}` : welcome,
-        { reply_markup: mainMenu }
+        user.paused ? `${OWNER_PAUSED_NOTE}\n\n${welcome}` : welcome,
+        withHtml({ reply_markup: mainMenu })
       );
     } catch (error) {
       logBotError("handleStartCommand", error);
@@ -127,8 +132,9 @@ export const handleStartCommand = async (
     await ctx.reply(
       RECIPIENT_PAUSED_MESSAGE.replace(
         "USER_NAME",
-        otherUser.userName ?? "این کاربر"
-      )
+        escapeHtml(otherUser.userName ?? "این کاربر")
+      ),
+      withHtml()
     );
     return;
   }
@@ -136,8 +142,9 @@ export const handleStartCommand = async (
   const prompt = await ctx.reply(
     StartConversationMessage.replace(
       "USER_NAME",
-      otherUser?.userName ?? "کاربر"
-    )
+      escapeHtml(otherUser?.userName ?? "کاربر")
+    ),
+    withHtml()
   );
 
   await userModel.updateField(currentUserId.toString(), "currentConversation", {
@@ -191,7 +198,10 @@ export const handleMessage = async (
   const pendingNickname = currentUser.currentConversation?.pendingNickname;
   if (pendingNickname) {
     if (!message.text) {
-      await ctx.reply(NICKNAME_TEXT_ONLY_MESSAGE, { reply_markup: mainMenu });
+      await ctx.reply(
+        NICKNAME_TEXT_ONLY_MESSAGE,
+        withHtml({ reply_markup: mainMenu })
+      );
       return;
     }
 
@@ -216,9 +226,9 @@ export const handleMessage = async (
       await userModel.updateField(from.id.toString(), "lastMessage", Date.now());
       await ctx.reply(
         nickname
-          ? NICKNAME_SAVED_MESSAGE.replace("NAME", nickname)
+          ? NICKNAME_SAVED_MESSAGE.replace("NAME", escapeHtml(nickname))
           : NICKNAME_REMOVED_MESSAGE,
-        { reply_markup: mainMenu }
+        withHtml({ reply_markup: mainMenu })
       );
     } catch (error) {
       if (error instanceof ContactLabelLimitError) {
@@ -257,8 +267,9 @@ export const handleMessage = async (
     await ctx.reply(
       RECIPIENT_PAUSED_MESSAGE.replace(
         "USER_NAME",
-        recipient.userName ?? "این کاربر"
-      )
+        escapeHtml(recipient.userName ?? "این کاربر")
+      ),
+      withHtml()
     );
     await userModel.updateField(
       from.id.toString(),
@@ -313,7 +324,8 @@ export const handleMessage = async (
     });
     await ctx.api.sendMessage(
       Number(recipientId),
-      NEW_INBOX_MESSAGE.replace("COUNT", convertToPersianNumbers(pending.length))
+      NEW_INBOX_MESSAGE.replace("COUNT", convertToPersianNumbers(pending.length)),
+      withHtml()
     );
 
     await userModel.updateField(from.id.toString(), "currentConversation", undefined);
@@ -341,7 +353,7 @@ export const handleInboxCommand = async (
     const pending = await listPendingInbox(inbox, from.id);
 
     if (pending.length === 0) {
-      await ctx.reply(EMPTY_INBOX_MESSAGE, { reply_markup: mainMenu });
+      await ctx.reply(EMPTY_INBOX_MESSAGE, withHtml({ reply_markup: mainMenu }));
       return;
     }
 
