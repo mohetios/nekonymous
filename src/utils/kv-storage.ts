@@ -1,6 +1,3 @@
-/**
- * KVModel provides an abstraction layer over Cloudflare's KV storage.
- */
 export class KVModel<T = unknown> {
   public namespace: string;
   private kv: KVNamespace;
@@ -10,22 +7,35 @@ export class KVModel<T = unknown> {
     this.kv = kv;
   }
 
-  private generateKey(id: string): string {
+  private key(id: string): string {
     return `${this.namespace}:${id}`;
   }
 
   async save(id: string, data: T, expiresIn?: number): Promise<void> {
-    const key = this.generateKey(id);
     const expiration = expiresIn
       ? Math.floor(Date.now() / 1000) + expiresIn
       : undefined;
-    await this.kv.put(key, JSON.stringify(data), { expiration });
+    await this.kv.put(this.key(id), JSON.stringify(data), { expiration });
   }
 
   async get(id: string): Promise<T | null> {
-    const key = this.generateKey(id);
-    const data = await this.kv.get(key);
-    return data ? (JSON.parse(data) as T) : null;
+    const value = await this.kv.get(this.key(id), "json");
+    return (value as T | null) ?? null;
+  }
+
+  async remove(id: string): Promise<void> {
+    await this.kv.delete(this.key(id));
+  }
+
+  async saveText(id: string, text: string, expiresIn?: number): Promise<void> {
+    const expiration = expiresIn
+      ? Math.floor(Date.now() / 1000) + expiresIn
+      : undefined;
+    await this.kv.put(this.key(id), text, { expiration });
+  }
+
+  async getText(id: string): Promise<string | null> {
+    return this.kv.get(this.key(id));
   }
 
   async updateField(
@@ -35,7 +45,6 @@ export class KVModel<T = unknown> {
     push = false
   ): Promise<void> {
     const record = await this.get(id);
-
     if (!record || typeof record !== "object" || record === null) {
       throw new Error(`Record with ID ${id} not found.`);
     }
@@ -45,16 +54,6 @@ export class KVModel<T = unknown> {
 
     if (push) {
       if (value === undefined || value === null) {
-        console.warn("Attempted to push an invalid value:", value);
-        return;
-      }
-
-      if (
-        typeof value === "object" &&
-        !Array.isArray(value) &&
-        Object.keys(value).length === 0
-      ) {
-        console.warn("Attempted to push an empty object:", value);
         return;
       }
 
@@ -76,14 +75,12 @@ export class KVModel<T = unknown> {
     value: unknown
   ): Promise<void> {
     const record = await this.get(id);
-
     if (!record || typeof record !== "object" || record === null) {
       throw new Error(`Record with ID ${id} not found.`);
     }
 
     const mutableRecord = record as Record<keyof T, unknown>;
     const currentValue = mutableRecord[field];
-
     if (!Array.isArray(currentValue)) {
       throw new Error(`Field ${String(field)} is not an array.`);
     }

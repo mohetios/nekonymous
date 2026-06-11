@@ -1,20 +1,30 @@
 /**
- * Quick local roundtrip test for ticket encryption (Web Crypto).
- * Run: node tools/verify-crypto.mjs
+ * Crypto + conversation parsing smoke tests.
+ * Run: pnpm test:crypto
  */
 
-const CONVERSATION_ID_INFO = new TextEncoder().encode("nekonymous:conversation");
+const TICKET_ENTROPY_BYTES = 32;
+const GCM_IV_BYTES = 12;
+const AES_INFO = new TextEncoder().encode("nekonymous:aes:v1");
+const CONVERSATION_INFO = new TextEncoder().encode(
+  "nekonymous:conversation:v1"
+);
 
-const bytesToBase64 = (bytes) => {
+const bytesToBase64Url = (bytes) => {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  return btoa(binary);
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 };
 
-const base64ToBytes = (base64) => {
-  const binary = atob(base64);
+const base64UrlToBytes = (input) => {
+  const base64 = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
@@ -22,87 +32,96 @@ const base64ToBytes = (base64) => {
   return bytes;
 };
 
-const concatBytes = (...parts) => {
-  const length = parts.reduce((sum, part) => sum + part.length, 0);
-  const out = new Uint8Array(length);
-  let offset = 0;
-  for (const part of parts) {
-    out.set(part, offset);
-    offset += part.length;
-  }
-  return out;
-};
+const importHkdfKey = (appSecureKey) =>
+  crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(appSecureKey),
+    "HKDF",
+    false,
+    ["deriveKey", "deriveBits"]
+  );
 
-const sha256 = async (data) =>
-  new Uint8Array(await crypto.subtle.digest("SHA-256", data));
+const hkdfParams = (ticketId, info) => ({
+  name: "HKDF",
+  hash: "SHA-256",
+  salt: base64UrlToBytes(ticketId),
+  info,
+});
 
-const deriveKeyMaterial = async (ticketId, appSecureKey) => {
-  const ticketBytes = base64ToBytes(ticketId);
-  const appKeyBytes = new TextEncoder().encode(appSecureKey);
-  return sha256(concatBytes(ticketBytes, appKeyBytes));
-};
-
-const generateTicketId = async (appSecureKey) => {
-  const entropy = crypto.getRandomValues(new Uint8Array(32));
-  const appKeyBytes = new TextEncoder().encode(appSecureKey);
-  const keyMaterial = await sha256(concatBytes(entropy, appKeyBytes));
-  return bytesToBase64(keyMaterial);
+const generateTicketId = () => {
+  const entropy = crypto.getRandomValues(new Uint8Array(TICKET_ENTROPY_BYTES));
+  return bytesToBase64Url(entropy);
 };
 
 const getConversationId = async (ticketId, appSecureKey) => {
-  const keyMaterial = await deriveKeyMaterial(ticketId, appSecureKey);
-  const conversationBytes = await sha256(
-    concatBytes(keyMaterial, CONVERSATION_ID_INFO)
+  const keyMaterial = await importHkdfKey(appSecureKey);
+  const bits = await crypto.subtle.deriveBits(
+    hkdfParams(ticketId, CONVERSATION_INFO),
+    keyMaterial,
+    256
   );
-  return bytesToBase64(conversationBytes);
+  return bytesToBase64Url(new Uint8Array(bits));
+};
+
+const deriveAesKey = async (ticketId, appSecureKey) => {
+  const keyMaterial = await importHkdfKey(appSecureKey);
+  return crypto.subtle.deriveKey(
+    hkdfParams(ticketId, AES_INFO),
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
 };
 
 const encryptedPayload = async (ticketId, payload, appSecureKey) => {
-  const keyMaterial = await deriveKeyMaterial(ticketId, appSecureKey);
-  const aesKey = await crypto.subtle.importKey(
-    "raw",
-    keyMaterial,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt", "decrypt"]
-  );
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const data = new TextEncoder().encode(payload);
-  const encryptedData = await crypto.subtle.encrypt(
+  const aesKey = await deriveAesKey(ticketId, appSecureKey);
+  const iv = crypto.getRandomValues(new Uint8Array(GCM_IV_BYTES));
+  const encrypted = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     aesKey,
-    data
+    new TextEncoder().encode(payload)
   );
-  return `${bytesToBase64(iv)}:${bytesToBase64(new Uint8Array(encryptedData))}`;
+  return `${bytesToBase64Url(iv)}.${bytesToBase64Url(new Uint8Array(encrypted))}`;
 };
 
 const decryptPayload = async (ticketId, encrypted, appSecureKey) => {
-  const keyMaterial = await deriveKeyMaterial(ticketId, appSecureKey);
-  const [ivBase64, dataBase64] = encrypted.split(":");
-  const iv = base64ToBytes(ivBase64);
-  const encryptedBytes = base64ToBytes(dataBase64);
-  const aesKey = await crypto.subtle.importKey(
-    "raw",
-    keyMaterial,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt", "decrypt"]
-  );
-  const decryptedData = await crypto.subtle.decrypt(
+  const dot = encrypted.indexOf(".");
+  const iv = base64UrlToBytes(encrypted.slice(0, dot));
+  const ciphertext = base64UrlToBytes(encrypted.slice(dot + 1));
+  const aesKey = await deriveAesKey(ticketId, appSecureKey);
+  const decrypted = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv },
     aesKey,
-    encryptedBytes
+    ciphertext
   );
-  return new TextDecoder().decode(decryptedData);
+  return new TextDecoder().decode(decrypted);
+};
+
+const toTelegramUserId = (value) => {
+  if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const parseConversation = (raw) => {
+  const data = JSON.parse(raw);
+  const from = toTelegramUserId(data.connection?.from);
+  const to = toTelegramUserId(data.connection?.to);
+  if (from === null || to === null) return null;
+  return { ...data, connection: { ...data.connection, from, to } };
 };
 
 const appSecureKey = "test-app-secure-key-local";
 const sample = JSON.stringify({
-  connection: { from: 1, to: 2 },
+  connection: { from: 111, to: "222222222" },
   payload: { message_type: "text", message_text: "سلام" },
 });
 
-const ticketId = await generateTicketId(appSecureKey);
+const ticketId = generateTicketId();
 const conversationId = await getConversationId(ticketId, appSecureKey);
 const encrypted = await encryptedPayload(ticketId, sample, appSecureKey);
 const decrypted = await decryptPayload(ticketId, encrypted, appSecureKey);
@@ -112,6 +131,13 @@ if (decrypted !== sample) {
   process.exit(1);
 }
 
+const parsed = parseConversation(decrypted);
+if (!parsed || parsed.connection.to !== 222222222) {
+  console.error("parseConversation string-ID test failed");
+  process.exit(1);
+}
+
 console.log("Crypto roundtrip OK");
+console.log("parseConversation string-ID OK");
 console.log(`ticketId length: ${ticketId.length}`);
 console.log(`conversationId length: ${conversationId.length}`);
