@@ -13,7 +13,7 @@ export const SETTINGS_HOME_MESSAGE = `<b>تنظیمات</b>
 — <b>🏠 بازگشت</b> · بازگشت به منوی اصلی
 — <b>🔓 حذف بلاک‌ها</b> · آنبلاک کردن همه (نیاز به تأیید)
 — <b>🗑️ پاک کردن حساب</b> · حذف لینک، صندوق، بلاک‌ها و نام‌های مستعار
-— <b>📐 معماری فنی</b> · راهنمای پیشرفته برای توسعه‌دهندگان و اپراتورها`;
+— <b>📐 معماری فنی</b> · توضیح کوتاه درباره نحوه کار، storage و حریم خصوصی`;
 
 export const SETTINGS_EDIT_NAME_MESSAGE = `<b>تغییر نام نمایشی</b>
 
@@ -95,29 +95,32 @@ export const SETTINGS_RESUME_MESSAGE = `<b>دریافت پیام فعال شد</
 
 export const TECHNICAL_ABOUT_MESSAGE = `<b>📐 معماری فنی نِکونیموس</b>
 
-<i>خلاصه برای کاربران پیشرفته — جزئیات کامل در وب‌سایت.</i>
+<i>خلاصهٔ قابل خواندن؛ جزئیات کامل‌تر در وب‌سایت.</i>
 
-<b>پشته</b>
-Worker واحد + Grammy + KV + <code>InboxSqliteDurableObject</code> (SQLite per recipient).
+<b>تصویر کلی</b>
+Telegram link → Worker → bot flow → storage رمز‌شده → inbox گیرنده → /inbox.
 
-<b>ذخیره‌سازی</b>
-• <code>user:*</code> — پروفایل، بلاک، نام مستعار، pause
-• <code>userUUIDtoId:*</code> — لینک ۲۲ کاراکتری → مالک
-• <code>conversation:*</code> — ciphertext AES (opaque)
-• DO — صف FIFO، سقف ۵۰ پیام در انتظار، ref برای callback
+<b>برای کاربر چه معنی دارد؟</b>
+• صاحب لینک و فرستنده username تلگرام همدیگر را در bot نمی‌بینند.
+• پیام‌های جدید با /inbox تحویل داده می‌شوند.
+• بعد از تحویل، payload پیام از storage پاک می‌شود.
+• reply، block و nickname با reference داخلی ادامه پیدا می‌کنند.
 
-<b>چرخهٔ پیام</b>
-ارسال → رمز در KV + کپی در DO → /inbox تحویل → payload از KV پاک → ref برای پاسخ/بلاک از KV خوانده می‌شود.
+<b>storage ساده</b>
+• KV: profile، link map، تنظیمات و ciphertext.
+• Durable Object: inbox جدا برای هر گیرنده، با سقف ۵۰ row.
+• Web Crypto: رمزنگاری پیام‌ها در زمان ذخیره‌سازی.
 
-<b>رمزنگاری</b>
-تیکت تصادفی ۲۵۶بیتی؛ HKDF-SHA-256 + AES-256-GCM؛ IKM = <code>APP_SECURE_KEY</code>.
-میزبان relay است — E2E سرتاسری نیست.
+<b>مرز حریم خصوصی</b>
+نِکونیموس hosted anonymous relay است، نه end-to-end encryption.
+Telegram پیام اولیه را دریافت می‌کند و Worker هنگام پردازش plaintext را می‌بیند.
+هدف: کم کردن plaintext ذخیره‌شده و نمایش ندادن identity دو طرف در رابط bot.
 
 <b>محدودیت‌ها</b>
-نرخ ۵ثانیه · pause فقط پیام جدید از لینک · پاسخ رشته‌ای از pause مستثنا · ۲۰۰ نام مستعار.
+rate limit کوتاه · inbox محدود · pause فقط پیام جدید از لینک · callbackهای خیلی قدیمی ممکن است منقضی شوند.
 
 WEB_LINK_LINE`;
 
 export const SETTINGS_BACK_MESSAGE = `<b>بازگشت به منوی اصلی</b>
 
-دکمه‌های پایین: دریافت لینک · تنظیمات · درباره`;
+دکمه‌های پایین: درباره · دریافت لینک · تنظیمات`;

@@ -1,160 +1,196 @@
 export const TechnicalPageContent = () => `
-  <div class="max-w-4xl mx-auto p-4 text-gray-800">
-    <p class="text-sm text-gray-500 mb-6">
-      <a href="/about" class="text-blue-600 hover:text-blue-800">← بازگشت به درباره</a>
+  <div class="space-y-10 text-gray-800">
+    <p class="text-sm text-gray-500">
+      <a href="/about" class="text-blue-600 hover:text-blue-800">← بازگشت به راهنمای ساده</a>
     </p>
 
-    <p class="text-lg leading-relaxed mb-6">
-      این صفحه برای توسعه‌دهندگان، اپراتورها و کاربران پیشرفته‌ای است که می‌خواهند
-      <strong>معماری، جریان داده و قرارداد ذخیره‌سازی</strong> نِکونیموس را بدانند.
-      خلاصهٔ کاربری در <a href="/about">درباره</a> آمده است.
-    </p>
+    <section>
+      <p class="text-sm text-blue-700 mb-2">نحوه کار و معماری، با زبان قابل خواندن</p>
+      <h1 class="text-3xl font-bold mb-4">تصویر اصلی نِکونیموس</h1>
+      <p class="text-lg leading-9 mb-4">
+        نِکونیموس یک bot تلگرام نیست که فقط چند دستور داشته باشد؛ یک relay کوچک است.
+        پیام از bot عبور می‌کند، در storage به شکل رمزنگاری‌شده می‌ماند، و به صاحب لینک از طریق /inbox تحویل داده می‌شود.
+      </p>
+      <p class="text-lg leading-9">
+        این صفحه برای کسی است که می‌خواهد بداند «پیام از کجا می‌آید، کجا منتظر می‌ماند،
+        بعد از خواندن چه می‌شود، و privacy دقیقاً تا کجاست»؛ بدون ورود به پیچیدگی الگوریتمی.
+      </p>
+    </section>
 
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۱. نمای کلی</h2>
-    <p class="leading-relaxed mb-4">
-      نِکونیموس یک <strong>Cloudflare Worker</strong> واحد است: وب‌هوک تلگرام (Grammy)،
-      صفحات HTML سبک، و یک کلاس <strong>Durable Object</strong> برای صندوق ورودی هر گیرنده.
-      هیچ سرور جدا، D1، یا صف پیامی وجود ندارد.
-    </p>
-    <div class="overflow-x-auto mb-6">
-      <table class="min-w-full text-sm border border-gray-200 rounded-lg">
-        <thead class="bg-gray-100">
-          <tr>
-            <th class="p-3 text-right border-b">لایه</th>
-            <th class="p-3 text-right border-b">فناوری</th>
-            <th class="p-3 text-right border-b">نقش</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td class="p-3 border-b">Edge</td><td class="p-3 border-b">Worker + Router</td><td class="p-3 border-b">مسیرها، وب‌هوک، HTML، پاک‌سازی ops</td></tr>
-          <tr><td class="p-3 border-b">Bot</td><td class="p-3 border-b">Grammy</td><td class="p-3 border-b">دستورات، کیبورد، callbackهای اینلاین</td></tr>
-          <tr><td class="p-3 border-b">پروفایل</td><td class="p-3 border-b">KV (JSON)</td><td class="p-3 border-b">کاربر، نقشه UUID، آمار</td></tr>
-          <tr><td class="p-3 border-b">متن رمزشده</td><td class="p-3 border-b">KV (opaque text)</td><td class="p-3 border-b">blobهای AES؛ هرگز JSON.parse روی ciphertext</td></tr>
-          <tr><td class="p-3 border-b">صف ورودی</td><td class="p-3 border-b">InboxSqliteDurableObject</td><td class="p-3 border-b">یک DO به ازای هر گیرنده؛ جدول SQLite</td></tr>
-          <tr><td class="p-3">رمزنگاری</td><td class="p-3">Web Crypto</td><td class="p-3">HKDF-SHA-256 + AES-256-GCM</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <section class="rounded-xl border border-gray-200 bg-gray-50 p-5">
+      <h2 class="text-2xl font-semibold mb-4">نقشه خیلی کوتاه</h2>
+      <pre class="bg-gray-900 text-gray-100 text-xs p-4 rounded-lg overflow-x-auto leading-7" dir="ltr">Telegram link
+  -> Cloudflare Worker
+  -> Grammy bot flow
+  -> encrypted message storage
+  -> recipient inbox
+  -> /inbox delivery
+  -> reply / block / nickname callbacks</pre>
+    </section>
 
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۲. مسیرهای HTTP</h2>
-    <ul class="list-disc list-inside space-y-2 mb-6 text-sm leading-relaxed">
-      <li><code class="bg-gray-100 px-1 rounded">GET /</code> — آمار تجمیعی از <code class="bg-gray-100 px-1 rounded">stats:total:*</code></li>
-      <li><code class="bg-gray-100 px-1 rounded">GET /about</code> — راهنمای کاربری</li>
-      <li><code class="bg-gray-100 px-1 rounded">GET /about/technical</code> — همین صفحه</li>
-      <li><code class="bg-gray-100 px-1 rounded">POST /bot</code> — وب‌هوک؛ هدر <code class="bg-gray-100 px-1 rounded">X-Telegram-Bot-Api-Secret-Token</code></li>
-    </ul>
+    <section>
+      <h2 class="text-2xl font-semibold mb-4">جریان کاربر، قدم‌به‌قدم</h2>
+      <ol class="space-y-4">
+        <li class="rounded-xl border border-gray-200 p-4">
+          <strong>۱. ساخت لینک:</strong>
+          کاربر با /start یک لینک شخصی می‌گیرد. این لینک به owner داخل storage وصل می‌شود،
+          اما username Telegram owner برای فرستنده نمایش داده نمی‌شود.
+        </li>
+        <li class="rounded-xl border border-gray-200 p-4">
+          <strong>۲. باز شدن لینک:</strong>
+          فرستنده لینک را باز می‌کند. bot بررسی می‌کند لینک معتبر باشد، فرستنده خود owner نباشد،
+          block نشده باشد، و owner دریافت پیام را pause نکرده باشد.
+        </li>
+        <li class="rounded-xl border border-gray-200 p-4">
+          <strong>۳. ارسال پیام:</strong>
+          پیام فقط اگر نوع آن پشتیبانی شود پذیرفته می‌شود. سپس payload برای storage رمزنگاری می‌شود
+          و یک entry در inbox گیرنده ساخته می‌شود.
+        </li>
+        <li class="rounded-xl border border-gray-200 p-4">
+          <strong>۴. خواندن inbox:</strong>
+          owner با /inbox پیام‌های pending را دریافت می‌کند. bot پیام را decrypt می‌کند،
+          از طریق Telegram تحویل می‌دهد، و بعد payload ذخیره‌شده را خالی می‌کند.
+        </li>
+        <li class="rounded-xl border border-gray-200 p-4">
+          <strong>۵. بعد از تحویل:</strong>
+          متن پیام در storage باقی نمی‌ماند، اما connection metadata رمزنگاری‌شده باقی می‌ماند
+          تا reply، block، unblock و nickname هنوز کار کنند.
+        </li>
+      </ol>
+    </section>
 
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۳. فضای نام KV</h2>
-    <p class="leading-relaxed mb-4">
-      همهٔ کلیدها با پیشوند namespace در <code class="bg-gray-100 px-1 rounded">KVModel</code> ذخیره می‌شوند:
-    </p>
-    <ul class="list-disc list-inside space-y-2 mb-6 text-sm">
-      <li><code class="bg-gray-100 px-1 rounded">user:{telegramId}</code> — نام نمایشی، UUID لینک، blockList، contactLabels، paused، پیش‌نویس مکالمه</li>
-      <li><code class="bg-gray-100 px-1 rounded">userUUIDtoId:{uuid}</code> — توکن ۲۲ کاراکتری لینک → شناسهٔ تلگرام مالک</li>
-      <li><code class="bg-gray-100 px-1 rounded">conversation:{conversationId}</code> — ciphertext AES (فرمت <code class="bg-gray-100 px-1 rounded">iv.ciphertext</code> base64url)</li>
-      <li><code class="bg-gray-100 px-1 rounded">stats:newUser:YYYY-MM-DD</code> و <code class="bg-gray-100 px-1 rounded">stats:total:newUser</code> — شمارندهٔ روزانه و تجمیعی</li>
-    </ul>
-
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۴. صندوق ورودی (SQLite DO)</h2>
-    <p class="leading-relaxed mb-4">
-      هر گیرنده یک نمونهٔ <code class="bg-gray-100 px-1 rounded">InboxSqliteDurableObject</code>
-      با کلید <code class="bg-gray-100 px-1 rounded">idFromName(telegramId)</code> دارد.
-      جدول <code class="bg-gray-100 px-1 rounded">inbox_entries</code>:
-    </p>
-    <ul class="list-disc list-inside space-y-2 mb-4 text-sm">
-      <li><strong>ref</strong> — ۸ کاراکتر hex برای دکمه‌های اینلاین (<code class="bg-gray-100 px-1 rounded">rpl:</code> / <code class="bg-gray-100 px-1 rounded">blk:</code> / …)</li>
-      <li><strong>ticket_id</strong> — تیکت تصادفی ۲۵۶ بیتی (نمک HKDF)</li>
-      <li><strong>conversation_id</strong> — کلید مشتق‌شدهٔ KV</li>
-      <li><strong>ciphertext</strong> — کپی blob تا زمان تحویل؛ پس از تحویل <code class="bg-gray-100 px-1 rounded">NULL</code></li>
-      <li><strong>delivered</strong> — ۰ = در صف؛ ۱ = تحویل‌شده (ref برای callback باقی می‌ماند)</li>
-    </ul>
-    <p class="text-sm text-gray-600 mb-6">
-      API داخلی DO: <code class="bg-gray-100 px-1 rounded">POST /add</code>،
-      <code class="bg-gray-100 px-1 rounded">GET /list</code>،
-      <code class="bg-gray-100 px-1 rounded">GET /entry?ref=</code>،
-      <code class="bg-gray-100 px-1 rounded">POST /mark-delivered</code>،
-      <code class="bg-gray-100 px-1 rounded">DELETE /purge</code>.
-      سقف: <strong>۵۰ پیام در انتظار</strong>. برای محدود ماندن جدول، هنگام افزودن پیام جدید
-      refهای تحویل‌شدهٔ قدیمی حذف می‌شوند.
-    </p>
-
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۵. تیکت و رمزنگاری</h2>
-    <p class="leading-relaxed mb-4">
-      هر پیام یک <code class="bg-gray-100 px-1 rounded">ticketId</code> تازه می‌گیرد.
-      تابع <code class="bg-gray-100 px-1 rounded">encryptConversationPayload</code> در یک فراخوانی:
-    </p>
-    <ol class="list-decimal list-inside space-y-2 mb-6 text-sm">
-      <li><strong>conversationId</strong> — HKDF با info <code class="bg-gray-100 px-1 rounded">nekonymous:conversation:v1</code></li>
-      <li><strong>ciphertext</strong> — AES-256-GCM با info <code class="bg-gray-100 px-1 rounded">nekonymous:aes:v1</code></li>
-      <li>IKM: <code class="bg-gray-100 px-1 rounded">APP_SECURE_KEY</code>؛ salt: بایت‌های ticket</li>
-    </ol>
-    <p class="leading-relaxed mb-6 text-sm text-gray-700">
-      <strong>نام مستعار:</strong> کلید HKDF جدا (<code class="bg-gray-100 px-1 rounded">nekonymous:label:v1:{senderId}</code>)
-      روی <code class="bg-gray-100 px-1 rounded">user.contactLabels</code> ذخیره می‌شود — نه در ciphertext و نه در DO.
-    </p>
-
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۶. چرخهٔ ciphertext (دو مخزن)</h2>
-    <pre class="bg-gray-900 text-gray-100 text-xs p-4 rounded-lg overflow-x-auto mb-6 leading-relaxed" dir="ltr">SEND
-  KV  conversation:{id}  ← connection + payload (encrypted)
-  DO  inbox_entries     ← same ciphertext, delivered=0
-
-/inbox DELIVER
-  decrypt from DO row → Telegram
-  KV  re-encrypt with empty payload (metadata only)
-  DO  mark-delivered → ciphertext=NULL, ref kept
-
-CALLBACK (reply / block / nickname)
-  DO  /entry?ref=  → ticketId + conversationId
-  KV  getText(conversationId) → decrypt connection</pre>
-    <p class="leading-relaxed mb-6 text-sm">
-      پس از تحویل، callbackها همیشه از <strong>KV</strong> می‌خوانند؛ DO فقط نگهدارندهٔ ref پایدار است.
-    </p>
-
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۷. جریان‌های اصلی ربات</h2>
-    <div class="space-y-6 text-sm leading-relaxed">
-      <div class="bg-blue-50 border border-blue-100 rounded-lg p-4">
-        <h3 class="font-semibold mb-2">باز کردن لینک (<code>/start {uuid}</code>)</h3>
-        <p>اعتبارسنجی فرمت UUID → نقشه به مالک → بررسی self / block / pause →
-        پیش‌نویس <code class="bg-white px-1 rounded">currentConversation.to</code>.</p>
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="rounded-xl border border-green-200 bg-green-50 p-5">
+        <h2 class="text-xl font-semibold mb-3">سیستم چه چیزی را کم می‌کند؟</h2>
+        <ul class="list-disc list-inside space-y-2 leading-8">
+          <li>نمایش username دو طرف در رابط bot</li>
+          <li>نگه‌داری plaintext پیام در KV یا Durable Object</li>
+          <li>باقی ماندن payload بعد از /inbox</li>
+          <li>دسترسی اشتباه به callbackهای reply و block</li>
+        </ul>
       </div>
-      <div class="bg-green-50 border border-green-100 rounded-lg p-4">
-        <h3 class="font-semibold mb-2">ارسال پیام</h3>
-        <p>رمزنگاری → KV → <code class="bg-white px-1 rounded">POST /add</code>.
-        اگر ۵۰ پیام در انتظار وجود داشته باشد (<code class="bg-white px-1 rounded">429</code>)،
-        کلید KV حذف می‌شود (بدون orphan). refهای تحویل‌شدهٔ قدیمی قبل از رد پیام prune می‌شوند.</p>
+      <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-5">
+        <h2 class="text-xl font-semibold mb-3">سیستم چه چیزی را حذف نمی‌کند؟</h2>
+        <ul class="list-disc list-inside space-y-2 leading-8">
+          <li>Telegram همچنان پیام اولیه را دریافت می‌کند.</li>
+          <li>Worker هنگام پردازش، plaintext را می‌بیند.</li>
+          <li>اپراتور و secretهای runtime بخشی از مدل اعتماد هستند.</li>
+          <li>metadata لازم برای user، block، pause و nickname وجود دارد.</li>
+        </ul>
       </div>
-      <div class="bg-purple-50 border border-purple-100 rounded-lg p-4">
-        <h3 class="font-semibold mb-2">پاسخ در رشتهٔ موجود</h3>
-        <p>اگر <code class="bg-white px-1 rounded">reply_to_message_id</code> از دکمهٔ پاسخ تنظیم شده باشد،
-        <strong>pause</strong> گیرنده مانع ارسال نمی‌شود (فقط پیام‌های جدید از لینک مسدود می‌شوند).</p>
+    </section>
+
+    <section>
+      <h2 class="text-2xl font-semibold mb-4">هر بخش کجا زندگی می‌کند؟</h2>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm border border-gray-200 rounded-lg">
+          <thead class="bg-gray-100">
+            <tr>
+              <th class="p-3 text-right border-b">بخش</th>
+              <th class="p-3 text-right border-b">کجا ذخیره یا اجرا می‌شود؟</th>
+              <th class="p-3 text-right border-b">برای چه کاری؟</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="p-3 border-b">Webhook و صفحات وب</td>
+              <td class="p-3 border-b">یک Cloudflare Worker</td>
+              <td class="p-3 border-b">دریافت Telegram update، routeها، HTML سبک</td>
+            </tr>
+            <tr>
+              <td class="p-3 border-b">منطق bot</td>
+              <td class="p-3 border-b">Grammy داخل همان Worker</td>
+              <td class="p-3 border-b">/start، /inbox، settings، callbackها</td>
+            </tr>
+            <tr>
+              <td class="p-3 border-b">پروفایل و تنظیمات</td>
+              <td class="p-3 border-b">Cloudflare KV</td>
+              <td class="p-3 border-b">نام نمایشی، link id، block list، pause، nicknameها</td>
+            </tr>
+            <tr>
+              <td class="p-3 border-b">متن رمزنگاری‌شده</td>
+              <td class="p-3 border-b">KV با key از نوع conversation</td>
+              <td class="p-3 border-b">نگه‌داری blob رمزنگاری‌شده تا زمان تحویل</td>
+            </tr>
+            <tr>
+              <td class="p-3">inbox هر گیرنده</td>
+              <td class="p-3">Durable Object + SQLite</td>
+              <td class="p-3">صف pending، refهای callback، سقف ۵۰ row</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </div>
+    </section>
 
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۸. محدودیت‌های عملیاتی</h2>
-    <ul class="list-disc list-inside space-y-2 mb-6 text-sm">
-      <li>نرخ ارسال / باز کردن لینک: ۵ ثانیه برای هر کاربر</li>
-      <li>حداکثر ۲۰۰ نام مستعار؛ هر برچسب حداکثر ۳۲ کاراکتر</li>
-      <li>حداکثر ۵۰ پیام در انتظار برای هر inbox؛ callbackهای قدیمی ممکن است بعد از prune منقضی شوند</li>
-      <li>فقط <code class="bg-gray-100 px-1 rounded">connection.to</code> مجاز به act روی ref است</li>
-      <li>نام‌های نمایشی منو (مثل «تنظیمات») قابل ذخیره نیستند</li>
-      <li>آمار وب‌هوک با <code class="bg-gray-100 px-1 rounded">waitUntil</code> به تأخیر می‌افتد تا ACK سریع بماند</li>
-    </ul>
+    <section>
+      <h2 class="text-2xl font-semibold mb-4">چرا inbox جداست؟</h2>
+      <p class="leading-8 mb-3">
+        KV برای profile و link map خوب است، اما برای ترتیب inbox مناسب نیست.
+        اگر چند نفر نزدیک به هم پیام بدهند، inbox باید یک نقطهٔ مشخص برای صف و تحویل داشته باشد.
+      </p>
+      <p class="leading-8">
+        برای همین هر گیرنده یک Durable Object جدا دارد. این object پیام‌های pending را نگه می‌دارد،
+        ظرفیت را محدود می‌کند، و بعد از تحویل ciphertext خودش را پاک می‌کند ولی ref لازم برای callback را نگه می‌دارد.
+      </p>
+    </section>
 
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۹. امنیت (خلاصهٔ فنی)</h2>
-    <ul class="list-disc list-inside space-y-2 mb-6 text-sm leading-relaxed">
-      <li>رمزنگاری در حالت سکون: AES-256-GCM؛ کلید per-ticket از HKDF</li>
-      <li>میزبان relay است — E2E سرتاسری نیست؛ اپراتور با <code class="bg-gray-100 px-1 rounded">APP_SECURE_KEY</code> می‌تواند decrypt کند</li>
-      <li>متن پیام پس از <code class="bg-gray-100 px-1 rounded">/inbox</code> از payload پاک می‌شود؛ metadata اتصال برای پاسخ/بلاک می‌ماند</li>
-      <li>ticketId، کلیدها و plaintext در لاگ نوشته نمی‌شوند</li>
-    </ul>
+    <section>
+      <h2 class="text-2xl font-semibold mb-4">رمزنگاری در حد لازم برای فهم مدل</h2>
+      <p class="leading-8 mb-3">
+        برای هر پیام پذیرفته‌شده یک ticket تصادفی ساخته می‌شود. سیستم با همان ticket و secret اصلی،
+        کلید لازم برای رمزنگاری پیام و شناسه conversation را مشتق می‌کند. پیام با AES-GCM ذخیره می‌شود.
+      </p>
+      <p class="leading-8 mb-3">
+        معنی عملی این بخش برای کاربر این است: بدنه پیام به شکل plaintext در KV یا inbox ذخیره نمی‌شود.
+        بعد از /inbox هم payload از storage پاک می‌شود.
+      </p>
+      <p class="leading-8">
+        اما این end-to-end encryption نیست. چون bot و Worker باید پیام را پردازش کنند،
+        plaintext در لحظه پردازش دیده می‌شود.
+      </p>
+    </section>
 
-    <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۱۰. منبع و مستندات</h2>
-    <p class="leading-relaxed mb-4">
-      کد منبع:
-      <a href="https://github.com/mehotkhan/Nekonymous" class="text-blue-600 hover:text-blue-800 font-medium">GitHub — Nekonymous</a>
-    </p>
-    <p class="text-sm text-gray-600">
-      در ربات تلگرام: <strong>تنظیمات → 📐 معماری فنی</strong> یا دکمهٔ <strong>🛡️ درباره</strong> در منوی اصلی.
-    </p>
+    <section>
+      <h2 class="text-2xl font-semibold mb-4">کنترل‌های کاربر</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded-xl border border-gray-200 p-4">
+          <h3 class="font-semibold mb-2">block</h3>
+          <p class="leading-8">فرستنده دیگر نمی‌تواند از لینک شما پیام جدید بفرستد.</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 p-4">
+          <h3 class="font-semibold mb-2">pause</h3>
+          <p class="leading-8">پیام‌های جدید از لینک متوقف می‌شوند؛ replyهای thread قبلی می‌توانند ادامه داشته باشند.</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 p-4">
+          <h3 class="font-semibold mb-2">nickname</h3>
+          <p class="leading-8">نام خصوصی برای تشخیص فرستنده‌های تکراری؛ فقط روی profile خودت نگه‌داری می‌شود.</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 p-4">
+          <h3 class="font-semibold mb-2">پاک کردن حساب</h3>
+          <p class="leading-8">لینک فعلی، inbox، block list و nicknameها پاک می‌شوند و لینک تازه ساخته می‌شود.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="rounded-xl border border-gray-200 bg-gray-50 p-5">
+      <h2 class="text-2xl font-semibold mb-4">محدودیت‌های مهم</h2>
+      <ul class="list-disc list-inside space-y-2 leading-8">
+        <li>inbox هر گیرنده سقف ۵۰ row دارد؛ اگر همه pending باشند، پیام جدید پذیرفته نمی‌شود.</li>
+        <li>آمار public تقریبی است و برای accounting دقیق طراحی نشده است.</li>
+        <li>callbackهای خیلی قدیمی ممکن است بعد از prune شدن refها دیگر کار نکنند.</li>
+        <li>پیام‌های unsupported قبل از encryption رد می‌شوند.</li>
+        <li>secretها، ticketها و متن decryptشده نباید log شوند.</li>
+      </ul>
+    </section>
+
+    <section class="border-t border-gray-200 pt-5">
+      <h2 class="text-2xl font-semibold mb-4">منبع</h2>
+      <p class="leading-8">
+        کد و README فنی پروژه در
+        <a href="https://github.com/mehotkhan/Nekonymous" class="text-blue-600 hover:text-blue-800 font-medium">GitHub</a>
+        در دسترس است. اگر فقط می‌خواهی استفاده کنی، صفحهٔ <a href="/about" class="text-blue-600 hover:text-blue-800">راهنمای ساده</a>
+        کافی است.
+      </p>
+    </section>
   </div>
 `;

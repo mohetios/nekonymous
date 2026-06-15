@@ -90,7 +90,8 @@ src/
 ├── front/
 │   ├── layout.ts      # shared HTML shell (RTL, Persian)
 │   ├── home.ts        # / landing page + public stats
-│   └── about.ts       # /about page
+│   ├── about.ts       # /about user-facing how-it-works page
+│   └── technical.ts   # /about/technical readable architecture guide
 └── utils/
     ├── router.ts      # minimal HTTP router
     ├── kv-storage.ts  # KVModel generic wrapper
@@ -106,11 +107,7 @@ src/
     ├── worker.ts      # deferred stats via waitUntil
     └── logs.ts        # daily + running totals in KV
 
-src/admin/
-└── cleanup.ts         # POST /admin/cleanup — full KV + inbox purge
-
 tools/
-├── cleanup.mjs        # ops CLI → /admin/cleanup
 └── verify-crypto.ts   # crypto smoke tests (pnpm test:crypto)
 
 migrations/            # does not exist — no D1
@@ -128,6 +125,7 @@ Do not create alternative roots unless the project already uses them.
 |--------|---------|----------------------------------------------|
 | GET    | `/`     | Public home page with aggregate stats        |
 | GET    | `/about`| About / privacy page                         |
+| GET    | `/about/technical` | Technical architecture page          |
 | POST   | `/bot`  | Telegram webhook (`webhookCallback` + secret)|
 
 Use `src/utils/router.ts` for new HTTP routes. Do not add a second router or framework.
@@ -243,7 +241,7 @@ Internal routes (via stub `fetch`):
 | POST   | `/mark-delivered`  | flag delivered, drop ciphertext, keep `ref`   |
 | GET    | `/list`            | pending (undelivered) entries only            |
 | GET    | `/entry?ref=`      | lookup one entry for reply/block callbacks    |
-| DELETE | `/purge`           | wipe inbox (ops cleanup)                      |
+| DELETE | `/purge`           | wipe one user's inbox during account reset    |
 
 Storage: **SQLite-backed** DO (`new_sqlite_classes` in Wrangler migrations). Inbox rows live in table `inbox_entries` (see `inboxDU.ts`); schema version tracked in `_sql_schema_migrations` (`PRAGMA user_version` is not supported in DO SQLite).
 
@@ -447,7 +445,6 @@ Only run when explicitly requested or clearly required:
 ```bash
 pnpm dev
 pnpm deploy
-pnpm cleanup
 wrangler deploy
 wrangler kv:*
 ```

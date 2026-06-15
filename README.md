@@ -273,7 +273,7 @@ Account deletion does not chase messages already delivered to or pending in othe
 - Inbox DO now prunes old delivered refs instead of permanently filling after 50 lifetime messages.
 - KV list pagination now handles all pages and preserves IDs containing colons, which matters for daily stats backfill.
 - Home page GitHub metadata is fail-soft and escaped before HTML rendering.
-- Webhook/admin secret comparisons now use a small timing-safe byte comparison helper.
+- Webhook secret comparison now uses a small timing-safe byte comparison helper.
 
 ### Remaining Tradeoffs
 

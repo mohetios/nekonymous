@@ -86,7 +86,7 @@ Revert `getTotalStats` / `incrementStat` in `src/utils/logs.ts`; daily keys rema
 - External routes unchanged: `/add`, `/list`, `/entry`, `/mark-delivered`, `/purge`.
 - `/purge` runs `DELETE FROM inbox_entries` then `storage.deleteAll()`.
 
-**Deploy note:** No legacy KV-array import. Existing KV-backed inbox data is **not** carried over — add the SQLite migration tag and accept empty inboxes until new traffic, or run ops cleanup first.
+**Deploy note:** No legacy KV-array import. Existing KV-backed inbox data is **not** carried over — add the SQLite migration tag and accept empty inboxes until new traffic.
 
 **Rollback:** Revert `inboxDU.ts` and Wrangler migration; redeploy previous Worker version.
 
@@ -203,7 +203,7 @@ These must remain true across all migrations:
 - [x] Wrangler SQLite DO class configured (`InboxSqliteDurableObject`)
 - [x] `_sql_schema_migrations` table + version 1 schema applied in constructor
 - [x] External routes unchanged (`/add`, `/list`, `/entry`, `/mark-delivered`, `/purge`)
-- [x] No legacy KV-array import (fresh SQLite inboxes; ops cleanup for reset)
+- [x] No legacy KV-array import (fresh SQLite inboxes after migration)
 
 **Test matrix (must pass)**
 

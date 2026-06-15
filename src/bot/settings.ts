@@ -57,8 +57,8 @@ export type SettingsDeps = {
 const formatTechnicalAboutMessage = (publicSiteUrl?: string): string => {
   const url = technicalAboutUrl(publicSiteUrl);
   const webLine = url
-    ? `<b>مستند کامل:</b>\n<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`
-    : `<b>مستند کامل:</b> مسیر <code>/about/technical</code> روی دامنهٔ همین Worker.`;
+    ? `<b>صفحه کامل:</b>\n<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`
+    : `<b>صفحه کامل:</b> مسیر <code>/about/technical</code> روی دامنهٔ همین Worker.`;
 
   return TECHNICAL_ABOUT_MESSAGE.replace("WEB_LINK_LINE", webLine);
 };

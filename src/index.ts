@@ -49,7 +49,12 @@ router.get(
   "/about",
   (_request: Request, env: Environment, _ctx: ExecutionContext) => {
     const content = AboutPageContent();
-    const html = pageLayout("درباره", env.BOT_NAME, content, env.PUBLIC_SITE_URL);
+    const html = pageLayout(
+      "نحوه کار",
+      env.BOT_NAME,
+      content,
+      env.PUBLIC_SITE_URL
+    );
     return new Response(html, {
       headers: {
         "content-type": "text/html;charset=UTF-8",
@@ -63,7 +68,7 @@ router.get(
   (_request: Request, env: Environment, _ctx: ExecutionContext) => {
     const content = TechnicalPageContent();
     const html = pageLayout(
-      "معماری فنی",
+      "جزئیات فنی",
       env.BOT_NAME,
       content,
       env.PUBLIC_SITE_URL
