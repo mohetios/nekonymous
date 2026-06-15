@@ -42,7 +42,6 @@ export const TechnicalPageContent = () => `
       <li><code class="bg-gray-100 px-1 rounded">GET /about</code> — راهنمای کاربری</li>
       <li><code class="bg-gray-100 px-1 rounded">GET /about/technical</code> — همین صفحه</li>
       <li><code class="bg-gray-100 px-1 rounded">POST /bot</code> — وب‌هوک؛ هدر <code class="bg-gray-100 px-1 rounded">X-Telegram-Bot-Api-Secret-Token</code></li>
-      <li><code class="bg-gray-100 px-1 rounded">POST /admin/cleanup</code> — پاک‌سازی کامل KV + inboxها (Bearer <code class="bg-gray-100 px-1 rounded">BOT_SECRET_KEY</code>)</li>
     </ul>
 
     <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۳. فضای نام KV</h2>
@@ -75,7 +74,8 @@ export const TechnicalPageContent = () => `
       <code class="bg-gray-100 px-1 rounded">GET /entry?ref=</code>،
       <code class="bg-gray-100 px-1 rounded">POST /mark-delivered</code>،
       <code class="bg-gray-100 px-1 rounded">DELETE /purge</code>.
-      سقف: <strong>۵۰ سطر</strong> در هر inbox (شامل refهای تحویل‌شده).
+      سقف: <strong>۵۰ پیام در انتظار</strong>. برای محدود ماندن جدول، هنگام افزودن پیام جدید
+      refهای تحویل‌شدهٔ قدیمی حذف می‌شوند.
     </p>
 
     <h2 class="text-2xl font-semibold mt-10 mb-4 border-b pb-2">۵. تیکت و رمزنگاری</h2>
@@ -120,7 +120,8 @@ CALLBACK (reply / block / nickname)
       <div class="bg-green-50 border border-green-100 rounded-lg p-4">
         <h3 class="font-semibold mb-2">ارسال پیام</h3>
         <p>رمزنگاری → KV → <code class="bg-white px-1 rounded">POST /add</code>.
-        اگر inbox پر (<code class="bg-white px-1 rounded">429</code>)، کلید KV حذف می‌شود (بدون orphan).</p>
+        اگر ۵۰ پیام در انتظار وجود داشته باشد (<code class="bg-white px-1 rounded">429</code>)،
+        کلید KV حذف می‌شود (بدون orphan). refهای تحویل‌شدهٔ قدیمی قبل از رد پیام prune می‌شوند.</p>
       </div>
       <div class="bg-purple-50 border border-purple-100 rounded-lg p-4">
         <h3 class="font-semibold mb-2">پاسخ در رشتهٔ موجود</h3>
@@ -133,6 +134,7 @@ CALLBACK (reply / block / nickname)
     <ul class="list-disc list-inside space-y-2 mb-6 text-sm">
       <li>نرخ ارسال / باز کردن لینک: ۵ ثانیه برای هر کاربر</li>
       <li>حداکثر ۲۰۰ نام مستعار؛ هر برچسب حداکثر ۳۲ کاراکتر</li>
+      <li>حداکثر ۵۰ پیام در انتظار برای هر inbox؛ callbackهای قدیمی ممکن است بعد از prune منقضی شوند</li>
       <li>فقط <code class="bg-gray-100 px-1 rounded">connection.to</code> مجاز به act روی ref است</li>
       <li>نام‌های نمایشی منو (مثل «تنظیمات») قابل ذخیره نیستند</li>
       <li>آمار وب‌هوک با <code class="bg-gray-100 px-1 rounded">waitUntil</code> به تأخیر می‌افتد تا ACK سریع بماند</li>

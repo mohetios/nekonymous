@@ -104,7 +104,7 @@ Worker واحد + Grammy + KV + <code>InboxSqliteDurableObject</code> (SQLite pe
 • <code>user:*</code> — پروفایل، بلاک، نام مستعار، pause
 • <code>userUUIDtoId:*</code> — لینک ۲۲ کاراکتری → مالک
 • <code>conversation:*</code> — ciphertext AES (opaque)
-• DO — صف FIFO، سقف ۵۰ سطر، ref برای callback
+• DO — صف FIFO، سقف ۵۰ پیام در انتظار، ref برای callback
 
 <b>چرخهٔ پیام</b>
 ارسال → رمز در KV + کپی در DO → /inbox تحویل → payload از KV پاک → ref برای پاسخ/بلاک از KV خوانده می‌شود.
