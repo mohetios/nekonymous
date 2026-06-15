@@ -1,6 +1,6 @@
 name = "nekonymous"
 main = "src/index.ts"
-compatibility_date = "2024-08-19"
+compatibility_date = "2026-06-15"
 
 workers_dev = true
 
@@ -19,8 +19,16 @@ pattern = "nekonymous.mohetios.dev"
 custom_domain = true
 
 [durable_objects]
-bindings = [{ name = "INBOX_DO", class_name = "InboxDurableObject" }]
+bindings = [{ name = "INBOX_DO", class_name = "InboxSqliteDurableObject" }]
 
 [[migrations]]
-tag = "v1"                           # Increment this tag each time you make changes to Durable Objects
+tag = "v1"
 new_classes = ["InboxDurableObject"]
+
+[[migrations]]
+tag = "v2-delete-inbox"
+deleted_classes = ["InboxDurableObject"]
+
+[[migrations]]
+tag = "v3-inbox-sqlite"
+new_sqlite_classes = ["InboxSqliteDurableObject"]
