@@ -173,6 +173,7 @@ export const handleStartCommand = async (
 
   await userModel.updateField(currentUserId.toString(), "currentConversation", {
     to: Number(otherUserId),
+    linkUuid: linkId,
     parent_message_id: prompt.message_id,
   });
 };
@@ -206,6 +207,7 @@ export const handleMessage = async (
   const settingsDeps = {
     userModel,
     userUUIDtoId,
+    conversationModel,
     statsModel,
     inbox,
     botUsername,
@@ -283,7 +285,27 @@ export const handleMessage = async (
   }
 
   const recipient = await userModel.get(recipientId.toString());
-  if (recipient?.blockList.includes(from.id.toString())) {
+  const isThreadReply =
+    activeUser.currentConversation?.reply_to_message_id !== undefined;
+
+  if (!recipient) {
+    await ctx.reply(NoUserFoundMessage, { reply_markup: mainMenu });
+    await userModel.updateFields(from.id.toString(), {
+      currentConversation: undefined,
+    });
+    return;
+  }
+
+  const linkUuid = activeUser.currentConversation?.linkUuid;
+  if (!linkUuid || recipient.userUUID !== linkUuid) {
+    await ctx.reply(NoUserFoundMessage, { reply_markup: mainMenu });
+    await userModel.updateFields(from.id.toString(), {
+      currentConversation: undefined,
+    });
+    return;
+  }
+
+  if (recipient.blockList.includes(from.id.toString())) {
     await ctx.reply(USER_IS_BLOCKED_MESSAGE);
     await userModel.updateFields(from.id.toString(), {
       currentConversation: undefined,
@@ -291,10 +313,7 @@ export const handleMessage = async (
     return;
   }
 
-  const isThreadReply =
-    activeUser.currentConversation?.reply_to_message_id !== undefined;
-
-  if (recipient?.paused && !isThreadReply) {
+  if (recipient.paused && !isThreadReply) {
     const senderLabel = await getContactLabelForSender(
       from.id,
       Number(recipientId),
@@ -321,6 +340,8 @@ export const handleMessage = async (
       connection: {
         from: from.id,
         to: Number(recipientId),
+        senderLinkUuid: activeUser.userUUID,
+        recipientLinkUuid: recipient.userUUID,
         parent_message_id: message.message_id,
         reply_to_message_id: activeUser.currentConversation?.reply_to_message_id,
       },

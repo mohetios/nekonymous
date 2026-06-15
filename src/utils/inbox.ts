@@ -21,6 +21,18 @@ export const listPendingInbox = async (
   return response.json<InboxMessage[]>();
 };
 
+export const listAllInboxEntries = async (
+  inbox: Environment["INBOX_DO"],
+  userId: number
+): Promise<InboxMessage[]> => {
+  const response = await inboxStub(inbox, userId).fetch("https://inbox/all");
+  if (!response.ok) {
+    return [];
+  }
+
+  return response.json<InboxMessage[]>();
+};
+
 export type AddInboxResult = {
   ok: boolean;
   status: number;

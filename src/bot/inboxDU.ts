@@ -72,6 +72,9 @@ export class InboxSqliteDurableObject extends DurableObject<Environment> {
     if (request.method === "GET" && pathname === "/list") {
       return this.listInbox();
     }
+    if (request.method === "GET" && pathname === "/all") {
+      return this.listAllInbox();
+    }
     if (request.method === "GET" && pathname === "/entry") {
       return this.getEntry(request);
     }
@@ -144,6 +147,18 @@ export class InboxSqliteDurableObject extends DurableObject<Environment> {
         `SELECT ref, ticket_id, conversation_id, ciphertext, delivered
          FROM inbox_entries
          WHERE delivered = 0 AND ciphertext IS NOT NULL
+         ORDER BY created_at ASC`
+      )
+      .toArray();
+
+    return Response.json(rows.map(rowToMessage));
+  }
+
+  private listAllInbox(): Response {
+    const rows = this.ctx.storage.sql
+      .exec<InboxRow>(
+        `SELECT ref, ticket_id, conversation_id, ciphertext, delivered
+         FROM inbox_entries
          ORDER BY created_at ASC`
       )
       .toArray();

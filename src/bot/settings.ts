@@ -48,6 +48,7 @@ import {
 export type SettingsDeps = {
   userModel: KVModel<User>;
   userUUIDtoId: KVModel<string>;
+  conversationModel: KVModel<string>;
   statsModel: KVModel<number>;
   inbox: Environment["INBOX_DO"];
   botUsername: string;
@@ -343,6 +344,7 @@ export const handleSettingsMenu = async (
           user,
           deps.userModel,
           deps.userUUIDtoId,
+          deps.conversationModel,
           deps.inbox
         );
         const freshUser = await ensureUser(

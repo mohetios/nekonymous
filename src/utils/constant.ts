@@ -86,7 +86,7 @@ export const buildDraftMenu = (): Keyboard =>
 
 /**
  * Grouped settings keyboard (RTL: first button = right on screen).
- * حساب | دریافت → خروج → حریم خصوصی → خطر
+ * حساب | دریافت → خروج → بلاک/پاک → فنی
  */
 export const buildSettingsMenu = (paused: boolean): Keyboard =>
   new Keyboard()
@@ -97,10 +97,9 @@ export const buildSettingsMenu = (paused: boolean): Keyboard =>
     .text(MENU.back)
     .row()
     .text(MENU.clearBlockList)
+    .text(MENU.clearData)
     .row()
     .text(MENU.technical)
-    .row()
-    .text(MENU.clearData)
     .resized();
 
 export const confirmClearBlocksMenu = new Keyboard()

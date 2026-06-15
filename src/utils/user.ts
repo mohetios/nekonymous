@@ -2,7 +2,7 @@ import type { Context } from "grammy";
 import type { Environment, User } from "../types";
 import { isReservedDisplayName } from "./constant";
 import type { KVModel } from "./kv-storage";
-import { purgeInbox } from "./inbox";
+import { listAllInboxEntries, purgeInbox } from "./inbox";
 import { incrementStat } from "./logs";
 import { scheduleWork } from "./worker";
 
@@ -57,13 +57,57 @@ const initialDisplayName = (firstName: string | undefined): string => {
   return sanitizeDisplayName(firstName) ?? "کاربر";
 };
 
+const clearDraftsTargetingUser = async (
+  userModel: KVModel<User>,
+  targetUserId: number,
+  staleLinkUuid: string
+): Promise<void> => {
+  const prefix = `${userModel.namespace}:`;
+  const targetId = targetUserId.toString();
+  const { keys } = await userModel.list();
+
+  for (const key of keys) {
+    if (!key.name.startsWith(prefix)) {
+      continue;
+    }
+
+    const userId = key.name.slice(prefix.length);
+    if (!userId || userId === targetId) {
+      continue;
+    }
+
+    const record = await userModel.get(userId);
+    const draft = record?.currentConversation;
+    if (!draft) {
+      continue;
+    }
+
+    if (draft.to === targetUserId || draft.linkUuid === staleLinkUuid) {
+      await userModel.updateField(userId, "currentConversation", undefined);
+    }
+  }
+};
+
 export const deleteUserAccount = async (
   userId: number,
   user: User,
   userModel: KVModel<User>,
   userUUIDtoId: KVModel<string>,
+  conversationModel: KVModel<string>,
   inbox: Environment["INBOX_DO"]
 ): Promise<void> => {
+  const inboxEntries = await listAllInboxEntries(inbox, userId);
+  const conversationIds = [
+    ...new Set(inboxEntries.map((entry) => entry.conversationId)),
+  ];
+
+  await Promise.all([
+    ...conversationIds.map((conversationId) =>
+      conversationModel.remove(conversationId)
+    ),
+    clearDraftsTargetingUser(userModel, userId, user.userUUID),
+  ]);
+
   await userUUIDtoId.remove(user.userUUID);
   await purgeInbox(inbox, userId);
   await userModel.remove(userId.toString());

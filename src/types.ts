@@ -14,6 +14,8 @@ export interface User {
   pendingSettings?: "editName" | "confirmClearData" | "confirmClearBlockList";
   currentConversation?: {
     to?: number;
+    /** Recipient link id when the draft was opened via /start {uuid}. */
+    linkUuid?: string;
     reply_to_message_id?: number;
     parent_message_id?: number;
     /** Awaiting nickname text for this sender alias. */
@@ -36,6 +38,10 @@ export interface Conversation {
   connection: {
     from: number;
     to: number;
+    /** Link id of the sender when the message was accepted. */
+    senderLinkUuid?: string;
+    /** Link id of the recipient when the message was accepted. */
+    recipientLinkUuid?: string;
     parent_message_id?: number;
     reply_to_message_id?: number;
   };

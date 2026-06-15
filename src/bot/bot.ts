@@ -80,6 +80,7 @@ export const createBot = (env: Environment) => {
     handleSettingsCommand(ctx, {
       userModel,
       userUUIDtoId,
+      conversationModel,
       statsModel,
       inbox: INBOX_DO,
       botUsername: BOT_USERNAME,

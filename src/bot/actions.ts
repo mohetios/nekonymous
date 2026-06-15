@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import type { Environment, User } from "../types";
+import type { Conversation, Environment, User } from "../types";
 import { buildDraftMenu, createMessageKeyboard } from "../utils/constant";
 import {
   getContactLabelForSender,
@@ -30,6 +30,23 @@ type ActionContext = {
 };
 
 const isRecipient = (to: number, userId: number): boolean => to === userId;
+
+const isStaleConversationTarget = (
+  conversation: { connection: Conversation["connection"] },
+  targetUser: User | null | undefined,
+  role: "sender" | "recipient"
+): boolean => {
+  if (!targetUser) {
+    return true;
+  }
+
+  const expected =
+    role === "sender"
+      ? conversation.connection.senderLinkUuid
+      : conversation.connection.recipientLinkUuid;
+
+  return !!expected && targetUser.userUUID !== expected;
+};
 
 const loadAction = async (ctx: Context, deps: ActionContext) => {
   const ref = ctx.match?.[1];
@@ -95,7 +112,15 @@ export const handleReplyAction = async (
     }
 
     const sender = await userModel.get(conversation.connection.from.toString());
-    if (sender?.blockList.includes(currentUserId.toString())) {
+    if (
+      !sender ||
+      isStaleConversationTarget(conversation, sender, "sender")
+    ) {
+      await ctx.reply(NoConversationFoundMessage);
+      return;
+    }
+
+    if (sender.blockList.includes(currentUserId.toString())) {
       await ctx.reply(USER_IS_BLOCKED_MESSAGE);
       return;
     }
@@ -109,6 +134,7 @@ export const handleReplyAction = async (
 
     await userModel.updateField(currentUserId.toString(), "currentConversation", {
       to: conversation.connection.from,
+      linkUuid: conversation.connection.senderLinkUuid,
       parent_message_id: callbackMessageId,
       reply_to_message_id: conversation.connection.parent_message_id,
     });
@@ -161,6 +187,13 @@ export const handleBlockAction = async (
 
   const { entry, conversation } = loaded;
   if (!isRecipient(conversation.connection.to, currentUserId)) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
+  const sender = await userModel.get(conversation.connection.from.toString());
+  if (isStaleConversationTarget(conversation, sender, "sender")) {
+    await ctx.reply(NoConversationFoundMessage);
     await ctx.answerCallbackQuery();
     return;
   }
@@ -228,6 +261,13 @@ export const handleUnblockAction = async (
     return;
   }
 
+  const sender = await userModel.get(conversation.connection.from.toString());
+  if (isStaleConversationTarget(conversation, sender, "sender")) {
+    await ctx.reply(NoConversationFoundMessage);
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
   try {
     const currentUser = await userModel.get(currentUserId.toString());
     const senderId = conversation.connection.from.toString();
@@ -289,6 +329,13 @@ export const handleNicknameAction = async (
 
   const { conversation } = loaded;
   if (!isRecipient(conversation.connection.to, currentUserId)) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
+  const sender = await userModel.get(conversation.connection.from.toString());
+  if (isStaleConversationTarget(conversation, sender, "sender")) {
+    await ctx.reply(NoConversationFoundMessage);
     await ctx.answerCallbackQuery();
     return;
   }
