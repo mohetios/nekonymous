@@ -17,13 +17,16 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev --local --port 8787",
-    "deploy": "wrangler deploy --minify",
+    "db:migrations:apply:local": "wrangler d1 migrations apply DB --local",
+    "db:migrations:apply:remote": "wrangler d1 migrations apply DB --remote",
+    "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy --minify",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "knip": "knip",
     "test:crypto": "node --experimental-strip-types tools/verify-crypto.ts",
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test:crypto"
+    "test:matching": "node --experimental-strip-types tools/verify-matching.ts",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test:crypto && pnpm run test:matching"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.20260611.1",
