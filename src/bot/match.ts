@@ -29,6 +29,7 @@ import {
   MATCH_ACCEPTED_CANDIDATE,
   MATCH_DECLINED_CANDIDATE,
   MATCH_REQUEST_ALREADY_HANDLED,
+  MATCH_REQUEST_ALREADY_ACCEPTED,
   MATCH_REQUEST_EXPIRED,
   MATCH_CANDIDATE_UNAVAILABLE,
   MATCH_PENDING_EXISTS,
@@ -332,6 +333,8 @@ export const handleMatchIntroInput = async (
     } else if (result.reason === "pending_exists") {
       const hubKeyboard = await matchHubKeyboard(userId, env);
       await ctx.reply(MATCH_PENDING_EXISTS, { reply_markup: hubKeyboard });
+    } else if (result.reason === "already_accepted") {
+      await ctx.reply(MATCH_REQUEST_ALREADY_ACCEPTED, withHtml({ reply_markup: mainMenu }));
     } else {
       await ctx.reply(HuhMessage, { reply_markup: mainMenu });
     }

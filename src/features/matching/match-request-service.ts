@@ -12,7 +12,7 @@ import {
   notifyRecipientInbox,
   sendAnonymousMessage,
 } from "../../services/messaging-service";
-import { enqueueTelegramOutbox } from "../../services/outbox-service";
+import { enqueueTelegramOutbox, sendViaOutboxDo } from "../../services/outbox-service";
 import type { MessagePayload } from "../../types";
 import { clearDraft } from "../../services/user-state-service";
 import {
@@ -136,6 +136,51 @@ export const cancelMatchRequest = async (
   return { ok: true };
 };
 
+const reopenMatchRequest = async (
+  env: Environment,
+  params: {
+    requestId: string;
+    introText: string;
+    introCiphertext: string;
+    candidateUserId: string;
+    suggestionId: string;
+    requesterUserId: string;
+  }
+): Promise<void> => {
+  const now = Date.now();
+  await env.DB.prepare(
+    `UPDATE match_requests
+     SET status = 'pending',
+         intro_ciphertext = ?,
+         created_at = ?,
+         expires_at = ?,
+         responded_at = NULL
+     WHERE id = ?`
+  )
+    .bind(
+      params.introCiphertext,
+      now,
+      now + MATCH_REQUEST_TTL_MS,
+      params.requestId
+    )
+    .run();
+
+  await markSuggestionAction(params.suggestionId, "requested", env);
+  await recordMatchEvent(env, {
+    type: "request_reopened",
+    userId: params.requesterUserId,
+    targetUserId: params.candidateUserId,
+    matchRequestId: params.requestId,
+  });
+
+  await notifyCandidateOfRequest(
+    env,
+    params.requestId,
+    params.introText,
+    params.candidateUserId
+  );
+};
+
 export const createMatchRequest = async (
   params: {
     requesterUserId: string;
@@ -194,12 +239,66 @@ export const createMatchRequest = async (
   const idempotencyKey = `req:${requesterUserId}:${suggestionId}`;
 
   const existing = await env.DB.prepare(
-    "SELECT id FROM match_requests WHERE idempotency_key = ?"
+    "SELECT id, status, expires_at FROM match_requests WHERE idempotency_key = ?"
   )
     .bind(idempotencyKey)
-    .first<{ id: string }>();
+    .first<{ id: string; status: MatchRequestRow["status"]; expires_at: number | null }>();
+
   if (existing) {
-    return { ok: true, requestId: existing.id };
+    if (existing.status === "accepted") {
+      return { ok: false, reason: "already_accepted" };
+    }
+
+    const introCiphertext = await encryptMatchIntro(
+      existing.id,
+      trimmed,
+      env.APP_MASTER_KEY
+    );
+
+    if (existing.status === "pending") {
+      const expired =
+        existing.expires_at !== null && existing.expires_at < Date.now();
+      if (!expired) {
+        await env.DB.prepare(
+          `UPDATE match_requests
+           SET intro_ciphertext = ?, created_at = ?, expires_at = ?
+           WHERE id = ?`
+        )
+          .bind(
+            introCiphertext,
+            now,
+            now + MATCH_REQUEST_TTL_MS,
+            existing.id
+          )
+          .run();
+        await notifyCandidateOfRequest(
+          env,
+          existing.id,
+          trimmed,
+          suggestion.candidate_user_id
+        );
+        await clearDraft(env, requesterUserId);
+        return { ok: true, requestId: existing.id };
+      }
+    }
+
+    if (
+      existing.status === "pending" ||
+      existing.status === "cancelled" ||
+      existing.status === "declined" ||
+      existing.status === "expired"
+    ) {
+      await reopenMatchRequest(env, {
+        requestId: existing.id,
+        introText: trimmed,
+        introCiphertext,
+        candidateUserId: suggestion.candidate_user_id,
+        suggestionId,
+        requesterUserId,
+      });
+      await clearDraft(env, requesterUserId);
+      return { ok: true, requestId: existing.id };
+    }
   }
 
   const introCiphertext = await encryptMatchIntro(
@@ -236,12 +335,50 @@ export const createMatchRequest = async (
       .run();
   } catch {
     const raced = await env.DB.prepare(
-      "SELECT id FROM match_requests WHERE idempotency_key = ?"
+      "SELECT id, status, expires_at FROM match_requests WHERE idempotency_key = ?"
     )
       .bind(idempotencyKey)
-      .first<{ id: string }>();
+      .first<{ id: string; status: MatchRequestRow["status"]; expires_at: number | null }>();
     if (raced) {
-      return { ok: true, requestId: raced.id };
+      if (raced.status === "accepted") {
+        return { ok: false, reason: "already_accepted" };
+      }
+      const racedIntro = await encryptMatchIntro(
+        raced.id,
+        trimmed,
+        env.APP_MASTER_KEY
+      );
+      if (raced.status === "pending") {
+        const expired =
+          raced.expires_at !== null && raced.expires_at < Date.now();
+        if (!expired) {
+          await notifyCandidateOfRequest(
+            env,
+            raced.id,
+            trimmed,
+            suggestion.candidate_user_id
+          );
+          await clearDraft(env, requesterUserId);
+          return { ok: true, requestId: raced.id };
+        }
+      }
+      if (
+        raced.status === "pending" ||
+        raced.status === "cancelled" ||
+        raced.status === "declined" ||
+        raced.status === "expired"
+      ) {
+        await reopenMatchRequest(env, {
+          requestId: raced.id,
+          introText: trimmed,
+          introCiphertext: racedIntro,
+          candidateUserId: suggestion.candidate_user_id,
+          suggestionId,
+          requesterUserId,
+        });
+        await clearDraft(env, requesterUserId);
+        return { ok: true, requestId: raced.id };
+      }
     }
     throw new Error("match request insert failed");
   }
@@ -292,19 +429,25 @@ const notifyCandidateOfRequest = async (
     introText,
   });
 
-  await enqueueTelegramOutbox(env, {
-    idempotencyKey: `match_req_notify:${requestId}`,
+  const notifyKey = `match_req_notify:${requestId}:${Date.now()}`;
+  const job = {
+    idempotencyKey: notifyKey,
     chatCiphertext: candidate.telegram_chat_ciphertext,
     chatHash: candidate.telegram_user_hash,
-    method: "sendMessage",
+    method: "sendMessage" as const,
     payload: {
       text,
-      parse_mode: "HTML",
+      parse_mode: "HTML" as const,
       reply_markup: buildIncomingMatchRequestKeyboard(requestId),
     },
-    priority: "normal",
+    priority: "normal" as const,
     createdAt: Date.now(),
-  });
+  };
+
+  const direct = await sendViaOutboxDo(env, job);
+  if (!direct.ok) {
+    await enqueueTelegramOutbox(env, job);
+  }
 };
 
 export const acceptMatchRequest = async (

@@ -77,6 +77,9 @@ export const MATCH_REQUEST_EXPIRED =
 export const MATCH_REQUEST_ALREADY_HANDLED =
   "این درخواست قبلاً پاسخ داده شده است.";
 
+export const MATCH_REQUEST_ALREADY_ACCEPTED =
+  "این درخواست قبلاً پذیرفته شده است. گفت‌وگو از طریق صندوق در دسترس است.";
+
 export const MATCH_SUGGESTION_INVALID =
   "این پیشنهاد دیگر معتبر نیست. دوباره جست‌وجو کن.";
 
