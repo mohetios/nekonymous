@@ -49,6 +49,26 @@ export const getUserState = async (
 ): Promise<UserStateSnapshot> =>
   doFetch<UserStateSnapshot>(env, userId, "/state");
 
+const emptyUserState = (): UserStateSnapshot => ({
+  paused: false,
+  displayNameCiphertext: null,
+  draft: null,
+  blockedUserIds: [],
+  labels: [],
+});
+
+/** Read-only fallback when a user DO has not been initialized yet. */
+export const getUserStateSafe = async (
+  env: Environment,
+  userId: string
+): Promise<UserStateSnapshot> => {
+  try {
+    return await getUserState(env, userId);
+  } catch {
+    return emptyUserState();
+  }
+};
+
 export const setPaused = async (
   env: Environment,
   userId: string,
