@@ -18,18 +18,3 @@ export const unregisterUpdateDefer = (updateId: number): void => {
 
 export const deferForUpdate = (updateId: number): DeferFn | undefined =>
   deferByUpdate.get(updateId);
-
-export const scheduleWork = async (
-  ctx: Context | undefined,
-  promise: Promise<unknown>
-): Promise<void> => {
-  const defer = ctx
-    ? ((ctx as NekoContext).deferWork ?? deferForUpdate(ctx.update.update_id))
-    : undefined;
-
-  if (defer) {
-    defer(promise);
-    return;
-  }
-  await promise;
-};

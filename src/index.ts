@@ -1,6 +1,7 @@
 import { webhookCallback } from "grammy";
 import { createBot } from "./bot/bot";
-import { InboxSqliteDurableObject } from "./bot/inboxDU";
+import { UserStateDurableObject } from "./storage/durable/user-state-do";
+import { TelegramOutboxDurableObject } from "./storage/durable/telegram-outbox-do";
 import { AboutPageContent } from "./front/about";
 import { TechnicalPageContent } from "./front/technical";
 import { HomePageContent } from "./front/home";
@@ -12,17 +13,13 @@ import {
   registerUpdateDefer,
   unregisterUpdateDefer,
 } from "./utils/worker";
+import { handleTelegramOutboxBatch } from "./queues/telegram-outbox.consumer";
+import type { TelegramOutboxJob } from "./queues/types";
 
-// INBOX DURABLE OBJECTS
-export { InboxSqliteDurableObject };
+export { UserStateDurableObject, TelegramOutboxDurableObject };
 
-// Initialize a Router instance for handling different routes
 const router = new Router();
 
-/**
- * Define the route for the home page.
- * This will serve the main page of the application.
- */
 router.get(
   "/",
   async (_request: Request, env: Environment, _ctx: ExecutionContext) => {
@@ -41,10 +38,6 @@ router.get(
   }
 );
 
-/**
- * Define the route for the about page.
- * This will serve a page with information about the application or service.
- */
 router.get(
   "/about",
   (_request: Request, env: Environment, _ctx: ExecutionContext) => {
@@ -116,12 +109,14 @@ router.post(
   }
 );
 
-/**
- * Export the fetch handler.
- * This is the entry point for handling all incoming requests to the worker.
- */
 export default {
   fetch: async (request: Request, env: Environment, ctx: ExecutionContext) => {
     return router.handle(request, env, ctx);
+  },
+  queue: async (
+    batch: MessageBatch<TelegramOutboxJob>,
+    env: Environment
+  ) => {
+    await handleTelegramOutboxBatch(batch, env);
   },
 };

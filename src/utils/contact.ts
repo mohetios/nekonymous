@@ -1,19 +1,20 @@
-import type { User } from "../types";
-import type { KVModel } from "./kv-storage";
-import { getSenderAlias } from "./ticket";
-import { escapeMarkdownV2 } from "./tools";
+import type { Environment } from "../types";
+import { encryptDisplayName } from "../services/crypto-service";
+import {
+  buildDeliveryHeader,
+  buildDeliveryHeaderLine,
+  buildDeliveryHeaderMarkdown,
+} from "./contact-display";
+import { setContactLabel as setLabelInDo } from "../services/user-state-service";
 
 const CONTACT_LABELS_MAX = 200;
 const NICKNAME_MAX_CHARS = 32;
 
-export const buildDeliveryHeaderLine = (nickname: string): string =>
-  `💬 از ${nickname}:`;
-
-export const buildDeliveryHeader = (nickname: string): string =>
-  `${buildDeliveryHeaderLine(nickname)}\n\n`;
-
-export const buildDeliveryHeaderMarkdown = (nickname: string): string =>
-  `${escapeMarkdownV2(buildDeliveryHeaderLine(nickname))}\n\n`;
+export {
+  buildDeliveryHeaderLine,
+  buildDeliveryHeader,
+  buildDeliveryHeaderMarkdown,
+};
 
 export const sanitizeNickname = (input: string): string => {
   const cleaned = input.replace(/[\u0000-\u001F\u007F]/g, "").trim();
@@ -29,34 +30,12 @@ export const lookupContactLabel = (
   alias: string
 ): string | undefined => labels?.[alias];
 
-const getSenderAliasCached = async (
-  recipientId: number,
-  senderId: number,
-  appSecureKey: string,
-  cache: Map<number, string>
-): Promise<string> => {
-  const cached = cache.get(senderId);
-  if (cached) {
-    return cached;
-  }
-
-  const alias = await getSenderAlias(recipientId, senderId, appSecureKey);
-  cache.set(senderId, alias);
-  return alias;
-};
-
-export const getContactLabelForSender = async (
-  recipientId: number,
-  senderId: number,
+export const getContactLabelForSender = (
+  _recipientUserId: string,
+  _senderUserId: string,
   labels: Record<string, string> | undefined,
-  appSecureKey: string,
-  cache?: Map<number, string>
-): Promise<string | undefined> => {
-  const alias = cache
-    ? await getSenderAliasCached(recipientId, senderId, appSecureKey, cache)
-    : await getSenderAlias(recipientId, senderId, appSecureKey);
-  return lookupContactLabel(labels, alias);
-};
+  senderAlias: string
+): string | undefined => lookupContactLabel(labels, senderAlias);
 
 export class ContactLabelLimitError extends Error {
   constructor() {
@@ -66,32 +45,38 @@ export class ContactLabelLimitError extends Error {
 }
 
 export const setContactLabel = async (
-  userModel: KVModel<User>,
-  recipientId: number,
+  env: Environment,
+  recipientUserId: string,
   senderAlias: string,
-  nickname: string
+  targetUserId: string,
+  nickname: string,
+  existingLabels: Record<string, string>
 ): Promise<void> => {
-  const user = await userModel.get(recipientId.toString());
-  if (!user) {
-    throw new Error(`User ${recipientId} not found`);
+  const isUpdate = senderAlias in existingLabels;
+  if (
+    nickname &&
+    !isUpdate &&
+    Object.keys(existingLabels).length >= CONTACT_LABELS_MAX
+  ) {
+    throw new ContactLabelLimitError();
   }
 
-  const labels = { ...(user.contactLabels ?? {}) };
+  const nicknameCiphertext = nickname
+    ? await encryptDisplayName(nickname, env.APP_MASTER_KEY)
+    : null;
 
-  if (!nickname) {
-    delete labels[senderAlias];
-  } else {
-    const isUpdate = senderAlias in labels;
-    if (!isUpdate && Object.keys(labels).length >= CONTACT_LABELS_MAX) {
+  try {
+    await setLabelInDo(
+      env,
+      recipientUserId,
+      senderAlias,
+      targetUserId,
+      nicknameCiphertext
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("limit")) {
       throw new ContactLabelLimitError();
     }
-    labels[senderAlias] = nickname;
+    throw error;
   }
-
-  const nextLabels =
-    Object.keys(labels).length > 0 ? labels : undefined;
-  await userModel.save(recipientId.toString(), {
-    ...user,
-    contactLabels: nextLabels,
-  });
 };

@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import type { Conversation, Environment, User } from "../types";
+import type { Environment } from "../types";
 import {
   handlePendingSettingsInput,
   handleSettingsMenu,
@@ -10,20 +10,12 @@ import {
   handleMenuCommand,
   mainMenu,
 } from "../utils/constant";
-import type { KVModel } from "../utils/kv-storage";
-import {
-  addInboxEntry,
-  decryptEntry,
-  listPendingInbox,
-  markInboxDelivered,
-} from "../utils/inbox";
-import { incrementStat, logBotError } from "../utils/logs";
+import { logBotError } from "../utils/logs";
 import {
   EMPTY_INBOX_MESSAGE,
   HuhMessage,
   INBOX_FULL_MESSAGE,
   MESSAGE_SENT_MESSAGE,
-  NEW_INBOX_MESSAGE,
   NICKNAME_LIMIT_MESSAGE,
   NICKNAME_REMOVED_MESSAGE,
   NICKNAME_SAVED_MESSAGE,
@@ -37,41 +29,49 @@ import {
   UnsupportedMessageTypeMessage,
   USER_IS_BLOCKED_MESSAGE,
   WelcomeMessage,
-  YOUR_MESSAGE_SEEN_MESSAGE,
 } from "../utils/messages";
 import {
   ContactLabelLimitError,
-  getContactLabelForSender,
   sanitizeNickname,
   setContactLabel,
 } from "../utils/contact";
-import { applyMessagePayload } from "../utils/payload";
-import { hasDeliverablePayload, sendDecryptedMessage } from "../utils/sender";
+import { messageToPayload } from "../utils/payload";
+import { sendDecryptedMessage } from "../utils/sender";
 import {
-  encryptedPayload,
-  encryptConversationPayload,
-  generateTicketId,
-} from "../utils/ticket";
+  deliveryContextFromTicket,
+  hasDeliverablePayload,
+  notifyMessageSeen,
+  notifyRecipientInbox,
+  sendAnonymousMessage,
+  toLegacyConversation,
+} from "../services/messaging-service";
 import {
-  checkRateLimit,
-  convertToPersianNumbers,
+  getActiveSlugForUser,
+  getUserByPublicSlug,
+  resolveOrCreateUser,
+  toBotUser,
+  getUserById,
+} from "../services/identity-service";
+import {
+  checkCanReceive,
+  clearDraft,
+  getDraft,
+  isRateLimited,
+  listPendingInbox,
+  markTicketDelivered,
+  setDraft,
+  touchRateLimit,
+} from "../services/user-state-service";
+import {
   escapeHtml,
   replyHtml,
   withHtml,
 } from "../utils/tools";
-import {
-  buildUserDeepLink,
-  ensureUser,
-  isUserLinkId,
-  publicDisplayName,
-} from "../utils/user";
-import { scheduleWork } from "../utils/worker";
+import { buildUserDeepLink, isUserLinkId, publicDisplayName } from "../utils/user";
 
 export const handleStartCommand = async (
   ctx: Context,
-  userModel: KVModel<User>,
-  userUUIDtoId: KVModel<string>,
-  statsModel: KVModel<number>,
+  env: Environment,
   botUsername: string
 ): Promise<void> => {
   const from = ctx.from;
@@ -79,113 +79,88 @@ export const handleStartCommand = async (
     return;
   }
 
-  const currentUserId = from.id;
+  try {
+    const d1User = await resolveOrCreateUser(ctx, env);
+    const user = await toBotUser(d1User, env);
 
-  if (!ctx.match) {
-    try {
-      const user = await ensureUser(
-        currentUserId,
-        from.first_name,
-        userModel,
-        userUUIDtoId,
-        statsModel,
-        ctx
-      );
-
+    if (!ctx.match) {
       const welcome = WelcomeMessage.replace(
         "UUID_USER_URL",
-        buildUserDeepLink(botUsername, user.userUUID)
+        buildUserDeepLink(botUsername, user.slug)
       );
       await ctx.reply(
         user.paused ? `${OWNER_PAUSED_NOTE}\n\n${welcome}` : welcome,
         withHtml({ reply_markup: mainMenu })
       );
-    } catch (error) {
-      logBotError("handleStartCommand", error);
-      await ctx.reply(HuhMessage, { reply_markup: mainMenu });
+      return;
     }
-    return;
-  }
 
-  if (typeof ctx.match !== "string") {
-    await ctx.reply(HuhMessage, { reply_markup: mainMenu });
-    return;
-  }
+    if (typeof ctx.match !== "string") {
+      await ctx.reply(HuhMessage, { reply_markup: mainMenu });
+      return;
+    }
 
-  const linkId = ctx.match.trim();
-  if (!isUserLinkId(linkId)) {
-    await ctx.reply(NoUserFoundMessage);
-    return;
-  }
+    const linkId = ctx.match.trim();
+    if (!isUserLinkId(linkId)) {
+      await ctx.reply(NoUserFoundMessage);
+      return;
+    }
 
-  const otherUserId = await userUUIDtoId.get(linkId);
-  const currentUser = await ensureUser(
-    currentUserId,
-    from.first_name,
-    userModel,
-    userUUIDtoId,
-    statsModel,
-    ctx
-  );
+    if (await isRateLimited(env, user.id)) {
+      await ctx.reply(RATE_LIMIT_MESSAGE);
+      return;
+    }
 
-  if (checkRateLimit(currentUser.lastMessage)) {
-    await ctx.reply(RATE_LIMIT_MESSAGE);
-    return;
-  }
+    const recipientD1 = await getUserByPublicSlug(linkId, env);
+    if (!recipientD1 || recipientD1.id === user.id) {
+      await ctx.reply(
+        recipientD1 ? SELF_MESSAGE_DISABLE_MESSAGE : NoUserFoundMessage
+      );
+      return;
+    }
 
-  if (!otherUserId || otherUserId.toString() === currentUserId.toString()) {
-    await ctx.reply(
-      otherUserId ? SELF_MESSAGE_DISABLE_MESSAGE : NoUserFoundMessage
-    );
-    return;
-  }
+    const recipient = await toBotUser(recipientD1, env);
 
-  const otherUser = await userModel.get(otherUserId.toString());
-  if (!otherUser) {
-    await userUUIDtoId.remove(linkId);
-    await ctx.reply(NoUserFoundMessage);
-    return;
-  }
+    if (recipient.blockedUserIds.includes(user.id)) {
+      await ctx.reply(USER_IS_BLOCKED_MESSAGE);
+      return;
+    }
 
-  if (otherUser.blockList.includes(currentUserId.toString())) {
-    await ctx.reply(USER_IS_BLOCKED_MESSAGE);
-    return;
-  }
+    if (recipient.paused) {
+      await ctx.reply(
+        RECIPIENT_PAUSED_MESSAGE.replace(
+          "USER_NAME",
+          escapeHtml(publicDisplayName(recipient, "این کاربر"))
+        ),
+        withHtml()
+      );
+      return;
+    }
 
-  if (otherUser.paused) {
-    await ctx.reply(
-      RECIPIENT_PAUSED_MESSAGE.replace(
+    const prompt = await ctx.reply(
+      StartConversationMessage.replace(
         "USER_NAME",
-        escapeHtml(publicDisplayName(otherUser, "این کاربر"))
+        escapeHtml(publicDisplayName(recipient))
       ),
-      withHtml()
+      withHtml({ reply_markup: buildDraftMenu() })
     );
-    return;
+
+    await setDraft(env, user.id, {
+      id: "primary",
+      mode: "compose",
+      toUserId: recipient.id,
+      linkSlug: linkId,
+      parent_message_id: prompt.message_id,
+    });
+  } catch (error) {
+    logBotError("handleStartCommand", error);
+    await ctx.reply(HuhMessage, { reply_markup: mainMenu });
   }
-
-  const prompt = await ctx.reply(
-    StartConversationMessage.replace(
-      "USER_NAME",
-      escapeHtml(publicDisplayName(otherUser))
-    ),
-    withHtml({ reply_markup: buildDraftMenu() })
-  );
-
-  await userModel.updateField(currentUserId.toString(), "currentConversation", {
-    to: Number(otherUserId),
-    linkUuid: linkId,
-    parent_message_id: prompt.message_id,
-  });
 };
 
 export const handleMessage = async (
   ctx: Context,
-  userModel: KVModel<User>,
-  conversationModel: KVModel<string>,
-  userUUIDtoId: KVModel<string>,
-  inbox: Environment["INBOX_DO"],
-  statsModel: KVModel<number>,
-  appSecureKey: string,
+  env: Environment,
   botUsername: string,
   publicSiteUrl?: string
 ): Promise<void> => {
@@ -195,212 +170,164 @@ export const handleMessage = async (
     return;
   }
 
-  const currentUser = await ensureUser(
-    from.id,
-    from.first_name,
-    userModel,
-    userUUIDtoId,
-    statsModel,
-    ctx
-  );
+  try {
+    const d1User = await resolveOrCreateUser(ctx, env);
+    const user = await toBotUser(d1User, env);
 
-  const settingsDeps = {
-    userModel,
-    userUUIDtoId,
-    conversationModel,
-    statsModel,
-    inbox,
-    botUsername,
-    publicSiteUrl,
-  };
-
-  if (await handleMenuCommand(ctx, currentUser, botUsername)) {
-    return;
-  }
-
-  if (await handleSettingsMenu(ctx, currentUser, settingsDeps)) {
-    return;
-  }
-
-  if (await handlePendingSettingsInput(ctx, currentUser, settingsDeps)) {
-    return;
-  }
-
-  const activeUser =
-    (await userModel.get(from.id.toString())) ?? currentUser;
-
-  const pendingNickname = activeUser.currentConversation?.pendingNickname;
-  if (pendingNickname) {
-    if (!message.text) {
-      await ctx.reply(
-        NICKNAME_TEXT_ONLY_MESSAGE,
-        withHtml({ reply_markup: buildDraftMenu() })
-      );
+    if (await handleMenuCommand(ctx, user, botUsername)) {
       return;
     }
 
-    if (checkRateLimit(activeUser.lastMessage)) {
+    if (await handleSettingsMenu(ctx, user, env, botUsername, publicSiteUrl)) {
+      return;
+    }
+
+    if (await handlePendingSettingsInput(ctx, user, env)) {
+      return;
+    }
+
+    const draft = (await getDraft(env, user.id)) ?? user.draft;
+    const pendingNickname = draft?.pendingNicknameAlias;
+    if (pendingNickname) {
+      if (!message.text) {
+        await ctx.reply(
+          NICKNAME_TEXT_ONLY_MESSAGE,
+          withHtml({ reply_markup: buildDraftMenu() })
+        );
+        return;
+      }
+
+      if (await isRateLimited(env, user.id)) {
+        await ctx.reply(RATE_LIMIT_MESSAGE);
+        return;
+      }
+
+      try {
+        const nickname = sanitizeNickname(message.text);
+        await setContactLabel(
+          env,
+          user.id,
+          pendingNickname,
+          draft?.toUserId ?? user.id,
+          nickname,
+          user.contactLabels
+        );
+        await clearDraft(env, user.id);
+        await touchRateLimit(env, user.id);
+        await ctx.reply(
+          nickname
+            ? NICKNAME_SAVED_MESSAGE.replace("NAME", escapeHtml(nickname))
+            : NICKNAME_REMOVED_MESSAGE,
+          withHtml({ reply_markup: mainMenu })
+        );
+      } catch (error) {
+        if (error instanceof ContactLabelLimitError) {
+          await ctx.reply(NICKNAME_LIMIT_MESSAGE, { reply_markup: mainMenu });
+        } else {
+          logBotError("handleMessage:nickname", error);
+          await ctx.reply(HuhMessage, { reply_markup: mainMenu });
+        }
+      }
+      return;
+    }
+
+    const recipientId = draft?.toUserId;
+    if (!recipientId) {
+      await ctx.reply(HuhMessage, { reply_markup: mainMenu });
+      return;
+    }
+
+    if (await isRateLimited(env, user.id)) {
       await ctx.reply(RATE_LIMIT_MESSAGE);
       return;
     }
 
-    try {
-      const nickname = sanitizeNickname(message.text);
-      await setContactLabel(
-        userModel,
-        from.id,
-        pendingNickname,
-        nickname
-      );
-      await userModel.updateFields(from.id.toString(), {
-        currentConversation: undefined,
-        lastMessage: Date.now(),
-      });
-      await ctx.reply(
-        nickname
-          ? NICKNAME_SAVED_MESSAGE.replace("NAME", escapeHtml(nickname))
-          : NICKNAME_REMOVED_MESSAGE,
-        withHtml({ reply_markup: mainMenu })
-      );
-    } catch (error) {
-      if (error instanceof ContactLabelLimitError) {
-        await ctx.reply(NICKNAME_LIMIT_MESSAGE, { reply_markup: mainMenu });
-      } else {
-        logBotError("handleMessage:nickname", error);
-        await ctx.reply(HuhMessage, { reply_markup: mainMenu });
-      }
+    const recipientD1 = await getUserById(recipientId, env);
+    const isThreadReply = draft?.reply_to_message_id !== undefined;
+
+    if (!recipientD1) {
+      await ctx.reply(NoUserFoundMessage, { reply_markup: mainMenu });
+      await clearDraft(env, user.id);
+      return;
     }
-    return;
-  }
 
-  const recipientId = activeUser.currentConversation?.to;
-  if (!recipientId) {
-    await ctx.reply(HuhMessage, { reply_markup: mainMenu });
-    return;
-  }
+    const recipient = await toBotUser(recipientD1, env);
+    const linkSlug = draft?.linkSlug;
+    const activeSlug = await getActiveSlugForUser(recipient.id, env);
 
-  if (checkRateLimit(activeUser.lastMessage)) {
-    await ctx.reply(RATE_LIMIT_MESSAGE);
-    return;
-  }
+    if (!linkSlug || activeSlug !== linkSlug) {
+      await ctx.reply(NoUserFoundMessage, { reply_markup: mainMenu });
+      await clearDraft(env, user.id);
+      return;
+    }
 
-  const recipient = await userModel.get(recipientId.toString());
-  const isThreadReply =
-    activeUser.currentConversation?.reply_to_message_id !== undefined;
+    if (recipient.blockedUserIds.includes(user.id)) {
+      await ctx.reply(USER_IS_BLOCKED_MESSAGE);
+      await clearDraft(env, user.id);
+      return;
+    }
 
-  if (!recipient) {
-    await ctx.reply(NoUserFoundMessage, { reply_markup: mainMenu });
-    await userModel.updateFields(from.id.toString(), {
-      currentConversation: undefined,
-    });
-    return;
-  }
+    const canReceive = await checkCanReceive(env, recipientD1.id, user.id);
+    if (!canReceive.ok && !isThreadReply) {
+      if (canReceive.reason === "blocked") {
+        await ctx.reply(USER_IS_BLOCKED_MESSAGE);
+      } else {
+        await ctx.reply(
+          RECIPIENT_PAUSED_MESSAGE.replace(
+            "USER_NAME",
+            escapeHtml(publicDisplayName(recipient, "این کاربر"))
+          ),
+          withHtml()
+        );
+      }
+      await clearDraft(env, user.id);
+      return;
+    }
 
-  const linkUuid = activeUser.currentConversation?.linkUuid;
-  if (!linkUuid || recipient.userUUID !== linkUuid) {
-    await ctx.reply(NoUserFoundMessage, { reply_markup: mainMenu });
-    await userModel.updateFields(from.id.toString(), {
-      currentConversation: undefined,
-    });
-    return;
-  }
-
-  if (recipient.blockList.includes(from.id.toString())) {
-    await ctx.reply(USER_IS_BLOCKED_MESSAGE);
-    await userModel.updateFields(from.id.toString(), {
-      currentConversation: undefined,
-    });
-    return;
-  }
-
-  if (recipient.paused && !isThreadReply) {
-    const senderLabel = await getContactLabelForSender(
-      from.id,
-      Number(recipientId),
-      activeUser.contactLabels,
-      appSecureKey
-    );
-    await ctx.reply(
-      RECIPIENT_PAUSED_MESSAGE.replace(
-        "USER_NAME",
-        escapeHtml(
-          senderLabel ?? publicDisplayName(recipient, "این کاربر")
-        )
-      ),
-      withHtml()
-    );
-    await userModel.updateFields(from.id.toString(), {
-      currentConversation: undefined,
-    });
-    return;
-  }
-
-  try {
-    const conversation: Conversation = {
-      connection: {
-        from: from.id,
-        to: Number(recipientId),
-        senderLinkUuid: activeUser.userUUID,
-        recipientLinkUuid: recipient.userUUID,
-        parent_message_id: message.message_id,
-        reply_to_message_id: activeUser.currentConversation?.reply_to_message_id,
-      },
-      payload: {},
-    };
-
-    applyMessagePayload(conversation, message);
-    if (!hasDeliverablePayload(conversation)) {
+    const payload = messageToPayload(message);
+    if (!hasDeliverablePayload(payload)) {
       await ctx.reply(UnsupportedMessageTypeMessage, {
         reply_markup: buildDraftMenu(),
-        reply_to_message_id: conversation.connection.parent_message_id,
+        reply_to_message_id: draft?.parent_message_id,
       });
       return;
     }
 
-    const ticketId = generateTicketId();
-    const payloadJson = JSON.stringify(conversation);
-    const { conversationId, ciphertext } = await encryptConversationPayload(
-      ticketId,
-      payloadJson,
-      appSecureKey
-    );
-
-    await conversationModel.saveText(conversationId, ciphertext);
-
-    const addResult = await addInboxEntry(inbox, Number(recipientId), {
-      ticketId,
-      conversationId,
-      ciphertext,
+    const result = await sendAnonymousMessage(env, {
+      sender: d1User,
+      recipient: recipientD1,
+      payload,
+      linkSlug,
+      isThreadReply,
+      replyToMessageId: draft?.reply_to_message_id,
     });
 
-    if (!addResult.ok) {
-      await conversationModel.remove(conversationId);
+    if (!result.ok) {
       await ctx.reply(
-        addResult.status === 429 ? INBOX_FULL_MESSAGE : HuhMessage,
-        { reply_to_message_id: conversation.connection.parent_message_id }
+        result.status === 429 ? INBOX_FULL_MESSAGE : HuhMessage,
+        { reply_to_message_id: draft?.parent_message_id }
       );
       return;
     }
 
-    const pendingCount = addResult.pendingCount ?? 1;
-
     await replyHtml(ctx, MESSAGE_SENT_MESSAGE, {
-      reply_to_message_id: conversation.connection.parent_message_id,
+      reply_to_message_id: draft?.parent_message_id,
     });
-    await ctx.api.sendMessage(
-      Number(recipientId),
-      NEW_INBOX_MESSAGE.replace(
-        "COUNT",
-        convertToPersianNumbers(pendingCount)
-      ),
-      withHtml()
-    );
 
-    await userModel.updateFields(from.id.toString(), {
-      currentConversation: undefined,
-      lastMessage: Date.now(),
-    });
-    await scheduleWork(ctx, incrementStat(statsModel, "newConversation"));
+    if (result.notify) {
+      try {
+        await notifyRecipientInbox(
+          env,
+          recipientD1,
+          result.pendingCount ?? 1
+        );
+      } catch (error) {
+        logBotError("handleMessage:notify", error);
+      }
+    }
+
+    await clearDraft(env, user.id);
+    await touchRateLimit(env, user.id);
   } catch (error) {
     logBotError("handleMessage", error);
     await ctx.reply(HuhMessage, { reply_markup: mainMenu });
@@ -409,10 +336,7 @@ export const handleMessage = async (
 
 export const handleInboxCommand = async (
   ctx: Context,
-  userModel: KVModel<User>,
-  conversationModel: KVModel<string>,
-  inbox: Environment["INBOX_DO"],
-  appSecureKey: string
+  env: Environment
 ): Promise<void> => {
   const from = ctx.from;
   if (!from) {
@@ -420,74 +344,65 @@ export const handleInboxCommand = async (
   }
 
   try {
-    const pending = await listPendingInbox(inbox, from.id);
+    const d1User = await resolveOrCreateUser(ctx, env);
+    const user = await toBotUser(d1User, env);
+    const pending = await listPendingInbox(env, user.id);
 
     if (pending.length === 0) {
       await ctx.reply(EMPTY_INBOX_MESSAGE, withHtml({ reply_markup: mainMenu }));
       return;
     }
 
-    const owner = await userModel.get(from.id.toString());
-    const aliasCache = new Map<number, string>();
     let delivered = 0;
     let failed = 0;
 
-    for (const entry of pending) {
-      if (!entry.ciphertext) {
+    for (const ticket of pending) {
+      if (!ticket.payloadCiphertext) {
         failed += 1;
         continue;
       }
 
       try {
-        const decrypted = await decryptEntry(
-          entry,
-          entry.ciphertext,
-          appSecureKey
+        const delivery = await deliveryContextFromTicket(
+          env,
+          ticket,
+          user.contactLabels,
+          user.blockedUserIds
         );
 
-        if (!decrypted || !hasDeliverablePayload(decrypted)) {
+        if (!hasDeliverablePayload(delivery.payload)) {
           failed += 1;
           continue;
         }
 
-        const senderId = decrypted.connection.from.toString();
-        const isBlocked = !!owner?.blockList.includes(senderId);
-        const senderLabel = await getContactLabelForSender(
-          from.id,
-          decrypted.connection.from,
-          owner?.contactLabels,
-          appSecureKey,
-          aliasCache
+        const legacy = toLegacyConversation(
+          delivery.connection,
+          delivery.payload,
+          0,
+          0
         );
 
         await sendDecryptedMessage(
           ctx,
-          decrypted,
+          legacy,
           {
-            reply_markup: createMessageKeyboard(entry.ref, isBlocked),
+            reply_markup: createMessageKeyboard(ticket.ref, delivery.isBlocked),
           },
-          senderLabel
+          delivery.senderLabel
         );
 
-        const clearedCiphertext = encryptedPayload(
-          entry.ticketId,
-          JSON.stringify({ connection: decrypted.connection, payload: {} }),
-          appSecureKey
+        const senderD1 = await getUserById(
+          delivery.connection.senderUserId,
+          env
         );
-
-        await Promise.all([
-          ctx.api
-            .sendMessage(
-              decrypted.connection.from,
-              YOUR_MESSAGE_SEEN_MESSAGE,
-              decrypted.connection.parent_message_id
-                ? { reply_to_message_id: decrypted.connection.parent_message_id }
-                : undefined
-            )
-            .catch((error) => logBotError("handleInboxCommand:seen", error)),
-          conversationModel.saveText(entry.conversationId, await clearedCiphertext),
-          markInboxDelivered(inbox, from.id, entry.ref),
-        ]);
+        await markTicketDelivered(env, user.id, ticket.ref);
+        if (senderD1) {
+          await notifyMessageSeen(
+            env,
+            senderD1,
+            delivery.connection.parent_message_id
+          ).catch((error) => logBotError("handleInboxCommand:seen", error));
+        }
         delivered += 1;
       } catch (error) {
         failed += 1;

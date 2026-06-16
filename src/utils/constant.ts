@@ -1,5 +1,5 @@
 import { InlineKeyboard, Keyboard, type Context } from "grammy";
-import type { User } from "../types";
+import type { BotUser } from "../types";
 import {
   ABOUT_PRIVACY_COMMAND_MESSAGE,
   OWNER_PAUSED_NOTE,
@@ -61,10 +61,10 @@ export const isReservedDisplayName = (text: string): boolean => {
 };
 
 const INBOX_CALLBACK = {
-  reply: (ref: string) => `rpl:${ref}`,
-  block: (ref: string) => `blk:${ref}`,
-  unblock: (ref: string) => `ubl:${ref}`,
-  nickname: (ref: string) => `nnk:${ref}`,
+  reply: (ref: string) => `r:${ref}`,
+  block: (ref: string) => `b:${ref}`,
+  unblock: (ref: string) => `u:${ref}`,
+  nickname: (ref: string) => `n:${ref}`,
 } as const;
 
 // Main menu keyboard used across various commands
@@ -116,7 +116,7 @@ export const confirmClearMenu = new Keyboard()
 
 export const handleMenuCommand = async (
   ctx: Context,
-  user: User,
+  user: BotUser,
   botUsername: string
 ): Promise<boolean> => {
   const msgPayload = ctx.message?.text;
@@ -125,7 +125,7 @@ export const handleMenuCommand = async (
     case MENU.link: {
       const linkText = USER_LINK_MESSAGE.replace(
         "UUID_USER_URL",
-        buildUserDeepLink(botUsername, user.userUUID)
+        buildUserDeepLink(botUsername, user.slug)
       );
       await ctx.reply(
         user.paused ? `${OWNER_PAUSED_NOTE}\n\n${linkText}` : linkText,

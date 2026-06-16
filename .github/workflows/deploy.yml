@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Apply D1 migrations
+        run: pnpm exec wrangler d1 migrations apply nekonymous_core --remote
+
       - name: Publish to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:

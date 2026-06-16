@@ -1,8 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "project": ["src/**/*.ts", "tools/**/*.{js,mjs,ts}"],
+  "ignoreDependencies": ["cloudflare"],
+  "ignoreExportsUsedInFile": true,
   "ignoreIssues": {
-    "src/bot/inboxDU.ts": ["unlisted"],
     "src/index.ts": ["unlisted"]
   }
 }

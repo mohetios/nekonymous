@@ -10,14 +10,14 @@
   "kv_namespaces": [
     {
       "binding": "NEKO_KV",
-      "id": "REPLACE_ME"
+      "id": "de26a1b398614383a2b9702fafaa8824"
     }
   ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "nekonymous_core",
-      "database_id": "REPLACE_ME",
+      "database_id": "bfc0993d-de7b-4963-b59c-22311e4b71c1",
       "migrations_dir": "migrations"
     }
   ],

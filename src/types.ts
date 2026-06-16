@@ -1,46 +1,39 @@
-/**
- * Interface representing a User in the system.
- */
-export interface User {
-  userName: string;
-  userUUID: string;
-  blockList: string[];
-  /** When true, the anonymous link rejects new senders until resumed. */
-  paused?: boolean;
-  lastMessage?: number;
-  /** Recipient-only labels keyed by opaque sender alias (HKDF). */
-  contactLabels?: Record<string, string>;
-  /** Awaiting settings input (display name or data-delete confirmation). */
-  pendingSettings?: "editName" | "confirmClearData" | "confirmClearBlockList";
-  currentConversation?: {
-    to?: number;
-    /** Recipient link id when the draft was opened via /start {uuid}. */
-    linkUuid?: string;
-    reply_to_message_id?: number;
-    parent_message_id?: number;
-    /** Awaiting nickname text for this sender alias. */
-    pendingNickname?: string;
-  };
-}
+import type { TelegramOutboxJob } from "./queues/types";
 
-export interface InboxMessage {
-  ref: string;
-  ticketId: string;
+export type MessagePayload = {
+  message_type?: string;
+  message_text?: string;
+  photo_id?: string;
+  video_id?: string;
+  animation_id?: string;
+  document_id?: string;
+  sticker_id?: string;
+  voice_id?: string;
+  video_note_id?: string;
+  audio_id?: string;
+  caption?: string;
+  telegramMessageId: number;
+  createdAt: number;
+};
+
+export type ConnectionMetadata = {
+  senderUserId: string;
+  recipientUserId: string;
   conversationId: string;
-  ciphertext?: string;
-  delivered?: boolean;
-}
+  ticketId: string;
+  senderAlias?: string;
+  linkSlug?: string;
+  parent_message_id?: number;
+  reply_to_message_id?: number;
+  createdAt: number;
+};
 
-/**
- * Interface representing a Conversation between two users.
- */
+/** Delivery view for Telegram media helpers (chat ids, not internal ids). */
 export interface Conversation {
   connection: {
     from: number;
     to: number;
-    /** Link id of the sender when the message was accepted. */
     senderLinkUuid?: string;
-    /** Link id of the recipient when the message was accepted. */
     recipientLinkUuid?: string;
     parent_message_id?: number;
     reply_to_message_id?: number;
@@ -60,19 +53,79 @@ export interface Conversation {
   };
 }
 
-/**
- * Interface representing the Environment variables used in the bot.
- */
+export type CipherEnvelope = {
+  v: 1;
+  kid: string;
+  iv: string;
+  ct: string;
+};
+
+export type InboxTicket = {
+  ref: string;
+  ticketId: string;
+  senderUserId: string;
+  recipientUserId: string;
+  conversationId: string;
+  payloadCiphertext?: string;
+  connectionCiphertext: string;
+  status: string;
+  createdAt: number;
+};
+
+export type UserDraft = {
+  id: string;
+  mode: string;
+  toUserId?: string;
+  linkSlug?: string;
+  replyRef?: string;
+  parent_message_id?: number;
+  reply_to_message_id?: number;
+  pendingNicknameAlias?: string;
+  pendingSettings?: "editName" | "confirmClearData" | "confirmClearBlockList";
+};
+
+export type D1User = {
+  id: string;
+  telegram_user_hash: string;
+  telegram_chat_ciphertext: string;
+  locale: string;
+  locale_source: string;
+  onboarding_completed: number;
+  status: string;
+  bucket_id: number;
+  created_at: number;
+  updated_at: number;
+};
+
+export type BotUser = {
+  id: string;
+  slug: string;
+  displayName: string;
+  paused: boolean;
+  blockedUserIds: string[];
+  contactLabels: Record<string, string>;
+  draft?: UserDraft;
+  pendingSettings?: UserDraft["pendingSettings"];
+  lastMessageAt?: number;
+};
+
 export interface Environment {
   SECRET_TELEGRAM_API_TOKEN: string;
   BOT_SECRET_KEY: string;
-  NekonymousKV: KVNamespace;
+  APP_MASTER_KEY: string;
+  APP_HMAC_PEPPER: string;
+
+  NEKO_KV: KVNamespace;
+  DB: D1Database;
+
+  USER_STATE_DO: DurableObjectNamespace;
+  TELEGRAM_OUTBOX_DO: DurableObjectNamespace;
+
+  TELEGRAM_OUTBOX_QUEUE: Queue<TelegramOutboxJob>;
+
   BOT_INFO: string;
   BOT_NAME: string;
   BOT_USERNAME: string;
-  APP_SECURE_KEY: string;
-  INBOX_DO: DurableObjectNamespace;
-  /** Public site origin for bot links to HTML docs (e.g. https://nekonymous.mohetios.dev). */
   PUBLIC_SITE_URL?: string;
 }
 

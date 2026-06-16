@@ -1,11 +1,11 @@
 import { Bot, type Context } from "grammy";
 import type { Message } from "grammy/types";
-import type { Environment, User } from "../types";
-import { KVModel } from "../utils/kv-storage";
+import type { Environment } from "../types";
 import { deferForUpdate, type NekoContext } from "../utils/worker";
 import {
   handleBlockAction,
   handleNicknameAction,
+  handleReportAction,
   handleReplyAction,
   handleUnblockAction,
 } from "./actions";
@@ -27,7 +27,7 @@ const isCommandMessage = (message: Message): boolean =>
 let cachedBot: { key: string; bot: Bot } | null = null;
 
 const botCacheKey = (env: Environment): string =>
-  `${env.SECRET_TELEGRAM_API_TOKEN}\0${env.BOT_INFO}\0${env.APP_SECURE_KEY}`;
+  `${env.SECRET_TELEGRAM_API_TOKEN}\0${env.BOT_INFO}\0${env.APP_MASTER_KEY}`;
 
 export const createBot = (env: Environment) => {
   const cacheKey = botCacheKey(env);
@@ -37,11 +37,8 @@ export const createBot = (env: Environment) => {
 
   const {
     SECRET_TELEGRAM_API_TOKEN,
-    NekonymousKV,
     BOT_INFO,
     BOT_USERNAME,
-    APP_SECURE_KEY,
-    INBOX_DO,
     PUBLIC_SITE_URL,
   } = env;
 
@@ -57,80 +54,30 @@ export const createBot = (env: Environment) => {
     await next();
   });
 
-  const userModel = new KVModel<User>("user", NekonymousKV);
-  const conversationModel = new KVModel<string>("conversation", NekonymousKV);
-  const userUUIDtoId = new KVModel<string>("userUUIDtoId", NekonymousKV);
-  const statsModel = new KVModel<number>("stats", NekonymousKV);
+  bot.command("start", (ctx) => handleStartCommand(ctx, env, BOT_USERNAME));
 
-  bot.command("start", (ctx) =>
-    handleStartCommand(ctx, userModel, userUUIDtoId, statsModel, BOT_USERNAME)
-  );
+  bot.command("inbox", (ctx) => handleInboxCommand(ctx, env));
 
-  bot.command("inbox", (ctx) =>
-    handleInboxCommand(
-      ctx,
-      userModel,
-      conversationModel,
-      INBOX_DO,
-      APP_SECURE_KEY
-    )
-  );
-
-  bot.command("settings", (ctx) =>
-    handleSettingsCommand(ctx, {
-      userModel,
-      userUUIDtoId,
-      conversationModel,
-      statsModel,
-      inbox: INBOX_DO,
-      botUsername: BOT_USERNAME,
-      publicSiteUrl: PUBLIC_SITE_URL,
-    })
-  );
+  bot.command("settings", (ctx) => handleSettingsCommand(ctx, env));
 
   bot.on("message", (ctx) => {
     if (ctx.message && isCommandMessage(ctx.message)) {
       return;
     }
 
-    return handleMessage(
-      ctx,
-      userModel,
-      conversationModel,
-      userUUIDtoId,
-      INBOX_DO,
-      statsModel,
-      APP_SECURE_KEY,
-      BOT_USERNAME,
-      PUBLIC_SITE_URL
-    );
+    return handleMessage(ctx, env, BOT_USERNAME, PUBLIC_SITE_URL);
   });
 
   const onInboxCallback =
-    (
-      handler: (
-        ctx: Context,
-        userModel: KVModel<User>,
-        conversationModel: KVModel<string>,
-        statsModel: KVModel<number>,
-        inbox: Environment["INBOX_DO"],
-        appSecureKey: string
-      ) => Promise<void>
-    ) =>
+    (handler: (ctx: Context, env: Environment) => Promise<void>) =>
     (ctx: Context) =>
-      handler(
-        ctx,
-        userModel,
-        conversationModel,
-        statsModel,
-        INBOX_DO,
-        APP_SECURE_KEY
-      );
+      handler(ctx, env);
 
-  bot.callbackQuery(/^rpl:([a-f0-9]{8})$/, onInboxCallback(handleReplyAction));
-  bot.callbackQuery(/^blk:([a-f0-9]{8})$/, onInboxCallback(handleBlockAction));
-  bot.callbackQuery(/^ubl:([a-f0-9]{8})$/, onInboxCallback(handleUnblockAction));
-  bot.callbackQuery(/^nnk:([a-f0-9]{8})$/, onInboxCallback(handleNicknameAction));
+  bot.callbackQuery(/^r:([a-f0-9]{8})$/, onInboxCallback(handleReplyAction));
+  bot.callbackQuery(/^b:([a-f0-9]{8})$/, onInboxCallback(handleBlockAction));
+  bot.callbackQuery(/^u:([a-f0-9]{8})$/, onInboxCallback(handleUnblockAction));
+  bot.callbackQuery(/^n:([a-f0-9]{8})$/, onInboxCallback(handleNicknameAction));
+  bot.callbackQuery(/^rp:([a-f0-9]{8})$/, onInboxCallback(handleReportAction));
 
   cachedBot = { key: cacheKey, bot };
   return bot;

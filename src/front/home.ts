@@ -1,7 +1,6 @@
 import type { Environment } from "../types";
-import { KVModel } from "../utils/kv-storage";
-import { getTotalStats } from "../utils/logs";
-import { escapeHtml } from "../utils/tools";
+import { getPublicStats } from "../services/conversation-summary-service";
+import { escapeHtml, convertToPersianNumbers } from "../utils/tools";
 import { buildUserDeepLink } from "../utils/user";
 
 interface GitHubCommitResponse {
@@ -16,8 +15,7 @@ interface GitHubCommitResponse {
 }
 
 export const HomePageContent = async (env: Environment) => {
-  const statsModel = new KVModel<number>("stats", env.NekonymousKV);
-  const stats = await getTotalStats(statsModel);
+  const stats = await getPublicStats(env);
 
   const githubOwner = "mehotkhan";
   const githubRepo = "Nekonymous";
@@ -84,11 +82,11 @@ export const HomePageContent = async (env: Environment) => {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="rounded-xl border border-blue-100 bg-blue-50 p-5">
           <p class="text-sm text-blue-700 mb-1">کاربران ساخته‌شده</p>
-          <p class="text-3xl font-bold text-blue-900">${escapeHtml(stats.usersCount)}</p>
+          <p class="text-3xl font-bold text-blue-900">${escapeHtml(convertToPersianNumbers(stats.usersCount))}</p>
         </div>
         <div class="rounded-xl border border-green-100 bg-green-50 p-5">
           <p class="text-sm text-green-700 mb-1">پیام‌های موفق</p>
-          <p class="text-3xl font-bold text-green-900">${escapeHtml(stats.conversationsCount)}</p>
+          <p class="text-3xl font-bold text-green-900">${escapeHtml(convertToPersianNumbers(stats.conversationsCount))}</p>
         </div>
       </div>
 

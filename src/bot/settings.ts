@@ -1,5 +1,5 @@
 import { InlineKeyboard, type Context } from "grammy";
-import type { Environment, User } from "../types";
+import type { BotUser, Environment } from "../types";
 import {
   buildSettingsMenu,
   confirmClearBlocksMenu,
@@ -8,7 +8,6 @@ import {
   MENU,
   mainMenu,
 } from "../utils/constant";
-import type { KVModel } from "../utils/kv-storage";
 import { logBotError } from "../utils/logs";
 import {
   SETTINGS_BACK_MESSAGE,
@@ -32,28 +31,32 @@ import {
 import { technicalAboutUrl } from "../utils/site";
 import { HuhMessage, RATE_LIMIT_MESSAGE } from "../utils/messages";
 import {
-  checkRateLimit,
   convertToPersianNumbers,
   escapeHtml,
   withHtml,
 } from "../utils/tools";
 import {
   buildUserDeepLink,
-  deleteUserAccount,
-  ensureUser,
   publicDisplayName,
   sanitizeDisplayName,
 } from "../utils/user";
-
-export type SettingsDeps = {
-  userModel: KVModel<User>;
-  userUUIDtoId: KVModel<string>;
-  conversationModel: KVModel<string>;
-  statsModel: KVModel<number>;
-  inbox: Environment["INBOX_DO"];
-  botUsername: string;
-  publicSiteUrl?: string;
-};
+import {
+  createUserFromTelegram,
+  deactivateUser,
+  resolveOrCreateUser,
+  toBotUser,
+} from "../services/identity-service";
+import { encryptDisplayName } from "../services/crypto-service";
+import {
+  clearBlocks,
+  clearDraft,
+  isRateLimited,
+  purgeUserState,
+  setDisplayName,
+  setDraft,
+  setPaused,
+  touchRateLimit,
+} from "../services/user-state-service";
 
 const formatTechnicalAboutMessage = (publicSiteUrl?: string): string => {
   const url = technicalAboutUrl(publicSiteUrl);
@@ -66,25 +69,25 @@ const formatTechnicalAboutMessage = (publicSiteUrl?: string): string => {
 
 const showTechnicalAbout = async (
   ctx: Context,
-  deps: SettingsDeps,
-  user: User
+  user: BotUser,
+  publicSiteUrl?: string
 ): Promise<void> => {
-  const url = technicalAboutUrl(deps.publicSiteUrl);
+  const url = technicalAboutUrl(publicSiteUrl);
   const keyboard = url
     ? new InlineKeyboard().url("مشاهده در وب", url)
     : undefined;
 
   await ctx.reply(
-    formatTechnicalAboutMessage(deps.publicSiteUrl),
+    formatTechnicalAboutMessage(publicSiteUrl),
     withHtml({
-      reply_markup: keyboard ?? buildSettingsMenu(!!user.paused),
+      reply_markup: keyboard ?? buildSettingsMenu(user.paused),
       link_preview_options: url ? { is_disabled: true } : undefined,
     })
   );
 };
 
-const formatSettingsHome = (user: User): string => {
-  const paused = !!user.paused;
+const formatSettingsHome = (user: BotUser): string => {
+  const paused = user.paused;
   return SETTINGS_HOME_MESSAGE.replace(
     "USER_NAME",
     escapeHtml(publicDisplayName(user, "تنظیم نشده"))
@@ -104,17 +107,17 @@ const formatSettingsHome = (user: User): string => {
 
 const showSettingsHome = async (
   ctx: Context,
-  user: User
+  user: BotUser
 ): Promise<void> => {
   await ctx.reply(
     formatSettingsHome(user),
-    withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+    withHtml({ reply_markup: buildSettingsMenu(user.paused) })
   );
 };
 
 export const handleSettingsCommand = async (
   ctx: Context,
-  deps: SettingsDeps
+  env: Environment
 ): Promise<void> => {
   const from = ctx.from;
   if (!from) {
@@ -122,14 +125,8 @@ export const handleSettingsCommand = async (
   }
 
   try {
-    const user = await ensureUser(
-      from.id,
-      from.first_name,
-      deps.userModel,
-      deps.userUUIDtoId,
-      deps.statsModel,
-      ctx
-    );
+    const d1User = await resolveOrCreateUser(ctx, env);
+    const user = await toBotUser(d1User, env);
     await showSettingsHome(ctx, user);
   } catch (error) {
     logBotError("handleSettingsCommand", error);
@@ -139,8 +136,8 @@ export const handleSettingsCommand = async (
 
 export const handlePendingSettingsInput = async (
   ctx: Context,
-  user: User,
-  deps: SettingsDeps
+  user: BotUser,
+  env: Environment
 ): Promise<boolean> => {
   if (user.pendingSettings !== "editName") {
     return false;
@@ -150,7 +147,7 @@ export const handlePendingSettingsInput = async (
   if (!text) {
     await ctx.reply(
       SETTINGS_NAME_TEXT_ONLY_MESSAGE,
-      withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+      withHtml({ reply_markup: buildSettingsMenu(user.paused) })
     );
     return true;
   }
@@ -159,14 +156,13 @@ export const handlePendingSettingsInput = async (
     return false;
   }
 
-  const userId = ctx.from?.id;
-  if (userId === undefined) {
+  if (!ctx.from) {
     return true;
   }
 
-  if (checkRateLimit(user.lastMessage)) {
+  if (await isRateLimited(env, user.id)) {
     await ctx.reply(RATE_LIMIT_MESSAGE, {
-      reply_markup: buildSettingsMenu(!!user.paused),
+      reply_markup: buildSettingsMenu(user.paused),
     });
     return true;
   }
@@ -175,25 +171,27 @@ export const handlePendingSettingsInput = async (
   if (!displayName) {
     await ctx.reply(
       SETTINGS_NAME_INVALID_MESSAGE,
-      withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+      withHtml({ reply_markup: buildSettingsMenu(user.paused) })
     );
     return true;
   }
 
   try {
-    await deps.userModel.updateFields(userId.toString(), {
-      userName: displayName,
-      pendingSettings: undefined,
-      lastMessage: Date.now(),
-    });
+    const ciphertext = await encryptDisplayName(
+      displayName,
+      env.APP_MASTER_KEY
+    );
+    await setDisplayName(env, user.id, ciphertext);
+    await clearDraft(env, user.id);
+    await touchRateLimit(env, user.id);
     await ctx.reply(
       SETTINGS_NAME_SAVED_MESSAGE.replace("NAME", escapeHtml(displayName)),
-      withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+      withHtml({ reply_markup: buildSettingsMenu(user.paused) })
     );
   } catch (error) {
     logBotError("handlePendingSettingsInput", error);
     await ctx.reply(HuhMessage, {
-      reply_markup: buildSettingsMenu(!!user.paused),
+      reply_markup: buildSettingsMenu(user.paused),
     });
   }
 
@@ -202,56 +200,45 @@ export const handlePendingSettingsInput = async (
 
 export const handleSettingsMenu = async (
   ctx: Context,
-  user: User,
-  deps: SettingsDeps
+  user: BotUser,
+  env: Environment,
+  botUsername: string,
+  publicSiteUrl?: string
 ): Promise<boolean> => {
   const text = ctx.message?.text;
-  const userId = ctx.from?.id;
-  if (!text || userId === undefined) {
+  if (!text || !ctx.from) {
     return false;
   }
 
   switch (text) {
     case MENU.settings:
-      await deps.userModel.updateFields(userId.toString(), {
-        currentConversation: undefined,
-        pendingSettings: undefined,
-      });
-      await showSettingsHome(ctx, {
-        ...user,
-        currentConversation: undefined,
-        pendingSettings: undefined,
-      });
+      await clearDraft(env, user.id);
+      await showSettingsHome(ctx, user);
       return true;
 
     case MENU.back:
-      await deps.userModel.updateFields(userId.toString(), {
-        currentConversation: undefined,
-        pendingSettings: undefined,
-      });
+      await clearDraft(env, user.id);
       await ctx.reply(SETTINGS_BACK_MESSAGE, withHtml({ reply_markup: mainMenu }));
       return true;
 
     case MENU.technical:
-      await showTechnicalAbout(ctx, deps, user);
+      await showTechnicalAbout(ctx, user, publicSiteUrl);
       return true;
 
     case MENU.editName:
-      await deps.userModel.updateFields(userId.toString(), {
-        currentConversation: undefined,
+      await setDraft(env, user.id, {
+        id: "primary",
+        mode: "settings",
         pendingSettings: "editName",
       });
       await ctx.reply(
         SETTINGS_EDIT_NAME_MESSAGE,
-        withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+        withHtml({ reply_markup: buildSettingsMenu(user.paused) })
       );
       return true;
 
     case MENU.cancelDraft:
-      await deps.userModel.updateFields(userId.toString(), {
-        currentConversation: undefined,
-        pendingSettings: undefined,
-      });
+      await clearDraft(env, user.id);
       await ctx.reply(
         SETTINGS_CANCEL_DRAFT_MESSAGE,
         withHtml({ reply_markup: mainMenu })
@@ -259,10 +246,8 @@ export const handleSettingsMenu = async (
       return true;
 
     case MENU.pauseInbox:
-      await deps.userModel.updateFields(userId.toString(), {
-        paused: true,
-        currentConversation: undefined,
-      });
+      await setPaused(env, user.id, true);
+      await clearDraft(env, user.id);
       await ctx.reply(
         SETTINGS_PAUSE_ON_MESSAGE,
         withHtml({ reply_markup: buildSettingsMenu(true) })
@@ -270,7 +255,7 @@ export const handleSettingsMenu = async (
       return true;
 
     case MENU.resumeInbox:
-      await deps.userModel.updateField(userId.toString(), "paused", false);
+      await setPaused(env, user.id, false);
       await ctx.reply(
         SETTINGS_RESUME_MESSAGE,
         withHtml({ reply_markup: buildSettingsMenu(false) })
@@ -278,23 +263,23 @@ export const handleSettingsMenu = async (
       return true;
 
     case MENU.clearBlockList:
-      if (user.blockList.length === 0) {
+      if (user.blockedUserIds.length === 0) {
         await ctx.reply(
           SETTINGS_BLOCK_LIST_EMPTY_MESSAGE,
-          withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+          withHtml({ reply_markup: buildSettingsMenu(user.paused) })
         );
         return true;
       }
 
-      await deps.userModel.updateField(
-        userId.toString(),
-        "pendingSettings",
-        "confirmClearBlockList"
-      );
+      await setDraft(env, user.id, {
+        id: "primary",
+        mode: "settings",
+        pendingSettings: "confirmClearBlockList",
+      });
       await ctx.reply(
         SETTINGS_CLEAR_BLOCKS_WARNING_MESSAGE.replace(
           "COUNT",
-          convertToPersianNumbers(user.blockList.length)
+          convertToPersianNumbers(user.blockedUserIds.length)
         ),
         withHtml({ reply_markup: confirmClearBlocksMenu })
       );
@@ -306,25 +291,24 @@ export const handleSettingsMenu = async (
       }
 
       try {
-        await deps.userModel.updateFields(userId.toString(), {
-          blockList: [],
-          pendingSettings: undefined,
-        });
+        await clearBlocks(env, user.id);
+        await clearDraft(env, user.id);
         await ctx.reply(
           SETTINGS_CLEAR_BLOCKS_DONE_MESSAGE,
-          withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+          withHtml({ reply_markup: buildSettingsMenu(user.paused) })
         );
       } catch (error) {
         logBotError("handleSettingsMenu:clearBlockList", error);
         await ctx.reply(HuhMessage, {
-          reply_markup: buildSettingsMenu(!!user.paused),
+          reply_markup: buildSettingsMenu(user.paused),
         });
       }
       return true;
 
     case MENU.clearData:
-      await deps.userModel.updateFields(userId.toString(), {
-        currentConversation: undefined,
+      await setDraft(env, user.id, {
+        id: "primary",
+        mode: "settings",
         pendingSettings: "confirmClearData",
       });
       await ctx.reply(
@@ -339,26 +323,15 @@ export const handleSettingsMenu = async (
       }
 
       try {
-        await deleteUserAccount(
-          userId,
-          user,
-          deps.userModel,
-          deps.userUUIDtoId,
-          deps.conversationModel,
-          deps.inbox
-        );
-        const freshUser = await ensureUser(
-          userId,
-          ctx.from?.first_name,
-          deps.userModel,
-          deps.userUUIDtoId,
-          deps.statsModel,
-          ctx
-        );
+        await purgeUserState(env, user.id);
+        await deactivateUser(user.id, env);
+        const freshD1 = await createUserFromTelegram(ctx, env);
+        const freshUser = await toBotUser(freshD1, env);
+        await clearDraft(env, freshUser.id);
         await ctx.reply(
           SETTINGS_CLEAR_DATA_DONE_MESSAGE.replace(
             "UUID_USER_URL",
-            buildUserDeepLink(deps.botUsername, freshUser.userUUID)
+            buildUserDeepLink(botUsername, freshUser.slug)
           ),
           withHtml({ reply_markup: mainMenu })
         );
@@ -370,35 +343,23 @@ export const handleSettingsMenu = async (
 
     case MENU.cancel:
       if (user.pendingSettings === "confirmClearBlockList") {
-        await deps.userModel.updateField(
-          userId.toString(),
-          "pendingSettings",
-          undefined
-        );
+        await clearDraft(env, user.id);
         await ctx.reply(
           SETTINGS_CLEAR_BLOCKS_CANCELLED_MESSAGE,
-          withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+          withHtml({ reply_markup: buildSettingsMenu(user.paused) })
         );
         return true;
       }
       if (user.pendingSettings === "confirmClearData") {
-        await deps.userModel.updateField(
-          userId.toString(),
-          "pendingSettings",
-          undefined
-        );
+        await clearDraft(env, user.id);
         await ctx.reply(
           SETTINGS_CLEAR_DATA_CANCELLED_MESSAGE,
-          withHtml({ reply_markup: buildSettingsMenu(!!user.paused) })
+          withHtml({ reply_markup: buildSettingsMenu(user.paused) })
         );
         return true;
       }
       if (user.pendingSettings === "editName") {
-        await deps.userModel.updateField(
-          userId.toString(),
-          "pendingSettings",
-          undefined
-        );
+        await clearDraft(env, user.id);
         await showSettingsHome(ctx, user);
         return true;
       }

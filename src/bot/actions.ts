@@ -1,12 +1,10 @@
 import type { Context } from "grammy";
-import type { Conversation, Environment, User } from "../types";
+import type { Environment } from "../types";
 import { buildDraftMenu, createMessageKeyboard } from "../utils/constant";
 import {
   getContactLabelForSender,
   lookupContactLabel,
 } from "../utils/contact";
-import type { KVModel } from "../utils/kv-storage";
-import { loadConversationForAction } from "../utils/inbox";
 import {
   HuhMessage,
   NICKNAME_PROMPT_MESSAGE,
@@ -19,124 +17,119 @@ import {
   USER_IS_BLOCKED_MESSAGE,
   USER_UNBLOCKED_MESSAGE,
 } from "../utils/messages";
-import { getSenderAlias } from "../utils/ticket";
-import { checkRateLimit, escapeHtml, withHtml } from "../utils/tools";
+import {
+  getActiveSlugForUser,
+  getUserById,
+  resolveOrCreateUser,
+  toBotUser,
+} from "../services/identity-service";
+import { loadTicketForAction } from "../services/messaging-service";
+import { createReport } from "../services/report-service";
+import {
+  addBlock,
+  isRateLimited,
+  markTicketReported,
+  removeBlock,
+  setDraft,
+} from "../services/user-state-service";
+import { escapeHtml, withHtml } from "../utils/tools";
 
-type ActionContext = {
-  userModel: KVModel<User>;
-  conversationModel: KVModel<string>;
-  inbox: Environment["INBOX_DO"];
-  appSecureKey: string;
-};
+const isRecipient = (
+  recipientUserId: string,
+  currentUserId: string
+): boolean => recipientUserId === currentUserId;
 
-const isRecipient = (to: number, userId: number): boolean => to === userId;
-
-const isStaleConversationTarget = (
-  conversation: { connection: Conversation["connection"] },
-  targetUser: User | null | undefined,
-  role: "sender" | "recipient"
-): boolean => {
-  if (!targetUser) {
-    return true;
-  }
-
-  const expected =
-    role === "sender"
-      ? conversation.connection.senderLinkUuid
-      : conversation.connection.recipientLinkUuid;
-
-  return !!expected && targetUser.userUUID !== expected;
-};
-
-const loadAction = async (ctx: Context, deps: ActionContext) => {
+const loadAction = async (
+  ctx: Context,
+  env: Environment,
+  recipientUserId: string
+) => {
   const ref = ctx.match?.[1];
-  const userId = ctx.from?.id;
-  if (!ref || userId === undefined) {
+  if (!ref) {
     return null;
   }
 
-  return loadConversationForAction(
-    deps.inbox,
-    userId,
-    ref,
-    deps.appSecureKey,
-    deps.conversationModel
-  );
+  return loadTicketForAction(env, recipientUserId, ref);
 };
 
 export const handleReplyAction = async (
   ctx: Context,
-  userModel: KVModel<User>,
-  conversationModel: KVModel<string>,
-  _statsModel: KVModel<number>,
-  inbox: Environment["INBOX_DO"],
-  appSecureKey: string
+  env: Environment
 ): Promise<void> => {
-  const deps: ActionContext = {
-    userModel,
-    conversationModel,
-    inbox,
-    appSecureKey,
-  };
   const callbackMessageId = ctx.callbackQuery?.message?.message_id;
-  const currentUserId = ctx.from?.id;
-
-  if (callbackMessageId === undefined || currentUserId === undefined) {
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const loaded = await loadAction(ctx, deps);
-  if (!loaded) {
-    await ctx.reply(NoConversationFoundMessage);
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const { conversation } = loaded;
-  if (!isRecipient(conversation.connection.to, currentUserId)) {
+  const from = ctx.from;
+  if (callbackMessageId === undefined || !from) {
     await ctx.answerCallbackQuery();
     return;
   }
 
   try {
-    if (conversation.connection.from === currentUserId) {
-      await ctx.reply(SELF_MESSAGE_DISABLE_MESSAGE);
-      return;
-    }
+    const d1User = await resolveOrCreateUser(ctx, env);
+    const user = await toBotUser(d1User, env);
 
-    const currentUser = await userModel.get(currentUserId.toString());
-    if (checkRateLimit(currentUser?.lastMessage)) {
-      await ctx.reply(RATE_LIMIT_MESSAGE);
-      return;
-    }
-
-    const sender = await userModel.get(conversation.connection.from.toString());
-    if (
-      !sender ||
-      isStaleConversationTarget(conversation, sender, "sender")
-    ) {
+    const loaded = await loadAction(ctx, env, user.id);
+    if (!loaded) {
       await ctx.reply(NoConversationFoundMessage);
+      await ctx.answerCallbackQuery();
       return;
     }
 
-    if (sender.blockList.includes(currentUserId.toString())) {
+    const { connection } = loaded;
+    if (!isRecipient(connection.recipientUserId, user.id)) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    if (connection.senderUserId === user.id) {
+      await ctx.reply(SELF_MESSAGE_DISABLE_MESSAGE);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    if (await isRateLimited(env, user.id)) {
+      await ctx.reply(RATE_LIMIT_MESSAGE);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const senderD1 = await getUserById(connection.senderUserId, env);
+    if (!senderD1) {
+      await ctx.reply(NoConversationFoundMessage);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const senderSlug = await getActiveSlugForUser(senderD1.id, env);
+    if (!senderSlug) {
+      await ctx.reply(NoConversationFoundMessage);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const sender = await toBotUser(senderD1, env);
+    if (sender.blockedUserIds.includes(user.id)) {
       await ctx.reply(USER_IS_BLOCKED_MESSAGE);
+      await ctx.answerCallbackQuery();
       return;
     }
 
-    const senderLabel = await getContactLabelForSender(
-      currentUserId,
-      conversation.connection.from,
-      currentUser?.contactLabels,
-      appSecureKey
-    );
+    const senderLabel = connection.senderAlias
+      ? getContactLabelForSender(
+          user.id,
+          connection.senderUserId,
+          user.contactLabels,
+          connection.senderAlias
+        )
+      : undefined;
 
-    await userModel.updateField(currentUserId.toString(), "currentConversation", {
-      to: conversation.connection.from,
-      linkUuid: conversation.connection.senderLinkUuid,
+    await setDraft(env, user.id, {
+      id: "primary",
+      mode: "reply",
+      toUserId: connection.senderUserId,
+      linkSlug: senderSlug ?? undefined,
+      replyRef: loaded.ticket?.ref,
       parent_message_id: callbackMessageId,
-      reply_to_message_id: conversation.connection.parent_message_id,
+      reply_to_message_id: connection.parent_message_id,
     });
 
     const replyPrompt = senderLabel
@@ -153,66 +146,48 @@ export const handleReplyAction = async (
 
 export const handleBlockAction = async (
   ctx: Context,
-  userModel: KVModel<User>,
-  conversationModel: KVModel<string>,
-  _statsModel: KVModel<number>,
-  inbox: Environment["INBOX_DO"],
-  appSecureKey: string
+  env: Environment
 ): Promise<void> => {
-  const deps: ActionContext = {
-    userModel,
-    conversationModel,
-    inbox,
-    appSecureKey,
-  };
   const callbackMessageId = ctx.callbackQuery?.message?.message_id;
-  const currentUserId = ctx.from?.id;
   const chatId = ctx.chat?.id;
-
-  if (
-    callbackMessageId === undefined ||
-    currentUserId === undefined ||
-    chatId === undefined
-  ) {
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const loaded = await loadAction(ctx, deps);
-  if (!loaded) {
-    await ctx.reply(HuhMessage);
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const { entry, conversation } = loaded;
-  if (!isRecipient(conversation.connection.to, currentUserId)) {
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const sender = await userModel.get(conversation.connection.from.toString());
-  if (isStaleConversationTarget(conversation, sender, "sender")) {
-    await ctx.reply(NoConversationFoundMessage);
+  const from = ctx.from;
+  if (callbackMessageId === undefined || chatId === undefined || !from) {
     await ctx.answerCallbackQuery();
     return;
   }
 
   try {
-    await userModel.updateField(
-      currentUserId.toString(),
-      "blockList",
-      conversation.connection.from.toString(),
-      true
-    );
+    const d1User = await resolveOrCreateUser(ctx, env);
+    const user = await toBotUser(d1User, env);
+    const loaded = await loadAction(ctx, env, user.id);
+    if (!loaded || !loaded.ticket) {
+      await ctx.reply(HuhMessage);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const { connection, ticket } = loaded;
+    if (!isRecipient(connection.recipientUserId, user.id)) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const senderD1 = await getUserById(connection.senderUserId, env);
+    if (!senderD1) {
+      await ctx.reply(NoConversationFoundMessage);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    await addBlock(env, user.id, connection.senderUserId);
 
     await ctx.api.sendMessage(
-      currentUserId,
+      chatId,
       USER_BLOCKED_MESSAGE,
       withHtml({ reply_to_message_id: callbackMessageId })
     );
     await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
-      reply_markup: createMessageKeyboard(entry.ref, true),
+      reply_markup: createMessageKeyboard(ticket.ref, true),
     });
   } catch {
     await ctx.reply(HuhMessage);
@@ -223,73 +198,47 @@ export const handleBlockAction = async (
 
 export const handleUnblockAction = async (
   ctx: Context,
-  userModel: KVModel<User>,
-  conversationModel: KVModel<string>,
-  _statsModel: KVModel<number>,
-  inbox: Environment["INBOX_DO"],
-  appSecureKey: string
+  env: Environment
 ): Promise<void> => {
-  const deps: ActionContext = {
-    userModel,
-    conversationModel,
-    inbox,
-    appSecureKey,
-  };
   const callbackMessageId = ctx.callbackQuery?.message?.message_id;
-  const currentUserId = ctx.from?.id;
   const chatId = ctx.chat?.id;
-
-  if (
-    callbackMessageId === undefined ||
-    currentUserId === undefined ||
-    chatId === undefined
-  ) {
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const loaded = await loadAction(ctx, deps);
-  if (!loaded) {
-    await ctx.reply(HuhMessage);
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const { entry, conversation } = loaded;
-  if (!isRecipient(conversation.connection.to, currentUserId)) {
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const sender = await userModel.get(conversation.connection.from.toString());
-  if (isStaleConversationTarget(conversation, sender, "sender")) {
-    await ctx.reply(NoConversationFoundMessage);
+  const from = ctx.from;
+  if (callbackMessageId === undefined || chatId === undefined || !from) {
     await ctx.answerCallbackQuery();
     return;
   }
 
   try {
-    const currentUser = await userModel.get(currentUserId.toString());
-    const senderId = conversation.connection.from.toString();
-
-    if (!currentUser?.blockList.includes(senderId)) {
+    const d1User = await resolveOrCreateUser(ctx, env);
+    const user = await toBotUser(d1User, env);
+    const loaded = await loadAction(ctx, env, user.id);
+    if (!loaded || !loaded.ticket) {
       await ctx.reply(HuhMessage);
+      await ctx.answerCallbackQuery();
       return;
     }
 
-    await userModel.popItemFromField(
-      currentUserId.toString(),
-      "blockList",
-      senderId
-    );
+    const { connection, ticket } = loaded;
+    if (!isRecipient(connection.recipientUserId, user.id)) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    if (!user.blockedUserIds.includes(connection.senderUserId)) {
+      await ctx.reply(HuhMessage);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    await removeBlock(env, user.id, connection.senderUserId);
 
     await ctx.api.sendMessage(
-      currentUserId,
+      chatId,
       USER_UNBLOCKED_MESSAGE,
       withHtml({ reply_to_message_id: callbackMessageId })
     );
     await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
-      reply_markup: createMessageKeyboard(entry.ref, false),
+      reply_markup: createMessageKeyboard(ticket.ref, false),
     });
   } catch {
     await ctx.reply(HuhMessage);
@@ -300,63 +249,58 @@ export const handleUnblockAction = async (
 
 export const handleNicknameAction = async (
   ctx: Context,
-  userModel: KVModel<User>,
-  conversationModel: KVModel<string>,
-  _statsModel: KVModel<number>,
-  inbox: Environment["INBOX_DO"],
-  appSecureKey: string
+  env: Environment
 ): Promise<void> => {
-  const deps: ActionContext = {
-    userModel,
-    conversationModel,
-    inbox,
-    appSecureKey,
-  };
   const callbackMessageId = ctx.callbackQuery?.message?.message_id;
-  const currentUserId = ctx.from?.id;
-
-  if (callbackMessageId === undefined || currentUserId === undefined) {
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const loaded = await loadAction(ctx, deps);
-  if (!loaded) {
-    await ctx.reply(NoConversationFoundMessage);
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const { conversation } = loaded;
-  if (!isRecipient(conversation.connection.to, currentUserId)) {
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  const sender = await userModel.get(conversation.connection.from.toString());
-  if (isStaleConversationTarget(conversation, sender, "sender")) {
-    await ctx.reply(NoConversationFoundMessage);
+  const from = ctx.from;
+  if (callbackMessageId === undefined || !from) {
     await ctx.answerCallbackQuery();
     return;
   }
 
   try {
-    const currentUser = await userModel.get(currentUserId.toString());
-    if (checkRateLimit(currentUser?.lastMessage)) {
-      await ctx.reply(RATE_LIMIT_MESSAGE);
+    const d1User = await resolveOrCreateUser(ctx, env);
+    const user = await toBotUser(d1User, env);
+    const loaded = await loadAction(ctx, env, user.id);
+    if (!loaded) {
+      await ctx.reply(NoConversationFoundMessage);
+      await ctx.answerCallbackQuery();
       return;
     }
 
-    const senderAlias = await getSenderAlias(
-      currentUserId,
-      conversation.connection.from,
-      appSecureKey
-    );
-    const currentNick =
-      lookupContactLabel(currentUser?.contactLabels, senderAlias) ?? "—";
+    const { connection } = loaded;
+    if (!isRecipient(connection.recipientUserId, user.id)) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
 
-    await userModel.updateField(currentUserId.toString(), "currentConversation", {
-      pendingNickname: senderAlias,
+    const senderD1 = await getUserById(connection.senderUserId, env);
+    if (!senderD1) {
+      await ctx.reply(NoConversationFoundMessage);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    if (await isRateLimited(env, user.id)) {
+      await ctx.reply(RATE_LIMIT_MESSAGE);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    if (!connection.senderAlias) {
+      await ctx.reply(HuhMessage);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const currentNick =
+      lookupContactLabel(user.contactLabels, connection.senderAlias) ?? "—";
+
+    await setDraft(env, user.id, {
+      id: "primary",
+      mode: "nickname",
+      toUserId: connection.senderUserId,
+      pendingNicknameAlias: connection.senderAlias,
       parent_message_id: callbackMessageId,
     });
 
@@ -364,6 +308,48 @@ export const handleNicknameAction = async (
       NICKNAME_PROMPT_MESSAGE.replace("CURRENT_NICK", escapeHtml(currentNick)),
       withHtml({ reply_markup: buildDraftMenu() })
     );
+  } catch {
+    await ctx.reply(HuhMessage);
+  } finally {
+    await ctx.answerCallbackQuery();
+  }
+};
+
+export const handleReportAction = async (
+  ctx: Context,
+  env: Environment
+): Promise<void> => {
+  const from = ctx.from;
+  if (!from) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
+  try {
+    const d1User = await resolveOrCreateUser(ctx, env);
+    const user = await toBotUser(d1User, env);
+    const loaded = await loadAction(ctx, env, user.id);
+    if (!loaded || !loaded.ticket) {
+      await ctx.reply(NoConversationFoundMessage);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    const { connection, ticket } = loaded;
+    if (!isRecipient(connection.recipientUserId, user.id)) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    await createReport(env, {
+      reporterUserId: user.id,
+      reportedUserId: connection.senderUserId,
+      conversationId: connection.conversationId,
+      ticketRef: ticket.ref,
+      reasonCode: "inbox_report",
+    });
+    await markTicketReported(env, user.id, ticket.ref);
+    await ctx.reply("گزارش ثبت شد.", withHtml());
   } catch {
     await ctx.reply(HuhMessage);
   } finally {

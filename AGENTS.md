@@ -4,10 +4,10 @@
 
 Nekonymous runs as a single Cloudflare Worker with a Telegram webhook and lightweight HTML pages. Server code must be small, edge-safe, low-CPU, and predictable.
 
-When changing bot logic, crypto, KV, Durable Objects, or Worker routes, optimize for:
+When changing bot logic, crypto, D1, KV cache, Durable Objects, queues, or Worker routes, optimize for:
 
 - low CPU per request
-- few KV / Durable Object / HTTP subrequests
+- few KV / Durable Object / D1 / HTTP subrequests
 - small memory footprint
 - simple control flow
 - explicit validation and auth checks
@@ -47,7 +47,7 @@ Keep reports short and practical.
 
 ## Current Project Identity
 
-Nekonymous is a secure anonymous Telegram messaging bot. Users share a personal UUID link; others message them without revealing identity. Replies stay anonymous in both directions.
+Nekonymous is a secure anonymous Telegram messaging bot. Users share a personal link slug; others message them without revealing identity. Replies stay anonymous in both directions.
 
 The product should feel:
 
@@ -61,84 +61,101 @@ The product should feel:
 
 Public brand: **Nekonymous** / **نِکونیموس** (`package.json` name: `nekonymous`).
 
+V1 treats old KV user/conversation/inbox storage as disposable. Do not add legacy fallback, dual-read, or dual-write paths.
+
 ## Current Stack
 
-- **Cloudflare Workers** — single Worker entry (`src/index.ts`)
+- **Cloudflare Workers** — single Worker entry (`src/index.ts`) + queue consumer
 - **Grammy** — Telegram bot framework (`grammy`)
-- **Cloudflare KV** — users, conversations, UUID mapping, stats
-- **Cloudflare Durable Objects** — per-user inbox queue (`InboxSqliteDurableObject`, SQLite-backed)
-- **Web Crypto API** — HKDF-SHA-256 key derivation and AES-256-GCM encryption
-- **Web Crypto** — user link IDs via `crypto.getRandomValues` (`src/utils/user.ts`)
+- **Cloudflare D1** — users, public links, conversation summaries, reports, consents
+- **Cloudflare KV** — routing/cache only (`tg:{hash}`, `link:{slug}`)
+- **Cloudflare Durable Objects (SQLite)** — per-user hot state (`UserStateDurableObject`) and idempotent Telegram outbox (`TelegramOutboxDurableObject`)
+- **Cloudflare Queues** — `telegram-outbox` for non-critical outbound Telegram sends
+- **Web Crypto API** — HMAC, HKDF-SHA-256, AES-256-GCM (`src/services/crypto-service.ts`)
 - **Tailwind CSS 2 (CDN)** — static HTML pages only
-- **Wrangler 4** — dev and deploy
+- **Wrangler 4** — dev and deploy (`wrangler.jsonc`)
 - **pnpm** — package manager (lockfile present; CI still uses `npm install`)
 
-There is no Nuxt, GraphQL, D1, Queues, separate `workers/` package, or frontend SPA.
+There is no Nuxt, GraphQL, separate `workers/` package, or frontend SPA.
 
 ## Main Folder Model
 
 ```
 src/
-├── index.ts           # Worker fetch handler, route registration, DO export
-├── types.ts           # User, Conversation, Environment, Handler
+├── index.ts                    # Worker fetch + queue handler, DO exports
+├── types.ts                    # Environment, BotUser, D1User, ticket types
 ├── bot/
-│   ├── bot.ts         # createBot(), Grammy wiring
-│   ├── commands.ts    # /start, /inbox, message routing
-│   ├── actions.ts     # inline keyboard: reply, block, unblock, nickname
-│   ├── settings.ts    # /settings, display name, pause, account delete
-│   └── inboxDU.ts     # InboxSqliteDurableObject
+│   ├── bot.ts                  # createBot(), Grammy wiring
+│   ├── commands.ts             # /start, /inbox, message routing
+│   ├── actions.ts              # inline keyboard: reply, block, unblock, nickname, report
+│   └── settings.ts             # /settings, display name, pause, account delete
+├── services/
+│   ├── identity-service.ts     # D1 users, public links, KV routing cache
+│   ├── crypto-service.ts       # HMAC, encrypt/decrypt, ticket/ref generation
+│   ├── user-state-service.ts   # UserStateDO client (only place for DO fetch calls)
+│   ├── messaging-service.ts    # send/inbox ticket flow, outbox notifications
+│   ├── conversation-summary-service.ts
+│   ├── report-service.ts
+│   └── outbox-service.ts       # enqueue + TelegramOutboxDO dispatch
+├── storage/durable/
+│   ├── user-state-do.ts        # UserStateDurableObject
+│   └── telegram-outbox-do.ts   # TelegramOutboxDurableObject
+├── queues/
+│   ├── types.ts
+│   └── telegram-outbox.consumer.ts
 ├── front/
-│   ├── layout.ts      # shared HTML shell (RTL, Persian)
-│   ├── home.ts        # / landing page + public stats
-│   ├── about.ts       # /about user-facing how-it-works page
-│   └── technical.ts   # /about/technical readable architecture guide
+│   ├── layout.ts
+│   ├── home.ts                 # public stats from D1
+│   ├── about.ts
+│   └── technical.ts
 └── utils/
-    ├── router.ts      # minimal HTTP router
-    ├── kv-storage.ts  # KVModel generic wrapper
-    ├── ticket.ts      # encryption, ticket ID, conversation ID
-    ├── sender.ts      # decrypt + forward media to Telegram
-    ├── messages.ts    # Persian bot copy strings
-    ├── messages-settings.ts # settings menu copy
-    ├── constant.ts    # keyboards, menu handlers
-    ├── tools.ts       # rate limit, HTML helpers, Persian digits
-    ├── user.ts        # ensureUser, display names, deep links
-    ├── inbox.ts       # inbox DO client
-    ├── payload.ts     # conversation JSON parse
-    ├── worker.ts      # deferred stats via waitUntil
-    └── logs.ts        # daily + running totals in KV
+    ├── router.ts
+    ├── sender.ts               # decrypt + forward media to Telegram
+    ├── messages.ts
+    ├── messages-settings.ts
+    ├── constant.ts             # keyboards, callback prefixes
+    ├── tools.ts
+    ├── user.ts                 # display-name helpers, deep links
+    ├── payload.ts              # grammy Message → MessagePayload
+    ├── contact.ts
+    ├── worker.ts               # defer via waitUntil
+    └── logs.ts                 # logBotError only
+
+migrations/
+└── 0001_core.sql               # D1 schema
 
 tools/
-└── verify-crypto.ts   # crypto smoke tests (pnpm test:crypto)
-
-migrations/            # does not exist — no D1
+└── verify-crypto.ts            # crypto smoke tests (pnpm test:crypto)
 ```
 
 Do not create alternative roots unless the project already uses them.
 
-`wrangler.toml` and `.dev.vars` are gitignored. Bindings are defined locally / in CI secrets.
+`wrangler.jsonc` is committed with binding IDs. `.dev.vars` is gitignored. Secrets are set via `wrangler secret put` in production.
 
 ## Worker Entry and Routes
 
 `src/index.ts` is the only Worker entry.
 
-| Method | Path    | Purpose                                      |
-|--------|---------|----------------------------------------------|
-| GET    | `/`     | Public home page with aggregate stats        |
-| GET    | `/about`| About / privacy page                         |
-| GET    | `/about/technical` | Technical architecture page          |
-| POST   | `/bot`  | Telegram webhook (`webhookCallback` + secret)|
+| Method | Path               | Purpose                                       |
+|--------|--------------------|-----------------------------------------------|
+| GET    | `/`                | Public home page with aggregate stats (D1)    |
+| GET    | `/about`           | About / privacy page                          |
+| GET    | `/about/technical` | Technical architecture page                   |
+| POST   | `/bot`             | Telegram webhook (`webhookCallback` + secret) |
+| queue  | `telegram-outbox`  | Outbound Telegram job consumer                |
 
 Use `src/utils/router.ts` for new HTTP routes. Do not add a second router or framework.
 
-Export `InboxSqliteDurableObject` from `src/index.ts` for Wrangler DO binding.
+Export `UserStateDurableObject` and `TelegramOutboxDurableObject` from `src/index.ts` for Wrangler DO bindings.
 
 ## Bot Architecture Rules
 
 ### Wiring
 
 - `createBot(env)` in `src/bot/bot.ts` constructs the Grammy bot and registers handlers.
-- Pass `KVModel` instances and bindings into command/action handlers — do not read `env` globals inside deep helpers unless that pattern already exists in the file.
-- Register new commands in `bot.ts` and implement logic in `commands.ts` or `actions.ts`.
+- Pass `env: Environment` into command/action handlers — do not read untyped globals.
+- Register new commands in `bot.ts`; implement logic in `commands.ts`, `actions.ts`, or `settings.ts`.
+- Keep raw `UserStateDO` / `TelegramOutboxDO` fetch calls inside service wrappers — not scattered in handlers.
 
 ### Commands and flows
 
@@ -147,16 +164,17 @@ Export `InboxSqliteDurableObject` from `src/index.ts` for Wrangler DO binding.
 | `/start`             | `commands.ts`      |
 | `/inbox`             | `commands.ts`      |
 | incoming messages    | `commands.ts`      |
-| reply/block/unblock  | `actions.ts`       |
+| reply/block/unblock/nickname/report | `actions.ts` |
 | reply keyboard menu  | `constant.ts`      |
+| `/settings`          | `settings.ts`      |
 
 Core user flow:
 
-1. `/start` without payload → create/find user, show personal `t.me/...?start={uuid}` link.
-2. `/start {uuid}` → open anonymous conversation with link owner (rate-limited, block-checked, no self-message).
-3. User sends message/media → encrypt, store in KV, push ticket to recipient's Durable Object inbox, notify recipient.
-4. `/inbox` → drain DO inbox, decrypt KV payloads, deliver to Telegram, clear payload from stored conversation.
-5. Inline **پاسخ** / **بلاک** / **آنبلاک** → reply thread or block list updates.
+1. `/start` without payload → resolve/create D1 user + public link, show personal `t.me/...?start={slug}` link.
+2. `/start {slug}` → open compose draft to link owner (rate-limited, block-checked, pause-checked, no self-message).
+3. Sender sends message/media → encrypt payload + connection metadata, insert inbox ticket in recipient `UserStateDO`, upsert D1 conversation summary, notify recipient via outbox queue.
+4. `/inbox` → load pending tickets from recipient `UserStateDO`, decrypt, deliver to Telegram, clear `payload_ciphertext`, keep `connection_ciphertext` for callbacks.
+5. Inline **پاسخ** / **بلاک** / **آنبلاک** / **نام مستعار** → reply draft, block list, or nickname flow. Callback data uses short refs (`r:`, `b:`, `u:`, `n:`); never trust callback data alone — load ticket from DO and verify ownership.
 
 ### Telegram copy
 
@@ -169,92 +187,117 @@ Do not hardcode new English bot strings unless the task explicitly asks for loca
 
 ## Message and Crypto Rules
 
-Encryption is ticket-based. Read `src/utils/ticket.ts` before changing storage or inbox behavior.
+Read `src/services/crypto-service.ts` before changing storage or inbox behavior.
 
-| Concept          | Role                                                        |
-|------------------|-------------------------------------------------------------|
-| `ticketId`       | 256-bit random opaque handle (base64url), stored in DO inbox only |
-| `conversationId` | HKDF-derived KV key (separate info label from AES key) |
-| `APP_SECURE_KEY` | HKDF input key material (IKM); keep ≥32 bytes of entropy |
+| Concept                 | Role                                                                 |
+|-------------------------|----------------------------------------------------------------------|
+| `ticketId`              | 256-bit random opaque handle (base64url) per message                 |
+| `ref`                   | 8-hex callback reference for inline buttons                          |
+| `conversationId`        | Stable pair-derived id for D1 summary (not per-ticket KV key)        |
+| `APP_MASTER_KEY`        | Encryption IKM for payloads, chat ids, nicknames                     |
+| `APP_HMAC_PEPPER`       | HMAC key for `telegram_user_hash` — never store raw Telegram ids in D1 |
 
 Flow:
 
-1. `generateTicketId()` on send.
-2. `await encryptConversationPayload(ticketId, json, APP_SECURE_KEY)` → KV key + ciphertext in one step.
-3. Ciphertext stored in `conversation` KV namespace; same blob copied to the inbox DO.
-4. Inbox DO stores `{ ref, ticketId, conversationId, ciphertext }` until delivery — not plaintext in Telegram APIs.
-5. On `/inbox`, decrypt from DO ciphertext, send through `sendDecryptedMessage`, clear `payload` in KV, mark entry `delivered` in DO (keep `ref` for callbacks).
+1. `generateTicketId()` + `generateCallbackRef()` on send.
+2. Encrypt `MessagePayload` and `ConnectionMetadata` with ticket-derived AES keys.
+3. Store ticket in recipient `UserStateDO.inbox_tickets` — not in KV or D1 plaintext.
+4. On `/inbox`, decrypt payload from DO, send via `sendDecryptedMessage`, enqueue seen notification, mark delivered, set `payload_ciphertext = NULL`.
+5. Callbacks load ticket by `ref` from recipient DO, decrypt `connection_ciphertext`, verify user role.
 
-Derivation (Web Crypto in `src/utils/ticket.ts`):
-
-- Ticket: `crypto.getRandomValues(32)` → base64url (no secret mixed in).
-- AES key: `HKDF-SHA-256` with IKM=`APP_SECURE_KEY`, salt=ticket bytes, info=`nekonymous:aes:v1`.
-- Conversation ID: same HKDF inputs, info=`nekonymous:conversation:v1` → 256 bits as base64url KV key.
-- Ciphertext wire format: `{iv_base64url}.{ciphertext_base64url}` (12-byte random IV per message).
+Ciphertext envelope: JSON `{ v: 1, kid, iv, ct }` with 12-byte GCM IV.
 
 Rules:
 
-- Never log `ticketId`, `APP_SECURE_KEY`, decrypted payloads, or Telegram tokens.
-- Never store plaintext message bodies in KV or DO storage.
+- Never log `ticketId`, `APP_MASTER_KEY`, `APP_HMAC_PEPPER`, decrypted payloads, or Telegram tokens.
+- Never store plaintext message bodies in D1, KV, or DO storage.
 - Use Web Crypto only — no Node `crypto`, no third-party crypto libraries.
-- `blockList` stores Telegram user IDs as strings/numbers — match existing comparisons in `commands.ts` / `actions.ts`.
+- Blocks, labels, drafts, and rate limits live in `UserStateDO` — not D1 or KV.
+
+## D1 Rules
+
+D1 (`env.DB`, database `nekonymous_core`) is source of truth for:
+
+- users (opaque id, `telegram_user_hash`, encrypted chat id)
+- public_links (slug → owner)
+- conversations (pair summaries, `message_count`, no plaintext body)
+- reports
+- consents
+
+Schema: `migrations/0001_core.sql`. Apply with:
+
+```bash
+wrangler d1 migrations apply nekonymous_core --local
+wrangler d1 migrations apply nekonymous_core --remote
+```
+
+Prefer:
+
+- bounded queries with indexes
+- `identity-service.ts` and `conversation-summary-service.ts` for D1 access
+- upsert conversation summaries on send — no message body in D1
+
+Avoid:
+
+- storing plaintext message bodies or decrypted nicknames in D1
+- storing hot inbox payloads, drafts, blocks, or labels in D1
+- full-table scans in webhook paths
 
 ## KV Rules
 
-`KVModel<T>` in `src/utils/kv-storage.ts` namespaces keys as `{namespace}:{id}`.
+`env.NEKO_KV` is **routing/cache only**. Access via `identity-service.ts`.
 
-Current namespaces (constructed in `bot.ts`):
-
-| Namespace      | Value type        | Purpose                              |
-|----------------|-------------------|--------------------------------------|
-| `user`         | `User`            | profile, block list, conversation state |
-| `conversation` | opaque ciphertext | AES blob via `saveText` / `getText`  |
-| `userUUIDtoId` | Telegram user id  | UUID → user id lookup                |
-| `stats`        | number            | daily counters (`key:YYYY-MM-DD`) + running totals (`total:newUser`, `total:newConversation`) |
+| Key pattern        | Value   | Purpose                    |
+|--------------------|---------|----------------------------|
+| `tg:{telegramHash}`| user id | Telegram hash → user id   |
+| `link:{slug}`      | user id | Public slug → user id      |
 
 Prefer:
 
-- `save` / `get` — JSON records (`User`, stats, UUID map); uses Workers `get(key, "json")`
-- `saveText` / `getText` — opaque strings (conversation ciphertext); never `JSON.parse` blobs
-- `updateField` / `popItemFromField` on JSON records only
-- namespaced keys via the model — not raw `kv.put` scattered in new code
-- bounded `list()` usage with explicit prefixes (see `logs.ts`)
+- D1 as source of truth; KV as optional acceleration
+- delete stale cache keys when D1 lookup misses
+- direct `env.NEKO_KV.put/get/delete` in identity service — no `KVModel` wrapper
 
 Avoid:
 
-- `save()` / `get()` on ciphertext (double JSON encoding breaks decrypt)
-- loading all users or conversations without prefix/limit
-- storing decrypted message text in KV
-- new parallel KV access patterns when `KVModel` already fits
+- legacy key shapes: `user:`, `conversation:`, `userUUIDtoId:`, `stats:`
+- storing ciphertext, profiles, blocks, or inbox data in KV
+- unbounded `list()` in request paths
 
-KV is eventually consistent. Do not use it for inbox ordering truth — the Durable Object inbox is the per-user queue.
+KV is eventually consistent. Do not use it for inbox ordering — `UserStateDO` is the inbox authority.
 
 ## Durable Object Rules
 
-`InboxSqliteDurableObject` (`src/bot/inboxDU.ts`) is one DO instance per recipient Telegram user ID (`idFromName(userId)`).
+### UserStateDurableObject
 
-Internal routes (via stub `fetch`):
+One DO per internal user id (`idFromName(userId)`). Authority for:
 
-| Method | Path               | Behavior                                      |
-|--------|--------------------|-----------------------------------------------|
-| POST   | `/add`             | append pending entry with ciphertext copy     |
-| POST   | `/mark-delivered`  | flag delivered, drop ciphertext, keep `ref`   |
-| GET    | `/list`            | pending (undelivered) entries only            |
-| GET    | `/entry?ref=`      | lookup one entry for reply/block callbacks    |
-| DELETE | `/purge`           | wipe one user's inbox during account reset    |
+- pause, display name ciphertext, drafts, inbox tickets
+- blocks, contact labels, rate limits
+- processed events (schema reserved)
 
-Storage: **SQLite-backed** DO (`new_sqlite_classes` in Wrangler migrations). Inbox rows live in table `inbox_entries` (see `inboxDU.ts`); schema version tracked in `_sql_schema_migrations` (`PRAGMA user_version` is not supported in DO SQLite).
+All DO calls go through `src/services/user-state-service.ts` using `https://user-state/...` URLs.
+
+Key endpoints: `/init`, `/state`, `/set-draft`, `/add-ticket`, `/pending-inbox`, `/mark-delivered`, `/ticket/:ref`, `/add-block`, `/remove-block`, `/set-label`, `/check-can-receive`, `/check-rate-limit`, `/purge`.
+
+Inbox cap: 50 tickets per user DO. Pending tickets indexed by `status = 'pending'`.
+
+### TelegramOutboxDurableObject
+
+One DO per `chatHash` (`idFromName(chatHash)`). Idempotent outbound Telegram sends.
+
+Queue consumer (`src/queues/telegram-outbox.consumer.ts`) dispatches jobs via `outbox-service.ts`.
 
 Prefer:
 
-- DO for per-user inbox serialization only
-- short DO methods, synchronous `ctx.storage.sql.exec()` per operation (no full-array read/write)
-- stub calls from `commands.ts` using the existing URL pattern (`https://inbox/...`)
+- direct replies for immediate command responses in webhook
+- outbox queue for recipient notifications and seen messages
+- idempotency keys on outbox jobs — duplicates must not double-send
 
 Avoid:
 
-- moving user profiles or encrypted conversations into DO storage without a deliberate redesign
-- unbounded inbox growth — cap is 50 entries per DO (pending + delivered refs for callbacks)
+- storing plaintext secrets in outbox DO logs
+- unbounded inbox or outbox table growth without caps/eviction
 
 ## Cloudflare Worker Performance Rules
 
@@ -263,17 +306,17 @@ Treat every webhook request as an edge hot path.
 Prefer:
 
 - fewer imports in `index.ts` and `bot.ts`
-- simple functions over classes (except the required DO class)
-- direct validation and direct KV/DO access
+- simple functions over classes (except required DO classes)
+- direct validation and service calls
 - bounded loops
 - `async` I/O over CPU-heavy transforms
-- clearing message payloads from KV after delivery (existing pattern)
+- clearing message payloads from DO after delivery
 
 Avoid:
 
 - CPU-heavy loops in handlers
 - unbounded JSON parsing or serialization
-- full KV namespace scans in request paths
+- full KV/D1 namespace scans in request paths
 - `JSON.parse(JSON.stringify(...))` cloning
 - module-level mutable request state
 - Node-only libraries
@@ -294,14 +337,14 @@ Allowed at module scope:
 - pure config maps
 - compiled regex constants
 - immutable helper data
-- `Router` instance and route table in `index.ts`
+- `Router` instance and route table in `src/index.ts`
 
 Forbidden at module scope:
 
 - current Telegram user
 - request object
 - auth token or ticket material
-- per-request KV/DO results
+- per-request KV/DO/D1 results
 - mutable arrays/maps storing request data
 
 Pass request state through handler arguments and local variables.
@@ -325,11 +368,21 @@ Bindings and secrets are defined on `Environment` in `src/types.ts`:
 ```ts
 SECRET_TELEGRAM_API_TOKEN
 BOT_SECRET_KEY
-NekonymousKV
+APP_MASTER_KEY
+APP_HMAC_PEPPER
+
+NEKO_KV
+DB
+
+USER_STATE_DO
+TELEGRAM_OUTBOX_DO
+
+TELEGRAM_OUTBOX_QUEUE
+
 BOT_INFO
 BOT_NAME
-APP_SECURE_KEY
-INBOX_DO
+BOT_USERNAME
+PUBLIC_SITE_URL?
 ```
 
 Rules:
@@ -341,7 +394,19 @@ Rules:
 
 Do not rely on `process.env` in Worker runtime code.
 
-Local secrets live in `.dev.vars` (Wrangler) and `.env` (keep in sync). Copy from `.env.example` — never commit filled `.env` / `.dev.vars`.
+Local secrets live in `.dev.vars` (Wrangler). Copy from `.env.example` — never commit filled `.dev.vars`.
+
+Production secrets:
+
+```bash
+wrangler secret put SECRET_TELEGRAM_API_TOKEN
+wrangler secret put BOT_SECRET_KEY
+wrangler secret put APP_MASTER_KEY
+wrangler secret put APP_HMAC_PEPPER
+wrangler secret put BOT_INFO
+wrangler secret put BOT_NAME
+wrangler secret put BOT_USERNAME
+```
 
 ## Auth and Security Rules
 
@@ -353,31 +418,31 @@ Webhook auth:
 Privacy:
 
 - anonymity depends on not leaking Telegram IDs in public surfaces
-- do not add logging of message content, user IDs, or ticket IDs
-- error replies to users should stay generic (`HuhMessage`) — avoid echoing `JSON.stringify(error)` in new code (existing code has some; do not spread that pattern)
+- do not add logging of message content, user IDs, or ticket ids
+- error replies to users should stay generic (`HuhMessage`) — avoid echoing `JSON.stringify(error)` in new code
 
 Rate limiting:
 
-- `checkRateLimit` uses a 5-second window on `user.lastMessage`
+- `UserStateDO` enforces a 5-second window via `/check-rate-limit` and `/touch-rate-limit`
 - preserve rate limits on send/reply unless explicitly changing product rules
 
 Blocking:
 
 - server-side block checks must run before accepting new messages and replies
-- blocking uses `user.blockList` in KV
+- blocking uses `blocks` table in recipient `UserStateDO`
 
 ## Validation and Input Rules
 
 Validate at the boundary:
 
 - Telegram update context (`ctx.from`, `ctx.match`, message payload type)
-- deep-link UUID on `/start`
-- callback query inbox refs (`rpl:`, `blk:`, `ubl:` + 8 hex chars)
+- deep-link slug on `/start` (`isPublicSlug` / `isUserLinkId`)
+- callback query inbox refs (`r:`, `b:`, `u:`, `n:`, `rp:` + 8 hex chars)
 - HTTP route params sanitized by `router.ts`
 
 Prefer small explicit checks in the handler. Do not add a validation framework.
 
-All list/stat aggregation should stay bounded — `getTotalStats` lists by prefix; do not replace with full-table scans as data grows without pagination design.
+Public stats use bounded D1 aggregates (`getPublicStats`). Do not replace with full-table scans as data grows without pagination design.
 
 Return practical user-safe Persian errors. Keep internal details out of Telegram replies.
 
@@ -386,7 +451,7 @@ Return practical user-safe Persian errors. Keep internal details out of Telegram
 Public HTML lives in `src/front/` as template strings — not a SPA.
 
 - `layout.ts` provides RTL Persian shell, Tailwind 2 CDN, Vazirmatn font.
-- `home.ts` may fetch GitHub commit info and KV stats — keep external fetches fail-soft (existing pattern).
+- `home.ts` fetches GitHub commit info and D1 stats — keep external fetches fail-soft.
 - `about.ts` is static explanatory content.
 
 Rules:
@@ -394,13 +459,13 @@ Rules:
 - keep pages server-rendered strings; do not introduce Nuxt/React/Vue for these routes without explicit approval
 - preserve RTL (`lang="fa"`, `direction: rtl`)
 - sanitize any user-derived HTML (there is currently none — keep it that way)
-- update placeholder `example.com` meta URLs only when asked
 
 ## TypeScript Rules
 
 Prefer strict, boring TypeScript.
 
-- keep `User`, `Conversation`, `InboxMessage`, `Environment` in `src/types.ts`
+- keep `Environment`, `BotUser`, `D1User`, `MessagePayload`, `ConnectionMetadata`, `InboxTicket` in `src/types.ts`
+- `Conversation` in `types.ts` is a delivery view for `sender.ts` (Telegram chat ids) — not the storage model
 - avoid `any`; use `unknown` then narrow
 - do not introduce global type hacks
 - match existing Grammy `Context` handler signatures
@@ -412,7 +477,7 @@ Do not add production dependencies unless explicitly approved.
 Before proposing a dependency, check:
 
 - Can this be done with Web APIs?
-- Can this be done with a small helper in `src/utils/`?
+- Can this be done with a small helper in `src/utils/` or `src/services/`?
 - Is the library Worker-compatible?
 - Does it pull Node-only transitive dependencies?
 - Does it increase the webhook bundle size?
@@ -437,7 +502,7 @@ pnpm knip
 pnpm check
 ```
 
-`pnpm check` runs typecheck, lint, and knip (unused files/exports/deps).
+`pnpm check` runs typecheck, lint, knip, and `test:crypto`.
 TypeScript also enforces `noUnusedLocals` and `noUnusedParameters`.
 
 Only run when explicitly requested or clearly required:
@@ -446,7 +511,8 @@ Only run when explicitly requested or clearly required:
 pnpm dev
 pnpm deploy
 wrangler deploy
-wrangler kv:*
+wrangler d1 migrations apply nekonymous_core --remote
+wrangler kv key list --binding NEKO_KV --remote
 ```
 
 Never run destructive KV clears, deploy, or production Wrangler commands without explicit confirmation.
@@ -483,6 +549,7 @@ When working as an agent:
 - do not add tests unless the project already has a clear test pattern or the task asks for them
 - do not "improve" unrelated code
 - do not replace working compact code with enterprise architecture
+- do not reintroduce legacy KV conversation storage, `InboxSqliteDurableObject`, or `KVModel`
 
 ## Server Code Review Checklist
 
@@ -492,12 +559,13 @@ Before finalizing a Worker/bot change, verify:
 - Are bindings read from the typed `env` / handler args?
 - Are all promises awaited, returned, or passed to `waitUntil`?
 - Is request-scoped state local, not global?
-- Are KV lists bounded by prefix and purpose?
-- Are inbox operations going through the DO stub pattern?
+- Are D1 queries bounded by purpose and indexes?
+- Are inbox operations going through `user-state-service.ts`?
 - Are messages encrypted at rest and payloads cleared after delivery?
-- Are block checks and rate limits enforced server-side?
+- Are block checks and rate limits enforced server-side via UserStateDO?
 - Are webhook secrets and crypto material never logged?
 - Did this avoid unnecessary dependencies and abstraction layers?
+- Did this avoid legacy `user:`, `conversation:`, `userUUIDtoId:`, or `stats:` KV keys?
 
 ## Default Answer Format for Implementation Tasks
 
