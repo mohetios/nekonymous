@@ -7,13 +7,14 @@ export const SETTINGS_HOME_MESSAGE = `<b>تنظیمات</b>
 وضعیت دریافت پیام: <b>PAUSE_STATUS</b>
 
 <b>راهنمای دکمه‌ها</b>
-— <b>PAUSE_ACTION_LABEL</b> · PAUSE_ACTION_DESC
 — <b>✏️ نام نمایشی</b> · تغییر نام نمایشی
-— <b>↩️ لغو پیام ناتمام</b> · لغو ارسال، پاسخ یا نام‌گذاری ناتمام
-— <b>🏠 بازگشت</b> · بازگشت به منوی اصلی
+— <b>PAUSE_ACTION_LABEL</b> · PAUSE_ACTION_DESC
 — <b>🔓 حذف بلاک‌ها</b> · آنبلاک کردن همه (نیاز به تأیید)
-— <b>🗑️ پاک کردن حساب</b> · حذف لینک، صندوق، بلاک‌ها و نام‌های مستعار
-— <b>📐 معماری فنی</b> · توضیح کوتاه درباره نحوه کار، storage و حریم خصوصی`;
+— <b>🛡️ درباره و حریم خصوصی</b> · پیام ناشناس، تست، مچ‌یابی و حریم خصوصی
+— <b>📐 معماری فنی</b> · توضیح کوتاه درباره Worker، D1، Durable Object، KV و مچ‌یابی
+— <b>🗑️ پاک کردن حساب</b> · حذف لینک، صندوق، بلاک‌ها، نام‌های مستعار و پروفایل تست
+— <b>↩️ لغو پیام ناتمام</b> · لغو ارسال، پاسخ یا نام‌گذاری ناتمام
+— <b>🏠 بازگشت</b> · بازگشت به منوی اصلی`;
 
 export const SETTINGS_EDIT_NAME_MESSAGE = `<b>تغییر نام نمایشی</b>
 
@@ -49,6 +50,7 @@ export const SETTINGS_CLEAR_DATA_WARNING_MESSAGE = `<b>هشدار: پاک کرد
 — لینک فعلی
 — پیام‌های در انتظار در صندوق ورودی
 — فهرست بلاک و نام‌های مستعار
+— پروفایل تست و وضعیت مچ‌یابی
 
 پس از تأیید، یک <b>لینک جدید</b> دریافت می‌کنید.
 
@@ -98,29 +100,35 @@ export const TECHNICAL_ABOUT_MESSAGE = `<b>📐 معماری فنی نِکونی
 <i>خلاصهٔ قابل خواندن؛ جزئیات کامل‌تر در وب‌سایت.</i>
 
 <b>تصویر کلی</b>
-Telegram link → Worker → bot flow → storage رمز‌شده → inbox گیرنده → /inbox.
+Telegram / Browser → Cloudflare Worker → Grammy handlers → D1 + UserStateDO → Queue/Outbox → Telegram.
 
-<b>برای کاربر چه معنی دارد؟</b>
-• صاحب لینک و فرستنده username تلگرام همدیگر را در bot نمی‌بینند.
-• پیام‌های جدید با /inbox تحویل داده می‌شوند.
-• بعد از تحویل، payload پیام از storage پاک می‌شود.
-• reply، block و nickname با reference داخلی ادامه پیدا می‌کنند.
+<b>سطح‌های محصول</b>
+• پیام ناشناس با لینک شخصی، inbox، پاسخ، block، report و nickname.
+• تست سبک گفت‌وگو برای شناخت مرزها، عمق، انرژی اجتماعی و ترجیح‌های ارتباطی.
+• مچ‌یابی ناشناس opt-in بر اساس پروفایل کنترل‌شده تست.
 
-<b>storage ساده</b>
-• KV: profile، link map، تنظیمات و ciphertext.
-• Durable Object: inbox جدا برای هر گیرنده، با سقف ۵۰ row.
-• Web Crypto: رمزنگاری پیام‌ها در زمان ذخیره‌سازی.
+<b>storage و مسئولیت‌ها</b>
+• D1: کاربران، لینک‌ها، خلاصه گفتگوها، reportها، تست‌ها، پروفایل‌ها و match requestها.
+• UserState Durable Object: draft، pause، block، nickname، inbox، session تست و rate limit.
+• KV: فقط cache مسیر‌یابی مثل tg:{hash} و link:{slug}.
+• Queue + TelegramOutboxDO: ارسال‌های غیرحیاتی Telegram به شکل idempotent.
+• Workers AI + Vectorize: embedding پروفایل کنترل‌شده و کشف اولیه candidateها.
+
+<b>رمزنگاری</b>
+• Telegram ID خام در D1 ذخیره نمی‌شود؛ hash با HMAC ساخته می‌شود.
+• chat id، payload پیام، connection metadata، nickname و intro مچ‌یابی رمزنگاری می‌شوند.
+• بعد از /inbox، payload پیام از storage پاک می‌شود و فقط metadata رمزنگاری‌شده لازم برای callbackها می‌ماند.
 
 <b>مرز حریم خصوصی</b>
 نِکونیموس hosted anonymous relay است، نه end-to-end encryption.
-Telegram پیام اولیه را دریافت می‌کند و Worker هنگام پردازش plaintext را می‌بیند.
-هدف: کم کردن plaintext ذخیره‌شده و نمایش ندادن identity دو طرف در رابط bot.
+Telegram پیام‌های bot را دریافت می‌کند و Worker هنگام پردازش plaintext را می‌بیند.
+مچ‌یابی هم تضمین سازگاری نیست؛ Vectorize فقط candidateها را محدود می‌کند و تصمیم نهایی با scoring و پذیرش دوطرفه جلو می‌رود.
 
 <b>محدودیت‌ها</b>
-rate limit کوتاه · inbox محدود · pause فقط پیام جدید از لینک · callbackهای خیلی قدیمی ممکن است منقضی شوند.
+rate limit کوتاه · inbox محدود · KV فقط cache · test تشخیص پزشکی نیست · callbackهای خیلی قدیمی ممکن است منقضی شوند.
 
 WEB_LINK_LINE`;
 
 export const SETTINGS_BACK_MESSAGE = `<b>بازگشت به منوی اصلی</b>
 
-دکمه‌های پایین: درباره · دریافت لینک · تنظیمات`;
+دکمه‌های پایین: لینک من · مچ‌یابی · تنظیمات`;

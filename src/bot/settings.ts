@@ -29,7 +29,7 @@ import {
   TECHNICAL_ABOUT_MESSAGE,
 } from "../utils/messages-settings";
 import { technicalAboutUrl } from "../utils/site";
-import { HuhMessage, RATE_LIMIT_MESSAGE } from "../utils/messages";
+import { HuhMessage, RATE_LIMIT_MESSAGE, ABOUT_PRIVACY_COMMAND_MESSAGE } from "../utils/messages";
 import {
   convertToPersianNumbers,
   escapeHtml,
@@ -220,6 +220,14 @@ export const handleSettingsMenu = async (
     case MENU.back:
       await clearDraft(env, user.id);
       await ctx.reply(SETTINGS_BACK_MESSAGE, withHtml({ reply_markup: mainMenu }));
+      return true;
+
+    case MENU.about:
+    case MENU.privacy:
+      await ctx.reply(
+        ABOUT_PRIVACY_COMMAND_MESSAGE,
+        withHtml({ reply_markup: buildSettingsMenu(user.paused) })
+      );
       return true;
 
     case MENU.technical:
