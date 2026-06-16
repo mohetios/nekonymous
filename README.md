@@ -1,45 +1,110 @@
 # Nekonymous
 
-**Nekonymous** / **نِکونیموس** is a Persian-first anonymous messaging bot for Telegram.
+**Nekonymous** / **نِکونیموس** is a Persian-first anonymous messaging and anonymous matching bot for Telegram.
 
-Each user receives a personal Telegram deep link. Other people can open that link and send a message without seeing the owner's Telegram username. The owner can read messages from `/inbox`, reply anonymously, block senders, pause new incoming messages, report abuse, and keep private nicknames for repeat senders.
+A user starts the bot, receives a personal Telegram deep link, and can receive anonymous messages through the bot without exposing their Telegram username. The same bot also includes a conversation-style test and an opt-in anonymous matching system: users can build a private matching profile, discover similar users, send an anonymous intro request, and start a conversation only after the other user accepts.
 
-The project started as a small anonymous relay: one Telegram bot, one Cloudflare Worker, encrypted message storage, and a bounded inbox. The new V1 keeps the same product surface, but rebuilds the storage and ticketing core around a cleaner Cloudflare-native architecture:
+Nekonymous is designed as a small, honest, Cloudflare-native product:
 
-- **D1** for identity, public links, conversation summaries, reports, and consent records.
-- **SQLite-backed Durable Objects** for hot per-user state, inbox tickets, drafts, blocks, labels, rate limits, and idempotency.
-- **KV** only for routing/cache.
-- **Cloudflare Queues** for non-critical outbound Telegram sends.
-- **A Telegram Outbox Durable Object** for idempotent delivery and future rate limiting.
+- **Telegram** is the user interface.
+- **Cloudflare Workers** run the bot webhook and public pages.
+- **D1** stores relational source-of-truth records.
+- **SQLite-backed Durable Objects** own hot per-user state and ticket coordination.
+- **KV** is used only for routing/cache.
+- **Cloudflare Queues** and an Outbox Durable Object handle non-critical Telegram sends safely.
+- **Workers AI + Vectorize** power profile indexing and semantic candidate discovery.
+- **Web Crypto** handles HMAC, HKDF, AES-GCM, and secure random identifiers.
 
-This refactor intentionally treats old data as disposable. The goal is not backward compatibility with legacy KV records; the goal is a clean V1 core that can become a real product.
+The core design goal is simple:
+
+> Minimize stored plaintext and user-visible identity leakage while keeping the relay, test, and matching flows fast, bounded, and operationally understandable.
 
 ---
 
 ## Product Scope
 
-Nekonymous is a hosted anonymous relay for Telegram.
+Nekonymous has three product surfaces.
 
-Core user flow:
+### 1. Anonymous relay
 
 1. A user starts the bot.
-2. The bot creates a personal deep link.
+2. The bot creates a personal Telegram deep link.
 3. Another person opens the link and writes a message.
 4. The owner reads pending messages with `/inbox`.
 5. The owner can reply anonymously, block/report the sender, pause new messages, or assign a private nickname.
 
+### 2. Conversation-style test
+
+The user can run a non-clinical test that describes their anonymous conversation style:
+
+- boundary respect,
+- emotional reactivity,
+- social energy,
+- warmth/cooperation,
+- reliability,
+- curiosity/depth,
+- communication preferences.
+
+The result is private to the user. It is stored as structured scores in D1 and as a controlled profile summary for Vectorize indexing.
+
+### 3. Anonymous matching
+
+A user can opt in to matching after completing the test.
+
+The bot can find nearby candidates using Vectorize, re-score candidates deterministically, and let the user send an anonymous intro request. A match request does **not** open a conversation automatically. The candidate must accept first. If accepted, the intro becomes a normal anonymous inbox ticket.
+
 Nekonymous is intentionally not:
 
 - a full social network,
-- a helpdesk,
 - a dating platform,
-- a full encrypted messenger,
-- a moderation platform,
-- a heavy frontend application,
-- an AI matching system,
+- a clinical or psychological diagnostic tool,
+- an end-to-end encrypted messenger,
+- a helpdesk,
+- a heavy frontend app,
 - a payment/wallet system.
 
-Those features may be explored later. The V1 refactor focuses on the anonymous relay core.
+---
+
+## Bot Menu
+
+The main menu is intentionally compact:
+
+```text
+[لینک من]
+[🧭 مچ‌یابی]
+[تنظیمات]
+```
+
+The **🧭 مچ‌یابی** group contains:
+
+```text
+[پروفایل من]
+[پیدا کردن مچ]
+[اجرای تست]
+[بازگشت]
+```
+
+The settings page contains about/privacy/system options:
+
+```text
+[درباره]
+[حریم خصوصی]
+[توقف/شروع دریافت پیام]
+[زبان]
+[حذف حساب]
+[بازگشت]
+```
+
+Direct command shortcuts may remain available:
+
+```text
+/start
+/inbox
+/test
+/match
+/settings
+/language
+```
 
 ---
 
@@ -49,72 +114,93 @@ Nekonymous is a **hosted anonymous relay**, not end-to-end encryption.
 
 What the system protects:
 
-- Senders and recipients do not see each other's Telegram username through the bot UI.
-- Message payloads are encrypted before being stored.
+- Senders and recipients do not see each other’s Telegram username through the bot UI.
+- Raw Telegram user IDs are not used as public IDs, ticket refs, or callback refs.
+- Telegram chat IDs are encrypted before storage.
+- Message payloads are encrypted before storage.
 - Message payloads are cleared after `/inbox` delivery.
-- Only encrypted connection metadata remains for reply/block/report/nickname actions.
-- Telegram raw user IDs are not used as public ticket references.
-- Callback refs are short, opaque, and scoped to the recipient's state object.
+- Only encrypted connection metadata remains for reply/block/report/nickname continuity.
+- Match intro messages are encrypted at rest.
+- Full test results are not shown to other users.
+- Discoverability is off by default and must be explicitly enabled.
+- Candidate matching never exposes Telegram username, public link, full test profile, or raw answers.
 
 What the system does **not** claim:
 
-- Telegram still receives the original user messages because this is a Telegram bot.
-- The Worker sees plaintext while processing a message, then encrypts it at rest.
-- A Cloudflare/operator account that can change Worker code or access runtime secrets can compromise future messages.
-- Runtime secrets such as `APP_MASTER_KEY` are part of the trust boundary.
-- This is not end-to-end encryption.
+- Telegram still receives the original messages because this is a Telegram bot.
+- The Worker sees plaintext while processing a message before encrypting it at rest.
+- Runtime secrets such as `APP_MASTER_KEY` and `APP_HMAC_PEPPER` are part of the trust boundary.
+- A Cloudflare/operator account that can modify Worker code or access runtime secrets can compromise future messages.
+- Matching similarity is approximate, not a guarantee.
+- The test is not a diagnosis, therapy, or clinical assessment.
 
-The honest security goal is:
+Recommended user-facing wording:
 
-> Minimize stored plaintext and user-visible identity leakage while keeping the relay fast, bounded, and operationally simple.
+```text
+این تست برای شناخت سبک گفت‌وگو و پیشنهادهای آینده طراحی شده است.
+این تست تشخیص روان‌شناسی، درمان، یا ارزیابی پزشکی نیست.
+```
 
 ---
 
-## Architecture
-
-### Runtime Shape
-
-| Layer | Technology | Role |
-|---|---|---|
-| Edge entry | Cloudflare Worker | HTTP router, Telegram webhook, public pages |
-| Bot framework | Grammy | Commands, messages, and inline callbacks |
-| Source of truth | Cloudflare D1 | Users, links, conversation summaries, reports, consents |
-| Hot user state | SQLite Durable Object | Drafts, inbox tickets, blocks, labels, rate limits, processed events |
-| Routing cache | Cloudflare KV | `tg:{hash} -> userId`, `link:{slug} -> userId`, config/cache |
-| Async send path | Cloudflare Queue | Non-critical outbound Telegram jobs |
-| Outbox coordination | Durable Object | Idempotent Telegram sends and future rate limits |
-| Crypto | Web Crypto API | HMAC, HKDF-SHA-256, AES-256-GCM, secure random IDs |
+## Architecture Overview
 
 ```mermaid
 flowchart TB
   TG[Telegram] -->|POST /bot + secret header| Worker[Cloudflare Worker]
-  Browser[Browser] -->|GET / and public docs| Worker
+  Browser[Browser] -->|GET / public pages| Worker
 
   Worker --> Bot[Grammy bot handlers]
 
-  Bot --> D1[(D1 Core DB)]
+  Bot --> D1[(D1 Core Database)]
   Bot --> KV[KV routing cache]
+
   Bot --> UserState[UserStateDurableObject per user]
   UserState --> UserSQL[(SQLite user state)]
 
   Bot --> Queue[telegram-outbox queue]
   Queue --> Outbox[TelegramOutboxDurableObject]
   Outbox --> TGAPI[Telegram Bot API]
+
+  Bot --> AI[Workers AI embeddings]
+  AI --> Vectorize[(Vectorize profile index)]
+
+  Bot --> Match[Matching services]
+  Match --> Vectorize
+  Match --> D1
+  Match --> UserState
 ```
 
-### Design Principles
+### Runtime layers
+
+| Layer | Technology | Role |
+|---|---|---|
+| Edge entry | Cloudflare Worker | HTTP router, Telegram webhook, public pages |
+| Bot framework | Grammy | Commands, messages, inline callbacks |
+| Source of truth | Cloudflare D1 | Users, links, profiles, reports, match records |
+| Hot user state | SQLite-backed Durable Object | Drafts, inbox tickets, blocks, labels, test sessions, rate limits |
+| Routing cache | Cloudflare KV | `tg:{hash} -> userId`, `link:{slug} -> userId`, config/cache |
+| Async delivery | Cloudflare Queue | Non-critical outbound Telegram jobs |
+| Outbox coordination | Durable Object | Idempotent Telegram sends and future rate limits |
+| Embeddings | Workers AI | Profile embedding generation |
+| Vector search | Vectorize | Semantic candidate discovery |
+| Crypto | Web Crypto API | HMAC, HKDF, AES-GCM, secure random IDs |
+
+### Design principles
 
 - Keep webhook handlers low-CPU and low-memory.
 - Keep user-facing bot behavior stable.
-- Use D1 for relational source-of-truth records.
-- Use a per-user Durable Object where ordering, serialization, and consistency matter.
-- Use KV only for read-heavy routing and cache.
+- Use D1 for relational source-of-truth data.
+- Use per-user Durable Objects when ordering, serialization, and strong coordination matter.
+- Use KV only for read-heavy routing/cache.
 - Use Queues for non-critical outbound sends.
+- Treat all queue side effects as at-least-once and idempotent.
+- Use Vectorize only for candidate discovery, not final decisions.
 - Keep callback data short and opaque.
 - Never put sensitive metadata into Telegram `callback_data`.
-- Store message payloads encrypted at rest.
-- Clear payloads after inbox delivery.
-- Avoid unnecessary components until a product need appears.
+- Store sensitive payloads encrypted at rest.
+- Clear message payloads after inbox delivery.
+- Keep matching opt-in and consent-based.
 
 ---
 
@@ -122,23 +208,34 @@ flowchart TB
 
 | Data | Store | Reason |
 |---|---|---|
-| User identity | D1 | queryable source of truth |
+| User identity | D1 | relational source of truth |
 | Telegram user hash | D1 + KV cache | stable internal lookup |
 | Encrypted Telegram chat id | D1 | needed for outbound sends |
 | Public deep link slug | D1 + KV cache | source of truth + fast lookup |
+| Conversation summary | D1 | timeline/index/counts only |
+| Reports | D1 | moderation/audit index |
+| Test attempts | D1 | attempt history |
+| Test answers | D1 | scored answer history |
+| Latest test profile | D1 | private user profile |
+| Profile vector metadata | D1 + Vectorize | indexing state + candidate discovery |
+| Match suggestions | D1 | callback-safe candidate references |
+| Match requests | D1 | request lifecycle |
+| Match intro ciphertext | D1 | encrypted request payload |
+| Match blocks/events | D1 | safety and audit trail |
 | Draft compose state | UserStateDO | hot mutable per-user state |
+| Test session progress | UserStateDO | active progress and current index |
+| Match intro draft | UserStateDO | active intro composition |
 | Pause state | UserStateDO | checked in message hot path |
-| Block list | UserStateDO | checked before accepting a message |
+| Block list | UserStateDO | checked before accepting message/request |
 | Private nicknames | UserStateDO | recipient-scoped private state |
 | Pending inbox tickets | UserStateDO | ordered, bounded, per-recipient queue |
 | Delivered ticket metadata | UserStateDO | reply/block/report/nickname continuity |
 | Message payload ciphertext | UserStateDO | temporary encrypted payload |
-| Conversation summary | D1 | count/timeline/index only |
-| Reports | D1 | moderation/audit index |
+| Processed events | UserStateDO / OutboxDO | idempotency |
 | Outbound Telegram jobs | Queue + OutboxDO | async delivery and idempotency |
-| Config/routing cache | KV | read-heavy low-latency lookups |
+| Routing/config cache | KV | read-heavy cache only |
 
-KV is no longer the authority for users, conversations, message payloads, drafts, blocks, or stats.
+KV is not the authority for user state, conversations, message payloads, test state, match state, or profile state.
 
 ---
 
@@ -146,83 +243,39 @@ KV is no longer the authority for users, conversations, message payloads, drafts
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `GET` | `/` | none | Persian landing page |
-| `GET` | `/about` | none | Product/privacy explanation |
-| `GET` | `/about/technical` | none | Technical architecture guide |
+| `GET` | `/` | none | landing page |
+| `GET` | `/about` | none | product/privacy explanation |
+| `GET` | `/about/technical` | none | technical architecture guide |
 | `POST` | `/bot` | `X-Telegram-Bot-Api-Secret-Token` = `BOT_SECRET_KEY` | Telegram webhook |
 
-`POST /bot` must verify the Telegram webhook secret header before doing sensitive work.
+`POST /bot` must verify Telegram’s secret header before doing sensitive work.
 
 ---
 
-## D1 Core Data Model
+## D1 Data Model
 
-D1 stores source-of-truth records that need relational querying, auditability, or future product visibility.
+### Core tables
 
-### `users`
+- `users`: internal user identity, Telegram hash, encrypted chat id, locale, status.
+- `public_links`: public deep-link slug to internal owner user id.
+- `conversations`: message timeline/index/counts only; no message body.
+- `reports`: moderation/audit index with optional encrypted details.
+- `consents`: privacy, matching, or future consent versions.
 
-| Column | Meaning |
-|---|---|
-| `id` | internal user id |
-| `telegram_user_hash` | HMAC of Telegram user id |
-| `telegram_chat_ciphertext` | encrypted Telegram chat id |
-| `locale` | user-selected bot language |
-| `locale_source` | `explicit`, `telegram`, or `fallback` |
-| `onboarding_completed` | whether initial setup is complete |
-| `status` | active/disabled/deleted |
-| `bucket_id` | future sharding/indexing aid |
-| `created_at`, `updated_at` | timestamps |
+### Test/profile tables
 
-### `public_links`
+- `test_attempts`: every test run.
+- `test_answers`: scored answers by attempt.
+- `test_profiles`: latest completed profile, deterministic scores, private result summary, controlled embedding text, vector status, discoverability, safety tier, intent, bucket.
 
-| Column | Meaning |
-|---|---|
-| `slug` | public deep-link token |
-| `owner_user_id` | link owner |
-| `is_active` | link status |
-| `expires_at` | optional expiration |
-| `created_at`, `updated_at` | timestamps |
+### Matching tables
 
-### `conversations`
+- `match_suggestions`: candidate suggestions shown to a user.
+- `match_requests`: encrypted intro requests and lifecycle status.
+- `match_blocks`: match-specific dismiss/block signals.
+- `match_events`: compact audit/product events.
 
-This table is a summary/index only. It does not store message bodies.
-
-| Column | Meaning |
-|---|---|
-| `id` | stable pair/conversation id |
-| `type` | `anonymous_relay` |
-| `user_a_id`, `user_b_id` | participants |
-| `status` | active/closed/blocked |
-| `message_count` | aggregate count |
-| `report_count` | aggregate report count |
-| `last_event_at` | timeline sorting |
-| `created_at`, `updated_at` | timestamps |
-
-### `reports`
-
-| Column | Meaning |
-|---|---|
-| `id` | report id |
-| `reporter_user_id` | reporter |
-| `reported_user_id` | reported user if known |
-| `conversation_id` | related conversation summary |
-| `ticket_ref` | recipient-scoped ticket ref |
-| `reason_code` | report reason |
-| `details_ciphertext` | optional encrypted details |
-| `status` | open/reviewed/closed |
-| `created_at`, `reviewed_at` | timestamps |
-
-### `consents`
-
-Reserved for privacy, matching, or future product consents.
-
-| Column | Meaning |
-|---|---|
-| `id` | consent record id |
-| `user_id` | user |
-| `consent_type` | consent kind |
-| `version` | consent text/version |
-| `accepted_at`, `revoked_at` | timestamps |
+D1 must not store plaintext anonymous message bodies, plaintext match intros, raw Telegram IDs, or raw sensitive free-text profile data.
 
 ---
 
@@ -234,83 +287,28 @@ Reserved for privacy, matching, or future product consents.
 env.USER_STATE_DO.get(env.USER_STATE_DO.idFromName(userId))
 ```
 
-It owns all hot mutable state for one user.
+It owns hot mutable state for one user.
 
-### Internal SQLite tables
+### Tables
 
-#### `user_state`
-
-Stores per-user runtime state:
-
-- locale,
-- onboarding status,
-- pause state,
-- encrypted display name if needed.
-
-#### `drafts`
-
-Stores active compose/reply/nickname flows:
-
-| Column | Meaning |
-|---|---|
-| `id` | draft id |
-| `mode` | `new_message`, `reply`, `nickname`, etc. |
-| `to_user_id` | target user |
-| `link_slug` | source link |
-| `reply_ref` | ticket being replied to |
-| `parent_message_id` | Telegram message context |
-| `reply_to_message_id` | Telegram reply context |
-| `pending_nickname_alias` | nickname flow state |
-| `expires_at` | draft TTL |
-
-#### `inbox_tickets`
-
-This is the core ticketing table.
-
-| Column | Meaning |
-|---|---|
-| `ref` | short callback reference, recipient-scoped |
-| `ticket_id` | long internal cryptographic ticket id |
-| `sender_user_id` | sender internal id |
-| `recipient_user_id` | recipient internal id |
-| `conversation_id` | D1 conversation summary id |
-| `payload_ciphertext` | encrypted message payload; cleared after delivery |
-| `connection_ciphertext` | encrypted metadata for reply/block/report/nickname |
-| `status` | `pending`, `delivered`, `deleted`, etc. |
-| `created_at` | inbox ordering |
-| `delivered_at` | delivery timestamp |
-| `replied_at` | reply action timestamp |
-| `blocked_at` | block action timestamp |
-| `reported_at` | report action timestamp |
-| `deleted_at` | deletion timestamp |
-| `expires_at` | ticket TTL |
-| `dedupe_key` | idempotency key for duplicate update protection |
-
-#### `blocks`
-
-Recipient-scoped blocked senders.
-
-#### `contact_labels`
-
-Private nicknames for repeated senders. These labels are private to the recipient and are not public identity.
-
-#### `rate_limits`
-
-Per-user token buckets or cooldown states.
-
-#### `processed_events`
-
-Per-user idempotency keys such as Telegram update ids or callback ids.
+- `user_state`: runtime user state, locale, onboarding, pause status.
+- `drafts`: active new message, reply, nickname, and match intro drafts.
+- `inbox_tickets`: encrypted anonymous message tickets.
+- `test_sessions`: active test progress and temporary answers.
+- `blocks`: recipient-scoped blocked senders.
+- `contact_labels`: private nicknames.
+- `rate_limits`: per-user cooldowns/token buckets.
+- `processed_events`: per-user idempotency keys.
 
 ---
 
 ## Ticketing Model
 
-A ticket is not a support ticket. In Nekonymous, a ticket is:
+In Nekonymous, a ticket is:
 
 > A recipient-scoped, encrypted, action-capable anonymous message reference.
 
-Each accepted message creates exactly one ticket inside the recipient's `UserStateDO`.
+Every accepted anonymous message creates one ticket inside the recipient’s `UserStateDO`.
 
 ```text
 sender message
@@ -323,12 +321,12 @@ sender message
 
 | Identifier | Purpose |
 |---|---|
-| `ticket_id` | internal cryptographic identifier, never exposed |
+| `ticket_id` | internal cryptographic id, never exposed |
 | `ref` | short opaque callback reference |
 | `conversation_id` | D1 summary/index id |
 | `dedupe_key` | prevents duplicate ticket creation |
 
-Callback data remains short:
+Callback data stays short:
 
 ```text
 r:{ref}   reply
@@ -337,7 +335,7 @@ rp:{ref}  report
 n:{ref}   nickname
 ```
 
-The callback data is not trusted. Every callback must resolve the `ref` inside the current user's `UserStateDO` and verify ownership.
+Callback data is not trusted. The handler must resolve the `ref` inside the current user’s `UserStateDO` and verify ownership.
 
 ---
 
@@ -350,8 +348,8 @@ Nekonymous uses Web Crypto APIs in the Worker runtime.
 | Secret | Purpose |
 |---|---|
 | `SECRET_TELEGRAM_API_TOKEN` | Telegram bot token |
-| `BOT_SECRET_KEY` | webhook secret header validation |
-| `APP_MASTER_KEY` | master input key material for encryption |
+| `BOT_SECRET_KEY` | Telegram webhook secret |
+| `APP_MASTER_KEY` | encryption master key material |
 | `APP_HMAC_PEPPER` | HMAC key for Telegram id hashing |
 
 ### Algorithms
@@ -367,21 +365,22 @@ Nekonymous uses Web Crypto APIs in the Worker runtime.
 
 ### Per-ticket key separation
 
-For every accepted message, create a fresh `ticket_id`.
+For each accepted message, create a fresh `ticket_id`.
 
-Use HKDF with:
+Use HKDF:
 
 ```text
 IKM  = APP_MASTER_KEY
 salt = ticket_id
 ```
 
-Use different HKDF info labels for separate purposes:
+Use different HKDF info labels:
 
 | Purpose | HKDF info |
 |---|---|
 | payload encryption | `nekonymous:ticket:payload:v1` |
 | connection metadata encryption | `nekonymous:ticket:connection:v1` |
+| match intro encryption | `nekonymous:match:intro:v1` |
 | sender alias derivation | `nekonymous:ticket:alias:v1` |
 
 ### Cipher envelope
@@ -397,65 +396,57 @@ Prefer a versioned envelope:
 }
 ```
 
-AAD should bind ciphertext to context:
+Use AAD to bind ciphertext to context:
 
 ```text
 purpose
-ticket_id
+ticket_id or request_id
 sender_user_id
 recipient_user_id
-conversation_id
+conversation_id or match_request_id
 schema_version
 ```
 
-This prevents ciphertext from being moved across tickets or users without authentication failure.
-
 ---
 
-## Message Lifecycle
+## Anonymous Message Lifecycle
 
-### 1. Register or get link
+### `/start`
 
-`/start` without payload:
-
-1. Verify webhook secret.
+1. Verify Telegram webhook secret.
 2. Resolve Telegram user.
 3. Compute `telegram_user_hash`.
-4. Look up `tg:{telegram_user_hash}` in KV.
-5. If cache miss, query D1 `users`.
-6. If missing, create a new internal user id.
+4. Check KV cache `tg:{hash}`.
+5. Fallback to D1 `users`.
+6. If missing, create internal user id.
 7. Encrypt Telegram chat id.
 8. Insert D1 `users`.
-9. Create a public link slug.
+9. Create public link slug.
 10. Insert D1 `public_links`.
 11. Cache `tg:{hash} -> userId`.
 12. Cache `link:{slug} -> userId`.
 13. Initialize `UserStateDO`.
-14. Show language picker if onboarding is not complete.
+14. Show language picker if onboarding is incomplete.
 15. Otherwise show personal link.
 
-### 2. Open someone's link
-
-`/start {slug}`:
+### `/start {slug}`
 
 1. Resolve slug from KV.
-2. Fallback to D1 `public_links` if the cache misses.
-3. Reject missing/inactive links.
+2. Fallback to D1 `public_links`.
+3. Reject missing/inactive link.
 4. Reject self-message.
-5. Ask recipient `UserStateDO` whether the sender can send.
-6. Store sender draft in sender `UserStateDO`.
-7. Send a compose prompt.
+5. Ask recipient `UserStateDO` if sender can send.
+6. Store sender draft.
+7. Send compose prompt.
 
-### 3. Send anonymous message
-
-When the sender writes the message:
+### Sending a message
 
 1. Resolve sender.
 2. Load sender draft from `UserStateDO`.
 3. Check sender rate limit.
-4. Check recipient pause/block state via recipient `UserStateDO`.
-5. Reject unsupported payload types before encryption.
-6. Create `ticket_id`, `ref`, `conversation_id`, and `dedupe_key`.
+4. Check recipient pause/block state.
+5. Reject unsupported payload types.
+6. Create ticket/ref/conversation/dedupe ids.
 7. Build message payload.
 8. Build connection metadata.
 9. Encrypt payload and connection metadata separately.
@@ -463,87 +454,232 @@ When the sender writes the message:
 11. Clear sender draft.
 12. Upsert D1 conversation summary.
 13. Confirm to sender.
-14. Enqueue recipient notification through `telegram-outbox`.
+14. Queue recipient notification.
 
-### 4. Read inbox
-
-`/inbox`:
+### `/inbox`
 
 1. Resolve recipient.
-2. Load pending `inbox_tickets` from recipient `UserStateDO`.
+2. Load pending inbox tickets from `UserStateDO`.
 3. Decrypt payloads.
-4. Render messages in the recipient's locale.
+4. Render messages in recipient locale.
 5. Send messages to Telegram with inline actions.
-6. Mark tickets as delivered.
-7. Set `payload_ciphertext = NULL`.
-8. Keep `connection_ciphertext`.
+6. Mark tickets delivered.
+7. Clear `payload_ciphertext`.
+8. Keep encrypted connection metadata.
 
-After delivery, message content is no longer stored, but reply/block/report/nickname can still work.
+---
 
-### 5. Reply
+## Test and Profile Indexing
 
-`r:{ref}`:
+The test system builds a private conversation profile.
 
-1. Resolve current user.
-2. Load ticket from current user's `UserStateDO`.
-3. Verify ownership.
-4. Decrypt connection metadata.
-5. Store a reply draft in current user's `UserStateDO`.
-6. When the user sends text, create a new ticket for the original sender.
+```text
+User opens 🧭 مچ‌یابی
+  -> اجرای تست
+  -> answer Likert questions
+  -> active progress in UserStateDO
+  -> completed attempt + answers in D1
+  -> deterministic scores
+  -> private result summary
+  -> controlled profile summary
+  -> Workers AI embedding
+  -> Vectorize upsert
+```
 
-Replies are not a separate storage model. A reply is just a new ticket in the other user's inbox.
+### Scoring dimensions
 
-### 6. Block
+Core dimensions:
 
-`b:{ref}`:
+- boundary respect,
+- emotional reactivity,
+- social energy,
+- warmth/cooperation,
+- reliability,
+- curiosity/depth.
 
-1. Resolve current user.
-2. Load ticket.
-3. Verify ownership.
-4. Decrypt connection metadata.
-5. Add `sender_user_id` to current user's `blocks`.
-6. Mark `blocked_at`.
-7. Future messages from that sender are rejected.
+Communication dimensions:
 
-### 7. Report
+- depth preference,
+- reply pace,
+- directness,
+- conflict reflectiveness,
+- support need,
+- anonymity comfort.
 
-`rp:{ref}`:
+Scores are deterministic and normalized to 0..100.
 
-1. Resolve current user.
-2. Load ticket.
-3. Verify ownership.
-4. Decrypt connection metadata.
-5. Ask for or infer a reason code.
-6. Insert D1 `reports`.
-7. Mark `reported_at`.
+### Embedding policy
 
-By default, reports do not store plaintext message bodies. If extra details are captured, they must be encrypted.
+Only a controlled `profile_summary_text` is embedded.
 
-### 8. Private nickname
+It must not include:
 
-`n:{ref}`:
+- raw answers,
+- Telegram IDs,
+- anonymous messages,
+- private nicknames,
+- report/block data,
+- clinical labels.
 
-1. Resolve current user.
-2. Load ticket.
-3. Verify ownership.
-4. Decrypt connection metadata.
-5. Ask for a nickname.
-6. Store encrypted nickname in `contact_labels`.
+Vector ID format:
 
-Nicknames are private to the recipient.
+```text
+profile:{userId}:{profileVersion}
+```
+
+Default discoverability:
+
+```text
+discoverable = false
+```
+
+The user must opt in before appearing in matching search.
+
+---
+
+## Vectorize and Workers AI
+
+Vectorize stores completed profile embeddings for semantic candidate discovery.
+
+Recommended metadata:
+
+```ts
+type ProfileVectorMetadata = {
+  userId: string
+  locale: 'fa' | 'en'
+  discoverable: boolean
+  safetyTier: 'normal' | 'limited'
+  profileVersion: string
+  intentPrimary: string
+  profileBucket: number
+}
+```
+
+Recommended metadata indexes:
+
+```text
+locale
+discoverable
+safetyTier
+profileVersion
+intentPrimary
+profileBucket
+```
+
+Matching query pattern:
+
+```text
+Requester profile vector
+  -> Vectorize topK candidates
+  -> metadata filter: discoverable=true, locale, safetyTier=normal, profileVersion
+  -> D1 candidate profile fetch
+  -> hard filters
+  -> deterministic scoring
+  -> top 5 suggestions
+```
+
+Vectorize is not the final decision maker. It only narrows the candidate set.
+
+---
+
+## Anonymous Matching
+
+Matching is opt-in and double-confirmed.
+
+```text
+User opens 🧭 مچ‌یابی
+  -> پیدا کردن مچ
+  -> eligibility checks
+  -> opt-in discoverability if needed
+  -> Vectorize candidate search
+  -> deterministic scoring
+  -> show up to 5 anonymous suggestions
+  -> user selects one suggestion
+  -> user writes intro
+  -> encrypted match_request created
+  -> candidate receives request
+  -> candidate accepts or declines
+```
+
+### Candidate suggestion
+
+The requester sees anonymous suggestions such as:
+
+```text
+۱) شباهت تقریبی: ۸۶٪
+سبک پیشنهادی: گفت‌وگوی آرام و عمیق
+
+چرا؟
+- شباهت خوبی در عمق گفت‌وگو دیده می‌شود.
+- هر دو گفت‌وگوی کم‌فشار و محترمانه را ترجیح می‌دهید.
+```
+
+No identity is shown.
+
+### Match request
+
+The candidate receives:
+
+```text
+🔎 درخواست گفت‌وگوی ناشناس
+
+یک نفر با حدود ۸۶٪ شباهت در سبک گفت‌وگو می‌خواهد با تو یک گفت‌وگوی ناشناس شروع کند.
+
+پیام شروع:
+«...»
+
+اگر قبول کنی، این پیام وارد صندوق ناشناس تو می‌شود و می‌توانی جواب بدهی.
+```
+
+The candidate can accept or decline.
+
+### Accept
+
+If accepted:
+
+1. Verify candidate owns the request.
+2. Verify request is pending and not expired.
+3. Decrypt intro.
+4. Create a normal anonymous inbox ticket from requester to candidate.
+5. Mark request accepted.
+6. Notify requester.
+7. Candidate uses `/inbox` and normal reply flow.
+
+### Decline
+
+If declined:
+
+1. Verify candidate owns the request.
+2. Mark request declined.
+3. Notify requester with a low-pressure message.
+4. No inbox ticket is created.
+
+### Safety rules
+
+Hard filters remove:
+
+- self,
+- non-discoverable users,
+- inactive users,
+- missing profiles,
+- missing vectors,
+- blocked relationships,
+- active pending duplicate requests,
+- recent declined/dismissed pairs,
+- safety-tier blocked users.
 
 ---
 
 ## Outbox Queue
 
-Immediate command responses can still be sent directly.
+Immediate command responses can be sent directly.
 
-Non-critical outbound messages go through the queue:
+Non-critical sends go through `telegram-outbox`:
 
-- recipient pending notification,
-- seen notification,
-- reminders,
-- future batch notifications.
+- recipient pending notifications,
+- match request notifications,
+- accept/decline notifications,
+- future reminders.
 
 ```mermaid
 flowchart LR
@@ -558,98 +694,70 @@ flowchart LR
 ```ts
 export type TelegramOutboxJob = {
   idempotencyKey: string
-
   chatCiphertext: string
   chatHash: string
-
   method: 'sendMessage' | 'editMessageText' | 'answerCallbackQuery'
-
   payload: {
     text?: string
     parse_mode?: 'HTML'
     reply_markup?: unknown
     callback_query_id?: string
   }
-
   priority: 'normal' | 'low'
   createdAt: number
 }
 ```
 
-### Outbox idempotency
-
-`TelegramOutboxDurableObject` stores `sent_events`.
-
-If a queue message is delivered more than once, the outbox checks `idempotency_key` and avoids duplicate Telegram sends.
-
-This matters because queue delivery is reliable but not exactly-once. The application must make processing idempotent.
+The outbox must check `idempotencyKey` before sending to Telegram.
 
 ---
 
 ## Multilingual Behavior
 
-Nekonymous is Persian-first, but the V1 architecture supports per-user locale.
+Nekonymous is Persian-first and locale-aware.
 
 Rules:
 
-- On first `/start`, show a language picker.
-- Store `locale` in D1 and `UserStateDO`.
-- Telegram `language_code` may be used as a suggestion, not as final truth.
-- User-generated message content is not automatically translated.
-- Bot-generated wrappers, buttons, errors, settings, inbox labels, and future tests/match cards are rendered in the recipient's locale.
-- `/language` lets the user change locale.
-
-Example:
-
-If a Persian sender writes:
-
-```text
-سلام، حالت چطوره؟
-```
-
-and the recipient uses English, the bot renders:
-
-```text
-Anonymous message:
-
-سلام، حالت چطوره؟
-
-[Reply] [Block] [Report]
-```
-
-The payload stays in the original language. The bot UI wrapper changes.
+- First `/start` can show a language picker.
+- Store locale in D1 and `UserStateDO`.
+- Telegram `language_code` is a suggestion, not final truth.
+- User-generated messages are not automatically translated.
+- Bot wrappers/buttons/errors/settings/inbox labels/test/match cards render in the recipient’s locale.
+- `/language` lets users change locale.
 
 ---
 
-## Security and Performance Review
+## Security and Performance Notes
 
-### What this architecture improves
+### Strong points
 
-- KV is no longer the authority for hot mutable user state.
-- Message payloads are no longer stored as KV conversation blobs.
-- Inbox ordering and ticket actions live in one per-recipient authority.
+- KV does not own hot mutable state.
+- Message payloads are not KV blobs.
+- Inboxes and callbacks are coordinated by recipient-scoped `UserStateDO`.
 - Payload and connection metadata are encrypted separately.
 - Payloads are cleared after delivery.
-- Callback ownership is checked against the recipient's `UserStateDO`.
-- Outbound notifications can be retried safely and idempotently.
-- D1 can be queried for product/admin summaries without touching message bodies.
-- The bot core remains small: no unnecessary AI/payment/search components in V1.
+- Callback ownership is verified against the current user’s state object.
+- Queue sends are idempotent.
+- Matching is opt-in.
+- Candidate requests require accept before conversation.
+- D1 stores summaries and indexes, not plaintext message bodies.
+- Vectorize stores controlled profile embeddings, not raw answers/messages.
 
-### Remaining tradeoffs
+### Tradeoffs
 
-- This is still a hosted relay, not E2EE.
-- Telegram and the Worker see plaintext during processing.
+- This is hosted relay privacy, not E2EE.
+- Telegram and Worker see plaintext during processing.
 - Runtime secrets are part of the trust boundary.
 - Delivered tickets keep encrypted connection metadata for a limited time.
-- Reports do not include message text by default, which improves privacy but limits moderation context.
-- Queue delivery requires idempotent consumers.
-- D1 is not used for hot inbox payloads by design.
+- Reports do not include message text by default.
+- Queue delivery is at-least-once; idempotency is required.
+- Vector search gives approximate candidates; final scoring and filters happen in code.
 
 ---
 
-## Project Map
+## Suggested Project Map
 
-Expected structure after the V1 core refactor:
+Exact filenames can differ, but responsibilities should stay close to this:
 
 ```text
 src/
@@ -660,12 +768,24 @@ src/
 │   ├── commands.ts
 │   ├── actions.ts
 │   ├── settings.ts
-│   └── language.ts
-├── front/
-│   ├── layout.ts
-│   ├── home.ts
-│   ├── about.ts
-│   └── technical.ts
+│   ├── language.ts
+│   ├── test.ts
+│   └── matching.ts
+├── features/
+│   ├── test/
+│   │   ├── question-bank.ts
+│   │   ├── scoring.ts
+│   │   ├── profile-summary.ts
+│   │   ├── profile-vector-service.ts
+│   │   ├── test-profile-service.ts
+│   │   └── constants.ts
+│   └── matching/
+│       ├── match-service.ts
+│       ├── match-scoring.ts
+│       ├── match-request-service.ts
+│       ├── match-vector-service.ts
+│       ├── match-copy.ts
+│       └── match-types.ts
 ├── services/
 │   ├── identity-service.ts
 │   ├── user-state-service.ts
@@ -680,35 +800,37 @@ src/
 │   │   ├── users.ts
 │   │   ├── links.ts
 │   │   ├── conversations.ts
-│   │   └── reports.ts
+│   │   ├── reports.ts
+│   │   ├── test-profiles.ts
+│   │   └── matching.ts
 │   └── durable/
 │       ├── user-state-do.ts
 │       └── telegram-outbox-do.ts
 ├── queues/
 │   ├── types.ts
 │   └── telegram-outbox.consumer.ts
-├── utils/
-│   ├── payload.ts
-│   ├── sender.ts
-│   ├── worker.ts
-│   ├── tools.ts
-│   ├── constant.ts
-│   └── messages*.ts
-└── i18n/
-    ├── index.ts
-    └── locales/
-        ├── fa.ftl
-        └── en.ftl
+├── front/
+│   ├── layout.ts
+│   ├── home.ts
+│   ├── about.ts
+│   └── technical.ts
+├── i18n/
+│   └── locales/
+│       ├── fa.ftl
+│       └── en.ftl
+└── utils/
+    ├── payload.ts
+    ├── sender.ts
+    ├── worker.ts
+    ├── tools.ts
+    ├── constant.ts
+    └── messages*.ts
 
 migrations/
 ├── 0001_core.sql
-└── 0002_test_profiles_and_vectors.sql
-
-tools/
-└── verify-crypto.ts
+├── 0002_test_profiles_and_vectors.sql
+└── 0003_matching.sql
 ```
-
-The exact filenames can differ, but storage responsibilities should remain the same.
 
 ---
 
@@ -718,7 +840,7 @@ The exact filenames can differ, but storage responsibilities should remain the s
 
 - Node.js 22+
 - pnpm
-- Cloudflare account with Workers, D1, KV, Durable Objects, and Queues enabled
+- Cloudflare account with Workers, D1, KV, Durable Objects, Queues, Workers AI, and Vectorize enabled
 - Telegram bot token from BotFather
 
 ### Install
@@ -727,9 +849,9 @@ The exact filenames can differ, but storage responsibilities should remain the s
 pnpm install
 ```
 
-### Runtime Secrets
+### Runtime secrets
 
-Local development uses `.dev.vars` with Wrangler. Production uses Wrangler secrets.
+Local development uses `.dev.vars`. Production uses Wrangler secrets.
 
 | Variable | Purpose |
 |---|---|
@@ -737,15 +859,13 @@ Local development uses `.dev.vars` with Wrangler. Production uses Wrangler secre
 | `BOT_SECRET_KEY` | Telegram webhook secret token |
 | `APP_MASTER_KEY` | encryption master key material |
 | `APP_HMAC_PEPPER` | HMAC key for Telegram id hashing |
-| `BOT_INFO` | JSON result compatible with Grammy `botInfo` |
-| `BOT_NAME` | public bot display name |
+| `BOT_INFO` | JSON compatible with Grammy `botInfo` |
+| `BOT_NAME` | public display name |
 | `BOT_USERNAME` | Telegram bot username without `@` |
 | `PUBLIC_SITE_URL` | public Worker origin |
 | `PRODUCTION_WEBHOOK_URL` | Telegram webhook URL |
 
-Never commit filled `.env`, `.dev.vars`, Telegram tokens, or runtime secrets.
-
-Production secret setup:
+Production setup:
 
 ```bash
 wrangler secret put SECRET_TELEGRAM_API_TOKEN
@@ -755,11 +875,13 @@ wrangler secret put APP_HMAC_PEPPER
 wrangler secret put BOT_USERNAME
 ```
 
+Never commit real `.env`, `.dev.vars`, Telegram tokens, or runtime secrets.
+
 ---
 
 ## Wrangler Bindings
 
-Example `wrangler.toml` shape:
+Example shape:
 
 ```toml
 name = "nekonymous"
@@ -812,9 +934,9 @@ new_sqlite_classes = [
 
 ---
 
-## Fresh Database Setup
+## Fresh Cloudflare Setup
 
-Create the D1 database:
+Create D1:
 
 ```bash
 wrangler d1 create nekonymous_core
@@ -823,20 +945,35 @@ wrangler d1 create nekonymous_core
 Apply migrations locally:
 
 ```bash
-wrangler d1 migrations apply nekonymous_core --local
+pnpm db:migrations:apply:local
 ```
 
-This applies `0001_core.sql` and `0002_test_profiles_and_vectors.sql`.
+Apply migrations remotely (`pnpm deploy` also runs remote migrations before deploy):
 
-### Vectorize index (profile matching prep)
+```bash
+pnpm db:migrations:apply:remote
+```
 
-Create the profile vector index (768 dimensions for `@cf/google/embeddinggemma-300m`):
+Create queues:
+
+```bash
+wrangler queues create telegram-outbox
+wrangler queues create dead-letter
+```
+
+Create KV:
+
+```bash
+wrangler kv namespace create NEKO_KV
+```
+
+Create Vectorize index:
 
 ```bash
 wrangler vectorize create nekonymous-profile-vectors --dimensions=768 --metric=cosine
 ```
 
-Create metadata indexes for future matching filters:
+Create metadata indexes:
 
 ```bash
 wrangler vectorize create-metadata-index nekonymous-profile-vectors --propertyName=locale --type=string
@@ -847,24 +984,18 @@ wrangler vectorize create-metadata-index nekonymous-profile-vectors --propertyNa
 wrangler vectorize create-metadata-index nekonymous-profile-vectors --propertyName=profileBucket --type=number
 ```
 
-Embedding model constant: `src/features/test/constants.ts` (`PROFILE_EMBEDDING_MODEL`).
-
-Apply migrations remotely:
-
-```bash
-wrangler d1 migrations apply nekonymous_core --remote
-```
-
-Because V1 treats old data as disposable, no legacy data migration is required.
+Set `PROFILE_EMBEDDING_MODEL` in code/config to the selected Workers AI embedding model and keep `MODEL_DIMENSIONS` aligned with that model.
 
 ---
 
 ## Telegram Webhook
 
-Set the webhook:
+Set webhook:
 
 ```bash
-curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook"   -H "Content-Type: application/json"   -d '{
+curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{
     "url": "https://nekonymous.mohetios.dev/bot",
     "secret_token": "<BOT_SECRET_KEY>",
     "allowed_updates": ["message", "callback_query"],
@@ -872,103 +1003,140 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook"   -H "Content-Type
   }'
 ```
 
-`secret_token` makes Telegram include the `X-Telegram-Bot-Api-Secret-Token` header in webhook requests.
-
 ---
 
 ## Commands
 
+Use actual package scripts if they differ.
+
 ```bash
-pnpm dev          # local Wrangler dev server
-pnpm typecheck    # TypeScript only
-pnpm lint         # ESLint
-pnpm knip         # unused files/exports/deps
-pnpm test:crypto  # crypto smoke test
-pnpm check        # all checks above
-pnpm deploy       # production deploy
+pnpm dev
+pnpm typecheck
+pnpm lint
+pnpm knip
+pnpm test
+pnpm test:crypto
+pnpm check
+pnpm deploy
 ```
 
-Use the actual package scripts if they differ.
+Cloudflare checks:
+
+```bash
+wrangler types
+wrangler deploy --dry-run
+```
 
 ---
 
 ## Operational Checklist
 
-Before deploying a bot/crypto/storage change:
+Before deploying a bot, crypto, storage, test, vector, or matching change:
 
 - `pnpm check` passes.
 - `/bot` validates Telegram webhook secret before sensitive work.
-- No plaintext message bodies are stored in D1, KV, DO storage, or logs.
-- No logs include ticket ids, decrypted payloads, Telegram tokens, or runtime secrets.
-- Message accept path checks pause, block, and rate-limit before inserting a ticket.
+- No plaintext message bodies are stored in D1, KV, DO, Vectorize metadata, or logs.
+- No plaintext intro messages are stored in D1.
+- No logs include ticket IDs, decrypted payloads, intros, raw answers, Telegram tokens, or runtime secrets.
+- Message accept path checks pause/block/rate-limit before inserting a ticket.
 - `/inbox` clears `payload_ciphertext` after delivery.
-- Callback handlers verify ticket ownership.
+- Callback handlers verify ownership.
 - Queue consumers are idempotent.
 - Outbox duplicate jobs do not duplicate Telegram sends.
 - KV only stores routing/cache records.
 - D1 contains no message body plaintext.
 - Durable Object queries are bounded.
-- Static public pages fail soft on external fetches.
+- Vectorize metadata indexes exist before relying on metadata filters.
+- Vectorize indexing failure is non-fatal for test completion.
+- Matching requires explicit discoverability opt-in.
+- Match request accept/decline is idempotent.
+- Match requests do not create conversations before accept.
 
 ---
 
-## Test and Profile Indexing
+## Production Test Checklist
 
-Nekonymous includes a non-clinical conversation-style test (`/test` or main menu **تست**).
+Use at least three Telegram accounts in staging:
 
-- Active test progress is stored in **UserStateDO** (`test_sessions`).
-- Completed attempts, answers, and latest profile scores are stored in **D1** (`test_attempts`, `test_answers`, `test_profiles`).
-- After completion, the system builds a controlled `profile_summary_text` and indexes it in **Cloudflare Vectorize** using **Workers AI** embeddings (`@cf/google/embeddinggemma-300m`, 768 dimensions).
-- Indexing runs via `ctx.waitUntil` after the user sees their result; Vectorize failure is non-fatal.
-- This prepares the system for future anonymous matching, but **matching is not active** in this phase.
-- `discoverable` defaults to **off** (`0`).
+- User A: requester,
+- User B: candidate,
+- User C: non-discoverable or blocked candidate.
 
-Vector ID format: `profile:{userId}:{profileVersion}` (example: `profile:u_abc123:v1`).
+### Anonymous relay
+
+1. Fresh `/start`.
+2. Language selection.
+3. Personal link creation.
+4. Open `/start {slug}` from another account.
+5. Compose anonymous message.
+6. Receiver `/inbox`.
+7. Receiver replies.
+8. Original sender reads reply.
+9. Receiver blocks sender.
+10. Blocked sender cannot send again.
+11. Pause/resume works.
+12. Nickname works.
+13. Report works.
+14. Duplicate update does not create duplicate ticket.
+15. Duplicate outbox job does not send duplicate Telegram message.
+
+### Test/profile/vector
+
+1. A completes test.
+2. B completes test.
+3. C completes test.
+4. Result persists in D1.
+5. `test_profiles.profile_summary_text` contains no raw answers.
+6. Vectorize upsert succeeds.
+7. Vector IDs are deterministic.
+8. `discoverable` remains false by default.
+9. No test state is written to KV.
+10. `🧭 مچ‌یابی → پروفایل من` shows private profile.
+
+### Matching
+
+1. A opens `🧭 مچ‌یابی`.
+2. A enables discoverability.
+3. B enables discoverability.
+4. C remains non-discoverable.
+5. A finds matches.
+6. B can appear.
+7. C cannot appear.
+8. A never appears in own results.
+9. A selects B.
+10. A writes intro.
+11. D1 `match_requests` row exists.
+12. Intro is encrypted.
+13. B receives request.
+14. B accepts.
+15. Intro appears as a normal anonymous inbox ticket.
+16. B replies.
+17. A receives reply.
+18. Duplicate accept does not create duplicate ticket.
+19. Decline flow creates no inbox ticket.
+20. Expired request cannot be accepted.
 
 ---
 
-## Testing Checklist
+## Roadmap
 
-Manual tests for a fresh environment:
+Current V1 includes:
 
-1. Fresh `/start`
-2. Language selection
-3. Personal link creation
-4. Open `/start {slug}` from another Telegram account
-5. Compose anonymous text message
-6. Receiver `/inbox`
-7. Receiver reply
-8. Original sender reads reply
-9. Receiver blocks sender
-10. Blocked sender cannot send again
-11. Pause receiving
-12. Resume receiving
-13. Private nickname flow
-14. Report flow
-15. Duplicate update does not create duplicate ticket
-16. Duplicate outbox job does not send duplicate Telegram message
-17. D1 users/public_links/conversations/reports rows are created
-18. UserStateDO contains drafts/tickets/blocks/labels as expected
-19. KV only contains routing/cache keys
-20. No plaintext body appears in logs/storage
-21. Main menu shows **تست**; `/test` opens dashboard
-22. Start test, answer, exit, continue, complete — result persists in D1
-23. `test_profiles.profile_summary_text` has no raw answers
-24. Vectorize upsert succeeds when AI/Vectorize bindings exist
-25. Anonymous messaging (`/start`, `/inbox`, reply/block) still works
-26. No test progress written to KV
+- anonymous relay,
+- secure ticketing core,
+- test/profile system,
+- Workers AI embedding,
+- Vectorize profile index,
+- opt-in anonymous matching,
+- double-confirmed match requests.
 
----
+Possible future work:
 
-## Future Roadmap
-
-After the clean V1 core is stable:
-
-1. ~~Personality test and compatibility profile.~~ (test + Vectorize indexing shipped; matching not yet)
-2. Locale-aware anonymous matching (`/match`, discoverability toggle, double opt-in).
-3. ~~Workers AI and Vectorize for candidate discovery.~~ (indexing ready; search not yet)
-4. Telegram Stars credit packages for paid AI matching.
-5. Admin/moderation view.
-6. Better public docs and self-hosting guide.
-
-These are intentionally outside the core refactor. The first job is to make the anonymous relay stable, bounded, and honest.
+1. Telegram Stars credit packages for paid/high-volume matching.
+2. Admin/moderation console.
+3. Better report review tooling.
+4. Self-hosting guide.
+5. Public technical article.
+6. More languages.
+7. Safer abuse heuristics.
+8. Optional AI-generated match explanations, only after deterministic filters.
