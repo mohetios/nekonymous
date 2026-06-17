@@ -13,12 +13,12 @@ export const buildAssessmentDashboardKeyboard = (options: {
   const keyboard = new InlineKeyboard();
 
   if (!options.hasSession && !options.hasProfile) {
-    keyboard.text("شروع تست", ASSESSMENT_CALLBACK.start);
+    keyboard.text("شروع ارزیابی", ASSESSMENT_CALLBACK.start);
     return keyboard;
   }
 
   if (options.hasSession) {
-    keyboard.text("ادامه تست", ASSESSMENT_CALLBACK.continue).row();
+    keyboard.text("ادامه ارزیابی", ASSESSMENT_CALLBACK.continue).row();
     keyboard.text("شروع دوباره", ASSESSMENT_CALLBACK.reset);
     return keyboard;
   }
@@ -64,6 +64,13 @@ export const buildResultKeyboard = (): InlineKeyboard =>
     .row()
     .text("بازگشت به منو", ASSESSMENT_CALLBACK.menu);
 
+export const ASSESSMENT_ANSWER_SCALE =
+  "۱ = اصلاً شبیه من نیست\n" +
+  "۲ = کمی شبیه من است\n" +
+  "۳ = تا حدی شبیه من است\n" +
+  "۴ = زیاد شبیه من است\n" +
+  "۵ = کاملاً شبیه من است";
+
 export const formatQuestionMessage = (index: number): string => {
   const question = getQuestionAtIndex(index);
   if (!question) {
@@ -74,8 +81,7 @@ export const formatQuestionMessage = (index: number): string => {
   return (
     `سؤال ${current}/${ASSESSMENT_QUESTION_COUNT}\n\n` +
     `${question.text}\n\n` +
-    `۱ = اصلاً شبیه من نیست\n` +
-    `۵ = کاملاً شبیه من است`
+    ASSESSMENT_ANSWER_SCALE
   );
 };
 
@@ -94,19 +100,22 @@ export const dashboardStatusLine = (options: {
 };
 
 export const ASSESSMENT_DASHBOARD_INTRO =
-  "🧭 <b>تست سبک گفت‌وگو</b>\n\n" +
-  "این تست کمک می‌کند سبک گفت‌وگو، مرزها و ترجیح‌های ارتباطی تو بهتر شناخته شود.\n\n" +
-  "فعلاً نتیجه فقط برای خودت نمایش داده می‌شود.\n" +
-  "در مرحله بعدی، اگر خودت فعال کنی، می‌تواند برای پیشنهاد گفت‌وگوهای ناشناس استفاده شود.\n\n" +
-  "این تست تشخیص روان‌شناسی یا درمان نیست.";
+  "🧭 <b>ارزیابی سبک گفت‌وگو</b>\n\n" +
+  "این ارزیابی کمک می‌کند سبک گفت‌وگو، مرزها، ریتم پاسخ‌دهی و راحتی تو با گفت‌وگوی ناشناس بهتر فهمیده شود.\n\n" +
+  "نتیجه ارزیابی تشخیص روان‌شناسی نیست.\n" +
+  "از آن فقط برای ساخت پروفایل گفت‌وگو و پیشنهادهای ناشناس استفاده می‌شود.";
 
-export const ASSESSMENT_FUTURE_MATCHING_NOTE =
-  "\n\nدر نسخه بعدی، می‌توانی انتخاب کنی که این پروفایل برای پیشنهاد گفت‌وگوی ناشناس استفاده شود.\n" +
-  "فعلاً این بخش فعال نیست.";
+export const ASSESSMENT_COMPLETION_NOTE =
+  "\n\nاین نتیجه فقط برای خودت نمایش داده می‌شود.\n" +
+  "اگر مچ‌یابی را فعال کنی، از همین پروفایل برای پیشنهاد گفت‌وگوهای ناشناس استفاده می‌شود.";
+
+export const ASSESSMENT_VERSION_OUTDATED_NOTE =
+  "\n\nنسخه جدید ارزیابی آماده شده است.\n" +
+  "برای پیشنهادهای بهتر، بهتر است ارزیابی را یک بار دیگر کامل کنی.";
 
 export const ASSESSMENT_RESET_CONFIRM =
-  "آیا مطمئنی می‌خواهی تست را از نو شروع کنی؟\n" +
-  "پیشرفت فعلی پاک می‌شود. نتیجه قبلی تا تکمیل تست جدید باقی می‌ماند.";
+  "آیا مطمئنی می‌خواهی ارزیابی را از نو شروع کنی؟\n" +
+  "پیشرفت فعلی پاک می‌شود. نتیجه قبلی تا تکمیل ارزیابی جدید باقی می‌ماند.";
 
 export const ASSESSMENT_EXIT_SAVED =
-  "پیشرفت ذخیره شد. هر وقت خواستی از منوی تست ادامه بده.";
+  "پیشرفت ذخیره شد. هر وقت خواستی از منوی ارزیابی ادامه بده.";

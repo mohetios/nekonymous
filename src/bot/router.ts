@@ -1,8 +1,4 @@
 import { webhookCallback } from "grammy";
-import { AboutPageContent } from "../front/about";
-import { TechnicalPageContent } from "../front/technical";
-import { HomePageContent } from "../front/home";
-import pageLayout from "../front/layout";
 import type { Environment } from "../types";
 import { Router } from "../utils/router";
 import { timingSafeEqual } from "../utils/tools";
@@ -13,60 +9,6 @@ import {
 import { createBot } from "./create-bot";
 
 const router = new Router();
-
-router.get(
-  "/",
-  async (_request: Request, env: Environment, _ctx: ExecutionContext) => {
-    const content = await HomePageContent(env);
-    const html = pageLayout(
-      "پیام ناشناس تلگرام",
-      env.BOT_NAME,
-      content,
-      env.PUBLIC_SITE_URL
-    );
-    return new Response(html, {
-      headers: {
-        "content-type": "text/html;charset=UTF-8",
-      },
-    });
-  }
-);
-
-router.get(
-  "/about",
-  (_request: Request, env: Environment, _ctx: ExecutionContext) => {
-    const content = AboutPageContent();
-    const html = pageLayout(
-      "نحوه کار",
-      env.BOT_NAME,
-      content,
-      env.PUBLIC_SITE_URL
-    );
-    return new Response(html, {
-      headers: {
-        "content-type": "text/html;charset=UTF-8",
-      },
-    });
-  }
-);
-
-router.get(
-  "/about/technical",
-  (_request: Request, env: Environment, _ctx: ExecutionContext) => {
-    const content = TechnicalPageContent();
-    const html = pageLayout(
-      "جزئیات فنی",
-      env.BOT_NAME,
-      content,
-      env.PUBLIC_SITE_URL
-    );
-    return new Response(html, {
-      headers: {
-        "content-type": "text/html;charset=UTF-8",
-      },
-    });
-  }
-);
 
 router.post(
   "/bot",

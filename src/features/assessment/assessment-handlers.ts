@@ -26,8 +26,9 @@ import {
   dashboardStatusLine,
   formatQuestionMessage,
   ASSESSMENT_DASHBOARD_INTRO,
+  ASSESSMENT_COMPLETION_NOTE,
   ASSESSMENT_EXIT_SAVED,
-  ASSESSMENT_FUTURE_MATCHING_NOTE,
+  ASSESSMENT_VERSION_OUTDATED_NOTE,
   ASSESSMENT_RESET_CONFIRM,
 } from "./keyboards";
 import {
@@ -43,14 +44,16 @@ import {
   profileScoresFromRow,
 } from "./assessment-profile-service";
 import {
-  CORE_DIMENSION_LABELS,
+  CORE_DIMENSION_KEYS,
   type AssessmentResultSummary,
   type AssessmentScores,
 } from "./scoring";
 import {
+  ASSESSMENT_DIMENSION_LABELS,
   ASSESSMENT_QUESTIONS,
   ASSESSMENT_QUESTION_COUNT,
   ASSESSMENT_VERSION,
+  isCurrentAssessmentVersion,
 } from "./question-bank";
 import type { NekoContext } from "../../utils/worker";
 
@@ -70,25 +73,18 @@ const formatResultMessage = (
     .join("\n");
 
   let text =
-    "✅ <b>نتیجه تست آماده شد</b>\n\n" +
+    "✅ <b>پروفایل گفت‌وگوی تو آماده شد.</b>\n\n" +
     `<b>${escapeHtml(summary.title)}</b>\n\n` +
     `${escapeHtml(summary.shortDescription)}\n\n` +
     `<b>چند سیگنال اصلی:</b>\n${highlights}\n\n` +
-    `<b>چند نکته برای گفت‌وگو:</b>\n${cautions}\n\n` +
-    "این نتیجه برای کمک به پیشنهادهای آینده استفاده می‌شود، نه برای تشخیص روان‌شناسی." +
-    ASSESSMENT_FUTURE_MATCHING_NOTE;
+    `<b>چند نکته برای گفت‌وگو:</b>\n${cautions}` +
+    ASSESSMENT_COMPLETION_NOTE;
 
   if (includeScores) {
-    const scoreLines = (
-      Object.keys(CORE_DIMENSION_LABELS) as Array<
-        keyof typeof CORE_DIMENSION_LABELS
-      >
-    )
-      .map(
-        (key) =>
-          `${CORE_DIMENSION_LABELS[key]}: ${formatPercent(scores[key])}`
-      )
-      .join("\n");
+    const scoreLines = CORE_DIMENSION_KEYS.map(
+      (key) =>
+        `${ASSESSMENT_DIMENSION_LABELS[key]}: ${formatPercent(scores[key])}`
+    ).join("\n");
 
     text += `\n\n<b>نمای کلی:</b>\n${escapeHtml(scoreLines)}`;
   }
@@ -115,9 +111,14 @@ export const sendAssessmentDashboard = async (
     answeredCount,
   });
 
+  const outdatedNote =
+    profile && !isCurrentAssessmentVersion(profile.version)
+      ? ASSESSMENT_VERSION_OUTDATED_NOTE
+      : "";
+
   const text =
     `${ASSESSMENT_DASHBOARD_INTRO}\n\n` +
-    `<b>وضعیت:</b>\n${escapeHtml(status)}`;
+    `<b>وضعیت:</b>\n${escapeHtml(status)}${outdatedNote}`;
 
   const keyboard = buildAssessmentDashboardKeyboard({
     hasProfile: !!profile,
@@ -171,7 +172,7 @@ const startNewAssessment = async (
   );
   const session = await getAssessmentSession(userId, env);
   if (!session) {
-    throw new Error("Failed to start test session");
+    throw new Error("Failed to start assessment session");
   }
   await showQuestion(ctx, 0, !!ctx.callbackQuery);
 };

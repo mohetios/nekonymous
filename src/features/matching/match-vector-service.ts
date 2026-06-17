@@ -2,6 +2,7 @@ import type { Environment } from "../../types";
 import { logBotError } from "../../utils/logs";
 import { buildProfileVectorId } from "../assessment/profile-vector-service";
 import type { AssessmentProfileRow } from "../assessment/assessment-profile-service";
+import { ASSESSMENT_VERSION } from "../assessment/question-bank";
 import { MATCH_SEARCH_TOP_K } from "./constants";
 
 type VectorMatch = {
@@ -44,6 +45,7 @@ export const queryVectorCandidates = async (
     discoverable: true,
     locale: locale === "en" ? "en" : "fa",
     safetyTier: "normal",
+    profileVersion: ASSESSMENT_VERSION,
   };
 
   let result: Awaited<ReturnType<Environment["PROFILE_VECTORS"]["query"]>>;

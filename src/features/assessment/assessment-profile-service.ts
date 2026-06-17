@@ -6,23 +6,13 @@ import {
   computeProfileBucket,
   computeSafetyTier,
 } from "./scoring";
+import { scoresFromJson, scoresToJson } from "./assessment-scores";
 
 export type AssessmentProfileRow = {
   user_id: string;
   version: string;
   status: string;
-  honesty_boundary_respect: number;
-  emotional_reactivity: number;
-  social_energy: number;
-  warmth_cooperation: number;
-  reliability_consistency: number;
-  curiosity_depth: number;
-  depth_preference: number;
-  reply_pace: number;
-  directness: number;
-  conflict_reflectiveness: number;
-  support_need: number;
-  anonymity_comfort: number;
+  dimension_scores_json: string;
   result_summary_json: string;
   profile_summary_text: string | null;
   vector_id: string | null;
@@ -32,7 +22,10 @@ export type AssessmentProfileRow = {
   primary_intent: string;
   profile_bucket: number;
   completed_at: number;
+  updated_at?: number;
 };
+
+export { scoresToJson, parseDimensionScores } from "./assessment-scores";
 
 export const createAssessmentAttempt = async (
   userId: string,
@@ -44,7 +37,7 @@ export const createAssessmentAttempt = async (
   const now = Date.now();
 
   await env.DB.prepare(
-    `INSERT INTO test_attempts (
+    `INSERT INTO assessment_attempts (
       id, user_id, version, status, started_at, total_questions, answered_questions
     ) VALUES (?, ?, ?, 'started', ?, ?, 0)`
   )
@@ -60,7 +53,7 @@ export const abandonActiveAssessmentAttempts = async (
 ): Promise<void> => {
   const now = Date.now();
   await env.DB.prepare(
-    `UPDATE test_attempts
+    `UPDATE assessment_attempts
      SET status = 'abandoned', abandoned_at = ?
      WHERE user_id = ? AND status = 'started'`
   )
@@ -79,16 +72,16 @@ export const saveAssessmentAnswer = async (
 
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO test_answers (attempt_id, user_id, question_id, answer_value, answered_at)
+      `INSERT INTO assessment_answers (attempt_id, user_id, question_id, answer_value, answered_at)
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(attempt_id, question_id) DO UPDATE SET
          answer_value = excluded.answer_value,
          answered_at = excluded.answered_at`
     ).bind(attemptId, userId, questionId, answerValue, now),
     env.DB.prepare(
-      `UPDATE test_attempts
+      `UPDATE assessment_attempts
        SET answered_questions = (
-         SELECT COUNT(*) FROM test_answers WHERE attempt_id = ?
+         SELECT COUNT(*) FROM assessment_answers WHERE attempt_id = ?
        )
        WHERE id = ?`
     ).bind(attemptId, attemptId),
@@ -102,7 +95,7 @@ export const completeAssessmentAttempt = async (
 ): Promise<void> => {
   const now = Date.now();
   await env.DB.prepare(
-    `UPDATE test_attempts
+    `UPDATE assessment_attempts
      SET status = 'completed', completed_at = ?
      WHERE id = ? AND user_id = ?`
   )
@@ -124,38 +117,21 @@ export const saveAssessmentProfile = async (
   const profileBucket = computeProfileBucket(scores);
 
   await env.DB.prepare(
-    `INSERT INTO test_profiles (
+    `INSERT INTO assessment_profiles (
       user_id, version, status,
-      honesty_boundary_respect, emotional_reactivity, social_energy,
-      warmth_cooperation, reliability_consistency, curiosity_depth,
-      depth_preference, reply_pace, directness,
-      conflict_reflectiveness, support_need, anonymity_comfort,
-      values_json, interests_json, boundaries_json, intents_json,
-      result_summary_json, profile_summary_text,
+      dimension_scores_json, result_summary_json, profile_summary_text,
       vector_status, discoverable, safety_tier, primary_intent, profile_bucket,
       completed_at, updated_at
     ) VALUES (
       ?, ?, 'completed',
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-      '[]', '[]', '{}', '[]',
-      ?, ?, 'not_indexed', 0, ?, ?, ?,
+      ?, ?, ?,
+      'not_indexed', 0, ?, ?, ?,
       ?, ?
     )
     ON CONFLICT(user_id) DO UPDATE SET
       version = excluded.version,
       status = excluded.status,
-      honesty_boundary_respect = excluded.honesty_boundary_respect,
-      emotional_reactivity = excluded.emotional_reactivity,
-      social_energy = excluded.social_energy,
-      warmth_cooperation = excluded.warmth_cooperation,
-      reliability_consistency = excluded.reliability_consistency,
-      curiosity_depth = excluded.curiosity_depth,
-      depth_preference = excluded.depth_preference,
-      reply_pace = excluded.reply_pace,
-      directness = excluded.directness,
-      conflict_reflectiveness = excluded.conflict_reflectiveness,
-      support_need = excluded.support_need,
-      anonymity_comfort = excluded.anonymity_comfort,
+      dimension_scores_json = excluded.dimension_scores_json,
       result_summary_json = excluded.result_summary_json,
       profile_summary_text = excluded.profile_summary_text,
       vector_status = 'not_indexed',
@@ -170,18 +146,7 @@ export const saveAssessmentProfile = async (
     .bind(
       userId,
       version,
-      scores.honestyBoundaryRespect,
-      scores.emotionalReactivity,
-      scores.socialEnergy,
-      scores.warmthCooperation,
-      scores.reliabilityConsistency,
-      scores.curiosityDepth,
-      scores.depthPreference,
-      scores.replyPace,
-      scores.directness,
-      scores.conflictReflectiveness,
-      scores.supportNeed,
-      scores.anonymityComfort,
+      scoresToJson(scores),
       JSON.stringify(summary),
       profileSummaryText,
       safetyTier,
@@ -202,7 +167,7 @@ export const updateProfileVectorStatus = async (
 ): Promise<void> => {
   const now = Date.now();
   await env.DB.prepare(
-    `UPDATE test_profiles
+    `UPDATE assessment_profiles
      SET vector_id = ?, vector_status = ?, vector_updated_at = ?,
          profile_summary_text = COALESCE(?, profile_summary_text),
          updated_at = ?
@@ -216,7 +181,7 @@ export const getLatestAssessmentProfile = async (
   userId: string,
   env: Environment
 ): Promise<AssessmentProfileRow | null> => {
-  return env.DB.prepare("SELECT * FROM test_profiles WHERE user_id = ?")
+  return env.DB.prepare("SELECT * FROM assessment_profiles WHERE user_id = ?")
     .bind(userId)
     .first<AssessmentProfileRow>();
 };
@@ -233,7 +198,7 @@ export const setDiscoverable = async (
 ): Promise<void> => {
   const now = Date.now();
   await env.DB.prepare(
-    `UPDATE test_profiles
+    `UPDATE assessment_profiles
      SET discoverable = ?, updated_at = ?
      WHERE user_id = ? AND status = 'completed'`
   )
@@ -245,7 +210,7 @@ export const resetUserAssessmentProfile = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
-  await env.DB.prepare("DELETE FROM test_profiles WHERE user_id = ?")
+  await env.DB.prepare("DELETE FROM assessment_profiles WHERE user_id = ?")
     .bind(userId)
     .run();
 };
@@ -254,28 +219,25 @@ export const parseResultSummary = (
   row: AssessmentProfileRow
 ): AssessmentResultSummary => {
   try {
-    return JSON.parse(row.result_summary_json) as AssessmentResultSummary;
+    const parsed = JSON.parse(row.result_summary_json) as AssessmentResultSummary;
+    return {
+      title: parsed.title ?? "سبک گفت‌وگو",
+      shortDescription: parsed.shortDescription ?? "نتیجه ارزیابی ذخیره شده است.",
+      highlights: Array.isArray(parsed.highlights) ? parsed.highlights : [],
+      cautions: Array.isArray(parsed.cautions) ? parsed.cautions : [],
+      matchNotes: Array.isArray(parsed.matchNotes) ? parsed.matchNotes : [],
+      quality: parsed.quality,
+    };
   } catch {
     return {
       title: "سبک گفت‌وگو",
-      shortDescription: "نتیجه تست ذخیره شده است.",
+      shortDescription: "نتیجه ارزیابی ذخیره شده است.",
       highlights: [],
       cautions: [],
+      matchNotes: [],
     };
   }
 };
 
-export const profileScoresFromRow = (row: AssessmentProfileRow): AssessmentScores => ({
-  honestyBoundaryRespect: row.honesty_boundary_respect,
-  emotionalReactivity: row.emotional_reactivity,
-  socialEnergy: row.social_energy,
-  warmthCooperation: row.warmth_cooperation,
-  reliabilityConsistency: row.reliability_consistency,
-  curiosityDepth: row.curiosity_depth,
-  depthPreference: row.depth_preference,
-  replyPace: row.reply_pace,
-  directness: row.directness,
-  conflictReflectiveness: row.conflict_reflectiveness,
-  supportNeed: row.support_need,
-  anonymityComfort: row.anonymity_comfort,
-});
+export const profileScoresFromRow = (row: AssessmentProfileRow): AssessmentScores =>
+  scoresFromJson(row.dimension_scores_json, row.user_id);

@@ -12,6 +12,7 @@ import {
   computeProfileBucket,
   computeSafetyTier,
   computeAssessmentScores,
+  hasCompleteAnswers,
 } from "./scoring";
 import {
   completeAssessmentAttempt,
@@ -24,10 +25,6 @@ import {
   type AssessmentSession,
 } from "../../storage/user-state-client";
 
-const allQuestionsAnswered = (answers: Record<string, number>): boolean =>
-  ASSESSMENT_QUESTIONS.every(
-    (q) => answers[q.id] !== undefined && answers[q.id] >= 1 && answers[q.id] <= 5
-  );
 
 export const completeAssessmentFlow = async (
   userId: string,
@@ -44,16 +41,18 @@ export const completeAssessmentFlow = async (
     throw new Error("No active assessment session");
   }
 
-  if (!allQuestionsAnswered(session.answers)) {
+  if (!hasCompleteAnswers(session.answers)) {
     throw new Error("Incomplete assessment answers");
   }
 
   const scores = computeAssessmentScores(session.answers);
-  const summary = buildResultSummary(scores);
+  const summary = buildResultSummary(scores, session.answers);
+  const profileVersion = session.version || ASSESSMENT_VERSION;
   const profileSummaryText = buildProfileEmbeddingText(
     scores,
     summary,
-    locale === "en" ? "en" : "fa"
+    locale === "en" ? "en" : "fa",
+    profileVersion
   );
 
   await finalizeAssessmentFromSession(
@@ -101,13 +100,16 @@ export const finalizeAssessmentFromSession = async (
   }
 
   const resolvedScores = scores ?? computeAssessmentScores(session.answers);
-  const resolvedSummary = summary ?? buildResultSummary(resolvedScores);
+  const resolvedSummary =
+    summary ?? buildResultSummary(resolvedScores, session.answers);
+  const profileVersion = session.version || ASSESSMENT_VERSION;
   const resolvedProfileText =
     profileSummaryText ??
     buildProfileEmbeddingText(
       resolvedScores,
       resolvedSummary,
-      locale === "en" ? "en" : "fa"
+      locale === "en" ? "en" : "fa",
+      profileVersion
     );
 
   await saveAssessmentProfile(

@@ -1,6 +1,6 @@
 import type { AssessmentProfileRow } from "../assessment/assessment-profile-service";
 import type { MatchCandidate } from "./match-types";
-import { scoreMatchPair } from "./match-scoring";
+import { compareCandidateRanking, scoreMatchPair } from "./match-scoring";
 
 export type VectorMatchInput = {
   userId: string;
@@ -46,16 +46,35 @@ export const scoreCandidatePool = (
       continue;
     }
 
-    scored.push(
-      scoreMatchPair({
-        requesterProfile,
-        candidateProfile: profile,
-        vectorScore,
-      })
-    );
+    const candidate = scoreMatchPair({
+      requesterProfile,
+      candidateProfile: profile,
+      vectorScore,
+    });
+    if (!candidate) {
+      continue;
+    }
+
+    scored.push(candidate);
   }
 
-  scored.sort((a, b) => b.score - a.score);
+  scored.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+
+    const profileA = profilesById.get(a.userId);
+    const profileB = profilesById.get(b.userId);
+    if (!profileA || !profileB) {
+      return 0;
+    }
+
+    return compareCandidateRanking(
+      requesterProfile.version,
+      profileA.version,
+      profileB.version
+    );
+  });
   return scored;
 };
 

@@ -163,8 +163,7 @@ export const handleStartCommand = async (
 export const handleMessage = async (
   ctx: Context,
   env: Environment,
-  botUsername: string,
-  publicSiteUrl?: string
+  botUsername: string
 ): Promise<void> => {
   const from = ctx.from;
   const message = ctx.message;
@@ -184,7 +183,7 @@ export const handleMessage = async (
       return;
     }
 
-    if (await handleSettingsMenu(ctx, user, env, botUsername, publicSiteUrl)) {
+    if (await handleSettingsMenu(ctx, user, env, botUsername)) {
       return;
     }
 

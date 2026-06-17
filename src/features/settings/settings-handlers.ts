@@ -1,9 +1,10 @@
-import { InlineKeyboard, type Context } from "grammy";
+import type { Context } from "grammy";
 import type { BotUser, Environment } from "../../types";
 import {
   buildSettingsMenu,
   confirmClearBlocksMenu,
   confirmClearMenu,
+  confirmResetMatchHistoryMenu,
   mainMenu,
 } from "../../bot/keyboards";
 import { isMenuLabel, MENU } from "../../bot/menu";
@@ -25,10 +26,14 @@ import {
   SETTINGS_NAME_INVALID_MESSAGE,
   SETTINGS_NAME_SAVED_MESSAGE,
   SETTINGS_NAME_TEXT_ONLY_MESSAGE,
+  SETTINGS_RESET_MATCH_CANCELLED_MESSAGE,
+  SETTINGS_RESET_MATCH_DONE_MESSAGE,
+  SETTINGS_RESET_MATCH_EMPTY_MESSAGE,
+  SETTINGS_RESET_MATCH_WARNING_MESSAGE,
   TECHNICAL_ABOUT_MESSAGE,
 } from "./settings-copy";
-import { technicalAboutUrl } from "../../utils/site";
 import { HuhMessage, RATE_LIMIT_MESSAGE, ABOUT_PRIVACY_COMMAND_MESSAGE } from "../../i18n/messages";
+import { getPublicStats } from "../messaging/conversation-summary-service";
 import {
   convertToPersianNumbers,
   escapeHtml,
@@ -48,6 +53,10 @@ import {
 import { encryptDisplayName } from "../../crypto/crypto-service";
 import { resetUserAssessmentProfile } from "../assessment/assessment-profile-service";
 import {
+  countUserMatchHistory,
+  resetUserMatchHistory,
+} from "../matching/match-service";
+import {
   clearBlocks,
   clearDraft,
   isRateLimited,
@@ -58,31 +67,43 @@ import {
   touchRateLimit,
 } from "../../storage/user-state-client";
 
-const formatTechnicalAboutMessage = (publicSiteUrl?: string): string => {
-  const url = technicalAboutUrl(publicSiteUrl);
-  const webLine = url
-    ? `<b>صفحه کامل:</b>\n<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`
-    : `<b>صفحه کامل:</b> مسیر <code>/about/technical</code> روی دامنهٔ همین Worker.`;
+const formatAboutPrivacyMessage = async (env: Environment): Promise<string> => {
+  const stats = await getPublicStats(env);
+  return ABOUT_PRIVACY_COMMAND_MESSAGE.replace(
+    "USERS_COUNT",
+    convertToPersianNumbers(stats.usersCount)
+  )
+    .replace("MESSAGES_COUNT", convertToPersianNumbers(stats.conversationsCount))
+    .replace(
+      "ASSESSMENT_PROFILES_COUNT",
+      convertToPersianNumbers(stats.assessmentProfilesCount)
+    )
+    .replace(
+      "DISCOVERABLE_COUNT",
+      convertToPersianNumbers(stats.discoverableProfilesCount)
+    )
+    .replace(
+      "MATCH_REQUESTS_COUNT",
+      convertToPersianNumbers(stats.matchRequestsCount)
+    );
+};
 
-  return TECHNICAL_ABOUT_MESSAGE.replace("WEB_LINK_LINE", webLine);
+const showAboutPrivacy = async (
+  ctx: Context,
+  user: BotUser,
+  env: Environment
+): Promise<void> => {
+  const message = await formatAboutPrivacyMessage(env);
+  await ctx.reply(message, withHtml({ reply_markup: buildSettingsMenu(user.paused) }));
 };
 
 const showTechnicalAbout = async (
   ctx: Context,
-  user: BotUser,
-  publicSiteUrl?: string
+  user: BotUser
 ): Promise<void> => {
-  const url = technicalAboutUrl(publicSiteUrl);
-  const keyboard = url
-    ? new InlineKeyboard().url("مشاهده در وب", url)
-    : undefined;
-
   await ctx.reply(
-    formatTechnicalAboutMessage(publicSiteUrl),
-    withHtml({
-      reply_markup: keyboard ?? buildSettingsMenu(user.paused),
-      link_preview_options: url ? { is_disabled: true } : undefined,
-    })
+    TECHNICAL_ABOUT_MESSAGE,
+    withHtml({ reply_markup: buildSettingsMenu(user.paused) })
   );
 };
 
@@ -202,8 +223,7 @@ export const handleSettingsMenu = async (
   ctx: Context,
   user: BotUser,
   env: Environment,
-  botUsername: string,
-  publicSiteUrl?: string
+  botUsername: string
 ): Promise<boolean> => {
   const text = ctx.message?.text;
   if (!text || !ctx.from) {
@@ -223,14 +243,11 @@ export const handleSettingsMenu = async (
 
     case MENU.about:
     case MENU.privacy:
-      await ctx.reply(
-        ABOUT_PRIVACY_COMMAND_MESSAGE,
-        withHtml({ reply_markup: buildSettingsMenu(user.paused) })
-      );
+      await showAboutPrivacy(ctx, user, env);
       return true;
 
     case MENU.technical:
-      await showTechnicalAbout(ctx, user, publicSiteUrl);
+      await showTechnicalAbout(ctx, user);
       return true;
 
     case MENU.editName:
@@ -313,6 +330,67 @@ export const handleSettingsMenu = async (
       }
       return true;
 
+    case MENU.resetMatchHistory: {
+      const history = await countUserMatchHistory(user.id, env);
+      if (history.requests === 0 && history.blocks === 0) {
+        await ctx.reply(
+          SETTINGS_RESET_MATCH_EMPTY_MESSAGE,
+          withHtml({ reply_markup: buildSettingsMenu(user.paused) })
+        );
+        return true;
+      }
+
+      await setDraft(env, user.id, {
+        id: "primary",
+        mode: "settings",
+        pendingSettings: "confirmResetMatchHistory",
+      });
+      await ctx.reply(
+        SETTINGS_RESET_MATCH_WARNING_MESSAGE.replace(
+          "REQUEST_COUNT",
+          convertToPersianNumbers(history.requests)
+        ).replace(
+          "BLOCK_COUNT",
+          convertToPersianNumbers(history.blocks)
+        ),
+        withHtml({ reply_markup: confirmResetMatchHistoryMenu })
+      );
+      return true;
+    }
+
+    case MENU.confirmResetMatchHistory:
+      if (user.pendingSettings !== "confirmResetMatchHistory") {
+        return false;
+      }
+
+      try {
+        const cleared = await resetUserMatchHistory(user.id, env);
+        await clearDraft(env, user.id);
+        const detailLines: string[] = [];
+        if (cleared.requests > 0) {
+          detailLines.push(
+            `— ${convertToPersianNumbers(cleared.requests)} درخواست مچ حذف شد`
+          );
+        }
+        if (cleared.blocks > 0) {
+          detailLines.push(
+            `— ${convertToPersianNumbers(cleared.blocks)} بلاک مچ حذف شد`
+          );
+        }
+        const detail =
+          detailLines.length > 0 ? `${detailLines.join("\n")}\n\n` : "";
+        await ctx.reply(
+          SETTINGS_RESET_MATCH_DONE_MESSAGE.replace("DETAIL_LINES", detail),
+          withHtml({ reply_markup: buildSettingsMenu(user.paused) })
+        );
+      } catch (error) {
+        logBotError("handleSettingsMenu:resetMatchHistory", error);
+        await ctx.reply(HuhMessage, {
+          reply_markup: buildSettingsMenu(user.paused),
+        });
+      }
+      return true;
+
     case MENU.clearData:
       await setDraft(env, user.id, {
         id: "primary",
@@ -363,6 +441,14 @@ export const handleSettingsMenu = async (
         await clearDraft(env, user.id);
         await ctx.reply(
           SETTINGS_CLEAR_DATA_CANCELLED_MESSAGE,
+          withHtml({ reply_markup: buildSettingsMenu(user.paused) })
+        );
+        return true;
+      }
+      if (user.pendingSettings === "confirmResetMatchHistory") {
+        await clearDraft(env, user.id);
+        await ctx.reply(
+          SETTINGS_RESET_MATCH_CANCELLED_MESSAGE,
           withHtml({ reply_markup: buildSettingsMenu(user.paused) })
         );
         return true;

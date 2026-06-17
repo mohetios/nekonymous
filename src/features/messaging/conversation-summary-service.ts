@@ -29,7 +29,7 @@ export const getPublicStats = async (
 ): Promise<{
   usersCount: number;
   conversationsCount: number;
-  testProfilesCount: number;
+  assessmentProfilesCount: number;
   discoverableProfilesCount: number;
   matchRequestsCount: number;
 }> => {
@@ -45,21 +45,21 @@ export const getPublicStats = async (
   const [
     usersCount,
     conversationsCount,
-    testProfilesCount,
+    assessmentProfilesCount,
     discoverableProfilesCount,
     matchRequestsCount,
   ] = await Promise.all([
     count("SELECT COUNT(*) AS count FROM users WHERE status = 'active'"),
     count("SELECT COALESCE(SUM(message_count), 0) AS count FROM conversations"),
-    count("SELECT COUNT(*) AS count FROM test_profiles WHERE status = 'completed'"),
-    count("SELECT COUNT(*) AS count FROM test_profiles WHERE discoverable = 1"),
+    count("SELECT COUNT(*) AS count FROM assessment_profiles WHERE status = 'completed'"),
+    count("SELECT COUNT(*) AS count FROM assessment_profiles WHERE discoverable = 1"),
     count("SELECT COUNT(*) AS count FROM match_requests"),
   ]);
 
   return {
     usersCount,
     conversationsCount,
-    testProfilesCount,
+    assessmentProfilesCount,
     discoverableProfilesCount,
     matchRequestsCount,
   };

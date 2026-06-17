@@ -9,6 +9,7 @@ import { setDraft, clearDraft } from "../../storage/user-state-client";
 import {
   getLatestAssessmentProfile,
 } from "../assessment/assessment-profile-service";
+import { isCurrentAssessmentVersion } from "../assessment/question-bank";
 import { MATCH_CALLBACK, MATCH_INTRO_MAX_CHARS } from "./constants";
 import { MATCH_SYSTEM_INTRO } from "./match-system-callbacks";
 import {
@@ -17,8 +18,10 @@ import {
   MATCH_INTRO_TEXT_ONLY,
   MATCH_INTRO_TOO_LONG,
   MATCH_NO_CANDIDATES,
+  MATCH_NO_CANDIDATES_COOLDOWN,
   MATCH_NO_PROFILE,
   MATCH_OPT_IN,
+  MATCH_PROFILE_VERSION_OUTDATED,
   MATCH_READY_INTRO,
   MATCH_REQUEST_LIMIT,
   MATCH_REQUEST_SENT,
@@ -33,6 +36,7 @@ import {
   MATCH_REQUEST_EXPIRED,
   MATCH_CANDIDATE_UNAVAILABLE,
   MATCH_PENDING_EXISTS,
+  MATCH_RECENT_PAIR_COOLDOWN,
   MATCH_PENDING_EMPTY,
   MATCH_PENDING_LIST_HEADER,
   MATCH_REQUEST_CANCELLED,
@@ -97,19 +101,24 @@ const dashboardMessageForState = async (
   env: Environment
 ): Promise<{ text: string; keyboard?: ReturnType<typeof buildMatchSearchKeyboard> }> => {
   const dashboard = await getMatchDashboard(userId, env);
+  const profile = await getLatestAssessmentProfile(userId, env);
+  const outdatedNote =
+    profile && !isCurrentAssessmentVersion(profile.version)
+      ? `\n\n${MATCH_PROFILE_VERSION_OUTDATED}`
+      : "";
 
   switch (dashboard.state) {
     case "no_profile":
       return { text: MATCH_NO_PROFILE };
     case "vector_pending":
-      return { text: MATCH_VECTOR_PENDING };
+      return { text: `${MATCH_VECTOR_PENDING}${outdatedNote}` };
     case "vector_failed":
-      return { text: MATCH_VECTOR_FAILED };
+      return { text: `${MATCH_VECTOR_FAILED}${outdatedNote}` };
     case "opt_in_required":
-      return { text: MATCH_OPT_IN };
+      return { text: `${MATCH_OPT_IN}${outdatedNote}` };
     case "ready":
       return {
-        text: MATCH_READY_INTRO,
+        text: `${MATCH_READY_INTRO}${outdatedNote}`,
         keyboard: buildMatchSearchKeyboard(),
       };
   }
@@ -243,7 +252,11 @@ const runMatchSearch = async (
   }
 
   if (result.candidates.length === 0) {
-    await editMatchMessage(ctx, MATCH_NO_CANDIDATES, readyInlineOptions());
+    const emptyMessage =
+      result.reason === "recent_cooldown"
+        ? MATCH_NO_CANDIDATES_COOLDOWN
+        : MATCH_NO_CANDIDATES;
+    await editMatchMessage(ctx, emptyMessage, readyInlineOptions());
     return;
   }
 
@@ -335,6 +348,9 @@ export const handleMatchIntroInput = async (
       await ctx.reply(MATCH_PENDING_EXISTS, { reply_markup: hubKeyboard });
     } else if (result.reason === "already_accepted") {
       await ctx.reply(MATCH_REQUEST_ALREADY_ACCEPTED, withHtml({ reply_markup: mainMenu }));
+    } else if (result.reason === "recent_pair_cooldown") {
+      const hubKeyboard = await matchHubKeyboard(userId, env);
+      await ctx.reply(MATCH_RECENT_PAIR_COOLDOWN, { reply_markup: hubKeyboard });
     } else {
       await ctx.reply(HuhMessage, { reply_markup: mainMenu });
     }

@@ -4,10 +4,10 @@ import { assertCallbackData } from "../utils/telegram-limits";
 import { MENU } from "./menu-labels";
 
 const INBOX_BUTTON = {
-  block: "🚫 بلاک",
-  unblock: "🔓 آنبلاک",
+  block: "🚫 مسدود",
+  unblock: "🔓 رفع مسدودیت",
   reply: "💬 پاسخ",
-  nickname: "🏷️ نام مستعار",
+  nickname: "🏷️ نام خصوصی",
 } as const;
 
 const INBOX_CALLBACK = {
@@ -55,7 +55,7 @@ export const buildMatchProfileEmptyMenu = (): Keyboard =>
 export const buildMatchProfileReadyMenu = (): Keyboard =>
   new Keyboard()
     .text(MENU.matchFind)
-    .text(MENU.matchRetest)
+    .text(MENU.matchAssessmentRetry)
     .row()
     .text(MENU.matchBackToHub)
     .text(MENU.back)
@@ -72,26 +72,31 @@ export const buildDraftMenu = (): Keyboard =>
 
 /**
  * Settings keyboard (RTL: first button on each row = right on screen).
- * حساب → مخاطبین → اطلاعات → خطر → خروج
+ * Three short labels per row to avoid overflow on mobile.
  */
 export const buildSettingsMenu = (paused: boolean): Keyboard =>
   new Keyboard()
     .text(MENU.editName)
     .text(paused ? MENU.resumeInbox : MENU.pauseInbox)
-    .row()
     .text(MENU.clearBlockList)
     .row()
+    .text(MENU.resetMatchHistory)
     .text(MENU.about)
     .text(MENU.technical)
     .row()
     .text(MENU.clearData)
-    .row()
     .text(MENU.cancelDraft)
     .text(MENU.back)
     .resized();
 
 export const confirmClearBlocksMenu = new Keyboard()
   .text(MENU.confirmClearBlocks)
+  .row()
+  .text(MENU.cancel)
+  .resized();
+
+export const confirmResetMatchHistoryMenu = new Keyboard()
+  .text(MENU.confirmResetMatchHistory)
   .row()
   .text(MENU.cancel)
   .resized();

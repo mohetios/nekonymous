@@ -32,7 +32,7 @@ const MATCH_SYSTEM_MENU_LABELS = new Set<string>([
   MENU.matchEnable,
   MENU.matchDisable,
   MENU.matchAssessment,
-  MENU.matchRetest,
+  MENU.matchAssessmentRetry,
   MENU.matchBackToHub,
 ]);
 
@@ -139,7 +139,7 @@ export const handleMatchSystemMenu = async (
       }
 
       case MENU.matchAssessment:
-      case MENU.matchRetest:
+      case MENU.matchAssessmentRetry:
         await sendAssessmentDashboard(ctx, userId, env);
         return true;
 
@@ -189,7 +189,7 @@ export const handleMatchSystemCallback = async (
         await sendMatchDashboard(ctx, userId, env);
         return;
 
-      case MATCH_SYSTEM_CALLBACK.test:
+      case MATCH_SYSTEM_CALLBACK.assessment:
         await sendAssessmentDashboard(ctx, userId, env);
         return;
 

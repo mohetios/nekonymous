@@ -141,12 +141,11 @@ src/
     └── logs.ts                 # logBotError only
 
 migrations/
-├── 0001_core.sql
-├── 0002_test_profiles_and_vectors.sql
-└── 0003_matching.sql
+└── 0001_init.sql
 
 tools/
 ├── verify-crypto.ts            # pnpm test:crypto
+├── verify-assessment.ts        # pnpm test:assessment
 └── verify-matching.ts          # pnpm test:matching
 ```
 
@@ -190,7 +189,7 @@ Export `UserStateDurableObject` and `TelegramOutboxDurableObject` from `src/inde
 | reply/block/unblock/nickname/report | `features/messaging/messaging-actions.ts` |
 | reply keyboard menu  | `bot/menu.ts`, `bot/keyboards.ts`         |
 | `/settings`          | `features/settings/settings-handlers.ts`  |
-| `/assessment`, `/test` (alias) | `features/assessment/assessment-handlers.ts` |
+| `/assessment`        | `features/assessment/assessment-handlers.ts` |
 | `/match`             | `features/matching/match-handlers.ts`     |
 | `/match_system`      | `features/matching/match-system-handlers.ts` |
 
@@ -310,12 +309,12 @@ One DO per internal user id (`idFromName(userId)`). Authority for:
 
 - pause, display name ciphertext, drafts, inbox tickets
 - blocks, contact labels, rate limits
-- assessment session state (`test_sessions` table in DO — legacy name)
+- assessment session state (`assessment_sessions` table in DO)
 - processed events (schema reserved)
 
 All DO calls go through `src/storage/user-state-client.ts` using `https://user-state/...` URLs.
 
-Key endpoints: `/init`, `/state`, `/set-draft`, `/add-ticket`, `/pending-inbox`, `/mark-delivered`, `/ticket/:ref`, `/add-block`, `/remove-block`, `/set-label`, `/check-can-receive`, `/check-rate-limit`, `/purge`, `/test/*` (assessment session).
+Key endpoints: `/init`, `/state`, `/set-draft`, `/add-ticket`, `/pending-inbox`, `/mark-delivered`, `/ticket/:ref`, `/add-block`, `/remove-block`, `/set-label`, `/check-can-receive`, `/check-rate-limit`, `/purge`, `/assessment/*` (assessment session).
 
 Inbox cap: 50 tickets per user DO. Pending tickets indexed by `status = 'pending'`.
 

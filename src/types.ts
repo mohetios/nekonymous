@@ -81,7 +81,7 @@ export type UserDraft = {
   parent_message_id?: number;
   reply_to_message_id?: number;
   pendingNicknameAlias?: string;
-  pendingSettings?: "editName" | "confirmClearData" | "confirmClearBlockList";
+  pendingSettings?: "editName" | "confirmClearData" | "confirmClearBlockList" | "confirmResetMatchHistory";
 };
 
 export type D1User = {
@@ -129,7 +129,6 @@ export interface Environment {
   BOT_INFO: string;
   BOT_NAME: string;
   BOT_USERNAME: string;
-  PUBLIC_SITE_URL?: string;
 }
 
 export type Handler = (

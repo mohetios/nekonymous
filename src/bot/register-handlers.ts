@@ -34,7 +34,7 @@ const isCommandMessage = (message: Message): boolean =>
   ) === true;
 
 export const registerHandlers = (bot: Bot, env: Environment): void => {
-  const { BOT_USERNAME, PUBLIC_SITE_URL } = env;
+  const { BOT_USERNAME } = env;
 
   bot.command("start", (ctx) => handleStartCommand(ctx, env, BOT_USERNAME));
 
@@ -43,7 +43,6 @@ export const registerHandlers = (bot: Bot, env: Environment): void => {
   bot.command("settings", (ctx) => handleSettingsCommand(ctx, env));
 
   bot.command("assessment", (ctx) => handleAssessmentCommand(ctx, env));
-  bot.command("test", (ctx) => handleAssessmentCommand(ctx, env));
 
   bot.command("match", (ctx) => handleMatchCommand(ctx, env));
 
@@ -54,7 +53,7 @@ export const registerHandlers = (bot: Bot, env: Environment): void => {
       return;
     }
 
-    return handleMessage(ctx, env, BOT_USERNAME, PUBLIC_SITE_URL);
+    return handleMessage(ctx, env, BOT_USERNAME);
   });
 
   const onInboxCallback =

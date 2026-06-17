@@ -63,9 +63,6 @@
       "deleted_classes": ["InboxSqliteDurableObject"]
     }
   ],
-  "vars": {
-    "PUBLIC_SITE_URL": "https://nekonymous.mohetios.dev"
-  },
   "routes": [
     {
       "pattern": "nekonymous.mohetios.dev",

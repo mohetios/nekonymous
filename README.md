@@ -2,7 +2,7 @@
 
 **Nekonymous** / **نِکونیموس** is a Persian-first anonymous messaging and anonymous matching bot for Telegram.
 
-A user starts the bot, receives a personal Telegram deep link, and can receive anonymous messages through the bot without exposing their Telegram username. The same bot also includes a conversation-style test and an opt-in anonymous matching system: users can build a private matching profile, discover similar users, send an anonymous intro request, and start a conversation only after the other user accepts.
+A user starts the bot, receives a personal Telegram deep link, and can receive anonymous messages through the bot without exposing their Telegram username. The same bot also includes a conversation-style assessment and an opt-in anonymous matching system: users can build a private matching profile, discover similar users, send an anonymous intro request, and start a conversation only after the other user accepts.
 
 Nekonymous is designed as a small, honest, Cloudflare-native product:
 
@@ -17,7 +17,7 @@ Nekonymous is designed as a small, honest, Cloudflare-native product:
 
 The core design goal is simple:
 
-> Minimize stored plaintext and user-visible identity leakage while keeping the relay, test, and matching flows fast, bounded, and operationally understandable.
+> Minimize stored plaintext and user-visible identity leakage while keeping the relay, assessment, and matching flows fast, bounded, and operationally understandable.
 
 ---
 
@@ -33,9 +33,9 @@ Nekonymous has three product surfaces.
 4. The owner reads pending messages with `/inbox`.
 5. The owner can reply anonymously, block/report the sender, pause new messages, or assign a private nickname.
 
-### 2. Conversation-style test
+### 2. Conversation-style assessment
 
-The user can run a non-clinical test that describes their anonymous conversation style:
+The user can run a non-clinical assessment that describes their anonymous conversation style:
 
 - boundary respect,
 - emotional reactivity,
@@ -49,7 +49,7 @@ The result is private to the user. It is stored as structured scores in D1 and a
 
 ### 3. Anonymous matching
 
-A user can opt in to matching after completing the test.
+A user can opt in to matching after completing the assessment.
 
 The bot can find nearby candidates using Vectorize, re-score candidates deterministically, and let the user send an anonymous intro request. A match request does **not** open a conversation automatically. The candidate must accept first. If accepted, the intro becomes a normal anonymous inbox ticket.
 
@@ -80,7 +80,7 @@ The **🧭 مچ‌یابی** group contains:
 ```text
 [پروفایل من]
 [پیدا کردن مچ]
-[اجرای تست]
+[اجرای ارزیابی]
 [بازگشت]
 ```
 
@@ -100,7 +100,7 @@ Direct command shortcuts may remain available:
 ```text
 /start
 /inbox
-/test
+/assessment
 /match
 /settings
 /language
@@ -121,9 +121,9 @@ What the system protects:
 - Message payloads are cleared after `/inbox` delivery.
 - Only encrypted connection metadata remains for reply/block/report/nickname continuity.
 - Match intro messages are encrypted at rest.
-- Full test results are not shown to other users.
+- Full assessment results are not shown to other users.
 - Discoverability is off by default and must be explicitly enabled.
-- Candidate matching never exposes Telegram username, public link, full test profile, or raw answers.
+- Candidate matching never exposes Telegram username, public link, full assessment profile, or raw answers.
 
 What the system does **not** claim:
 
@@ -132,13 +132,13 @@ What the system does **not** claim:
 - Runtime secrets such as `APP_MASTER_KEY` and `APP_HMAC_PEPPER` are part of the trust boundary.
 - A Cloudflare/operator account that can modify Worker code or access runtime secrets can compromise future messages.
 - Matching similarity is approximate, not a guarantee.
-- The test is not a diagnosis, therapy, or clinical assessment.
+- The assessment is not a diagnosis, therapy, or clinical assessment.
 
 Recommended user-facing wording:
 
 ```text
-این تست برای شناخت سبک گفت‌وگو و پیشنهادهای آینده طراحی شده است.
-این تست تشخیص روان‌شناسی، درمان، یا ارزیابی پزشکی نیست.
+این ارزیابی برای شناخت سبک گفت‌وگو و پیشنهادهای آینده طراحی شده است.
+این ارزیابی تشخیص روان‌شناسی، درمان، یا ارزیابی پزشکی نیست.
 ```
 
 ---
@@ -178,7 +178,7 @@ flowchart TB
 | Edge entry | Cloudflare Worker | HTTP router, Telegram webhook, public pages |
 | Bot framework | Grammy | Commands, messages, inline callbacks |
 | Source of truth | Cloudflare D1 | Users, links, profiles, reports, match records |
-| Hot user state | SQLite-backed Durable Object | Drafts, inbox tickets, blocks, labels, test sessions, rate limits |
+| Hot user state | SQLite-backed Durable Object | Drafts, inbox tickets, blocks, labels, assessment sessions, rate limits |
 | Routing cache | Cloudflare KV | `tg:{hash} -> userId`, `link:{slug} -> userId`, config/cache |
 | Async delivery | Cloudflare Queue | Non-critical outbound Telegram jobs |
 | Outbox coordination | Durable Object | Idempotent Telegram sends and future rate limits |
@@ -216,7 +216,7 @@ flowchart TB
 | Reports | D1 | moderation/audit index |
 | Test attempts | D1 | attempt history |
 | Test answers | D1 | scored answer history |
-| Latest test profile | D1 | private user profile |
+| Latest assessment profile | D1 | private user profile |
 | Profile vector metadata | D1 + Vectorize | indexing state + candidate discovery |
 | Match suggestions | D1 | callback-safe candidate references |
 | Match requests | D1 | request lifecycle |
@@ -235,7 +235,7 @@ flowchart TB
 | Outbound Telegram jobs | Queue + OutboxDO | async delivery and idempotency |
 | Routing/config cache | KV | read-heavy cache only |
 
-KV is not the authority for user state, conversations, message payloads, test state, match state, or profile state.
+KV is not the authority for user state, conversations, message payloads, assessment state, match state, or profile state.
 
 ---
 
@@ -262,11 +262,11 @@ KV is not the authority for user state, conversations, message payloads, test st
 - `reports`: moderation/audit index with optional encrypted details.
 - `consents`: privacy, matching, or future consent versions.
 
-### Test/profile tables
+### Assessment/profile tables
 
-- `test_attempts`: every test run.
-- `test_answers`: scored answers by attempt.
-- `test_profiles`: latest completed profile, deterministic scores, private result summary, controlled embedding text, vector status, discoverability, safety tier, intent, bucket.
+- `assessment_attempts`: every assessment run.
+- `assessment_answers`: scored answers by attempt.
+- `assessment_profiles`: latest completed profile, deterministic scores, private result summary, controlled embedding text, vector status, discoverability, safety tier, intent, bucket.
 
 ### Matching tables
 
@@ -294,7 +294,7 @@ It owns hot mutable state for one user.
 - `user_state`: runtime user state, locale, onboarding, pause status.
 - `drafts`: active new message, reply, nickname, and match intro drafts.
 - `inbox_tickets`: encrypted anonymous message tickets.
-- `test_sessions`: active test progress and temporary answers.
+- `assessment_sessions`: active assessment progress and temporary answers.
 - `blocks`: recipient-scoped blocked senders.
 - `contact_labels`: private nicknames.
 - `rate_limits`: per-user cooldowns/token buckets.
@@ -471,11 +471,11 @@ schema_version
 
 ## Test and Profile Indexing
 
-The test system builds a private conversation profile.
+The assessment system builds a private conversation profile.
 
 ```text
 User opens 🧭 مچ‌یابی
-  -> اجرای تست
+  -> اجرای ارزیابی
   -> answer Likert questions
   -> active progress in UserStateDO
   -> completed attempt + answers in D1
@@ -722,7 +722,7 @@ Rules:
 - Store locale in D1 and `UserStateDO`.
 - Telegram `language_code` is a suggestion, not final truth.
 - User-generated messages are not automatically translated.
-- Bot wrappers/buttons/errors/settings/inbox labels/test/match cards render in the recipient’s locale.
+- Bot wrappers/buttons/errors/settings/inbox labels/assessment/match cards render in the recipient’s locale.
 - `/language` lets users change locale.
 
 ---
@@ -828,7 +828,7 @@ src/
 
 migrations/
 ├── 0001_core.sql
-├── 0002_test_profiles_and_vectors.sql
+├── 0002_assessment_profiles_and_vectors.sql
 └── 0003_matching.sql
 ```
 
@@ -1031,7 +1031,7 @@ wrangler deploy --dry-run
 
 ## Operational Checklist
 
-Before deploying a bot, crypto, storage, test, vector, or matching change:
+Before deploying a bot, crypto, storage, assessment, vector, or matching change:
 
 - `pnpm check` passes.
 - `/bot` validates Telegram webhook secret before sensitive work.
@@ -1047,7 +1047,7 @@ Before deploying a bot, crypto, storage, test, vector, or matching change:
 - D1 contains no message body plaintext.
 - Durable Object queries are bounded.
 - Vectorize metadata indexes exist before relying on metadata filters.
-- Vectorize indexing failure is non-fatal for test completion.
+- Vectorize indexing failure is non-fatal for assessment completion.
 - Matching requires explicit discoverability opt-in.
 - Match request accept/decline is idempotent.
 - Match requests do not create conversations before accept.
@@ -1082,15 +1082,15 @@ Use at least three Telegram accounts in staging:
 
 ### Test/profile/vector
 
-1. A completes test.
-2. B completes test.
-3. C completes test.
+1. A completes assessment.
+2. B completes assessment.
+3. C completes assessment.
 4. Result persists in D1.
-5. `test_profiles.profile_summary_text` contains no raw answers.
+5. `assessment_profiles.profile_summary_text` contains no raw answers.
 6. Vectorize upsert succeeds.
 7. Vector IDs are deterministic.
 8. `discoverable` remains false by default.
-9. No test state is written to KV.
+9. No assessment state is written to KV.
 10. `🧭 مچ‌یابی → پروفایل من` shows private profile.
 
 ### Matching
@@ -1124,7 +1124,7 @@ Current V1 includes:
 
 - anonymous relay,
 - secure ticketing core,
-- test/profile system,
+- assessment/profile system,
 - Workers AI embedding,
 - Vectorize profile index,
 - opt-in anonymous matching,

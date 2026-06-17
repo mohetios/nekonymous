@@ -25,8 +25,10 @@
     "typecheck": "tsc --noEmit",
     "knip": "knip",
     "test:crypto": "node --experimental-strip-types tools/verify-crypto.ts",
+    "test:assessment": "node --experimental-strip-types tools/verify-assessment.ts",
     "test:matching": "node --experimental-strip-types tools/verify-matching.ts",
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test:crypto && pnpm run test:matching"
+    "test": "pnpm run test:crypto && pnpm run test:assessment && pnpm run test:matching",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.20260611.1",

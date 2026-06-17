@@ -4,8 +4,8 @@ import type { Environment, UserDraft } from "../types";
 const INBOX_MAX_TICKETS = 50;
 const RATE_LIMIT_SECONDS = 5;
 const RATE_LIMIT_SCOPE = "message";
-const TEST_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const TEST_SESSION_ID = "current";
+const ASSESSMENT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ASSESSMENT_SESSION_ID = "current";
 
 type UserStateRow = {
   user_id: string;
@@ -33,7 +33,7 @@ type DraftRow = {
   expires_at: number | null;
 };
 
-type TestSessionRow = {
+type AssessmentSessionRow = {
   id: string;
   version: string;
   status: string;
@@ -196,7 +196,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
     if (version < 2) {
       this.ctx.storage.sql.exec(`
-        CREATE TABLE IF NOT EXISTS test_sessions (
+        CREATE TABLE IF NOT EXISTS assessment_sessions (
           id TEXT PRIMARY KEY,
           version TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'active',
@@ -210,6 +210,27 @@ export class UserStateDurableObject extends DurableObject<Environment> {
         );
 
         INSERT INTO _sql_schema_migrations (id) VALUES (2);
+      `);
+    }
+
+    if (version < 3) {
+      this.ctx.storage.sql.exec(`
+        DROP TABLE IF EXISTS test_sessions;
+
+        CREATE TABLE IF NOT EXISTS assessment_sessions (
+          id TEXT PRIMARY KEY,
+          version TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active',
+          current_index INTEGER NOT NULL DEFAULT 0,
+          total_questions INTEGER NOT NULL,
+          answers_json TEXT NOT NULL DEFAULT '{}',
+          attempt_id TEXT,
+          started_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          expires_at INTEGER
+        );
+
+        INSERT INTO _sql_schema_migrations (id) VALUES (3);
       `);
     }
   }
@@ -277,26 +298,26 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     if (request.method === "DELETE" && pathname === "/purge") {
       return this.purge();
     }
-    if (request.method === "POST" && pathname === "/test/start") {
-      return this.startTestSession(request);
+    if (request.method === "POST" && pathname === "/assessment/start") {
+      return this.startAssessmentSession(request);
     }
-    if (request.method === "GET" && pathname === "/test/session") {
-      return this.getTestSession();
+    if (request.method === "GET" && pathname === "/assessment/session") {
+      return this.getAssessmentSession();
     }
-    if (request.method === "POST" && pathname === "/test/answer") {
-      return this.saveTestAnswer(request);
+    if (request.method === "POST" && pathname === "/assessment/answer") {
+      return this.saveAssessmentAnswer(request);
     }
-    if (request.method === "POST" && pathname === "/test/set-current-index") {
-      return this.setTestCurrentIndex(request);
+    if (request.method === "POST" && pathname === "/assessment/set-current-index") {
+      return this.setAssessmentCurrentIndex(request);
     }
-    if (request.method === "POST" && pathname === "/test/complete") {
-      return this.completeTestSession();
+    if (request.method === "POST" && pathname === "/assessment/complete") {
+      return this.completeAssessmentSession();
     }
-    if (request.method === "POST" && pathname === "/test/cancel") {
-      return this.cancelTestSession();
+    if (request.method === "POST" && pathname === "/assessment/cancel") {
+      return this.cancelAssessmentSession();
     }
-    if (request.method === "DELETE" && pathname === "/test/reset") {
-      return this.resetTestSession();
+    if (request.method === "DELETE" && pathname === "/assessment/reset") {
+      return this.resetAssessmentSession();
     }
 
     return new Response("Not Found", { status: 404 });
@@ -743,7 +764,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     }
   }
 
-  private parseTestSession(row: TestSessionRow) {
+  private parseAssessmentSession(row: AssessmentSessionRow) {
     const answers = this.parseAnswersJson(row.answers_json);
 
     return {
@@ -760,10 +781,10 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     };
   }
 
-  private getActiveTestSessionRow(): TestSessionRow | null {
+  private getActiveAssessmentSessionRow(): AssessmentSessionRow | null {
     const rows = this.ctx.storage.sql
-      .exec<TestSessionRow>(
-        `SELECT * FROM test_sessions
+      .exec<AssessmentSessionRow>(
+        `SELECT * FROM assessment_sessions
          WHERE status = 'active'
          ORDER BY updated_at DESC
          LIMIT 1`
@@ -776,14 +797,14 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     }
 
     if (row.expires_at !== null && Date.now() > row.expires_at) {
-      this.ctx.storage.sql.exec("DELETE FROM test_sessions WHERE id = ?", row.id);
+      this.ctx.storage.sql.exec("DELETE FROM assessment_sessions WHERE id = ?", row.id);
       return null;
     }
 
     return row;
   }
 
-  private async startTestSession(request: Request): Promise<Response> {
+  private async startAssessmentSession(request: Request): Promise<Response> {
     const body = await request.json<{
       version: string;
       totalQuestions: number;
@@ -795,42 +816,42 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     }
 
     const now = Date.now();
-    this.ctx.storage.sql.exec("DELETE FROM test_sessions");
+    this.ctx.storage.sql.exec("DELETE FROM assessment_sessions");
 
     this.ctx.storage.sql.exec(
-      `INSERT INTO test_sessions (
+      `INSERT INTO assessment_sessions (
         id, version, status, current_index, total_questions, answers_json,
         attempt_id, started_at, updated_at, expires_at
       ) VALUES (?, ?, 'active', 0, ?, '{}', ?, ?, ?, ?)`,
-      TEST_SESSION_ID,
+      ASSESSMENT_SESSION_ID,
       body.version,
       body.totalQuestions,
       body.attemptId,
       now,
       now,
-      now + TEST_SESSION_TTL_MS
+      now + ASSESSMENT_SESSION_TTL_MS
     );
 
     return Response.json({ ok: true });
   }
 
-  private getTestSession(): Response {
-    const row = this.getActiveTestSessionRow();
+  private getAssessmentSession(): Response {
+    const row = this.getActiveAssessmentSessionRow();
     if (!row) {
       return Response.json({ session: null });
     }
 
-    return Response.json({ session: this.parseTestSession(row) });
+    return Response.json({ session: this.parseAssessmentSession(row) });
   }
 
-  private async saveTestAnswer(request: Request): Promise<Response> {
+  private async saveAssessmentAnswer(request: Request): Promise<Response> {
     const body = await request.json<{
       questionId: string;
       answerValue: number;
       currentIndex?: number;
     }>();
 
-    const row = this.getActiveTestSessionRow();
+    const row = this.getActiveAssessmentSessionRow();
     if (!row) {
       return new Response("No active session", { status: 404 });
     }
@@ -853,7 +874,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     const now = Date.now();
 
     this.ctx.storage.sql.exec(
-      `UPDATE test_sessions
+      `UPDATE assessment_sessions
        SET answers_json = ?, current_index = ?, updated_at = ?
        WHERE id = ?`,
       JSON.stringify(answers),
@@ -865,16 +886,16 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return Response.json({ ok: true, answers, currentIndex: nextIndex });
   }
 
-  private async setTestCurrentIndex(request: Request): Promise<Response> {
+  private async setAssessmentCurrentIndex(request: Request): Promise<Response> {
     const { currentIndex } = await request.json<{ currentIndex: number }>();
-    const row = this.getActiveTestSessionRow();
+    const row = this.getActiveAssessmentSessionRow();
     if (!row) {
       return new Response("No active session", { status: 404 });
     }
 
     const now = Date.now();
     this.ctx.storage.sql.exec(
-      "UPDATE test_sessions SET current_index = ?, updated_at = ? WHERE id = ?",
+      "UPDATE assessment_sessions SET current_index = ?, updated_at = ? WHERE id = ?",
       Math.max(0, currentIndex),
       now,
       row.id
@@ -883,15 +904,15 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return Response.json({ ok: true });
   }
 
-  private completeTestSession(): Response {
-    const row = this.getActiveTestSessionRow();
+  private completeAssessmentSession(): Response {
+    const row = this.getActiveAssessmentSessionRow();
     if (!row) {
       return new Response("No active session", { status: 404 });
     }
 
     const now = Date.now();
     this.ctx.storage.sql.exec(
-      "UPDATE test_sessions SET status = 'completed', updated_at = ? WHERE id = ?",
+      "UPDATE assessment_sessions SET status = 'completed', updated_at = ? WHERE id = ?",
       now,
       row.id
     );
@@ -899,15 +920,15 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return Response.json({ ok: true });
   }
 
-  private cancelTestSession(): Response {
-    const row = this.getActiveTestSessionRow();
+  private cancelAssessmentSession(): Response {
+    const row = this.getActiveAssessmentSessionRow();
     if (!row) {
       return Response.json({ ok: true });
     }
 
     const now = Date.now();
     this.ctx.storage.sql.exec(
-      "UPDATE test_sessions SET updated_at = ? WHERE id = ?",
+      "UPDATE assessment_sessions SET updated_at = ? WHERE id = ?",
       now,
       row.id
     );
@@ -915,8 +936,8 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return Response.json({ ok: true });
   }
 
-  private resetTestSession(): Response {
-    this.ctx.storage.sql.exec("DELETE FROM test_sessions");
+  private resetAssessmentSession(): Response {
+    this.ctx.storage.sql.exec("DELETE FROM assessment_sessions");
     return Response.json({ ok: true });
   }
 
@@ -928,7 +949,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       DELETE FROM blocks;
       DELETE FROM inbox_tickets;
       DELETE FROM drafts;
-      DELETE FROM test_sessions;
+      DELETE FROM assessment_sessions;
       DELETE FROM user_state;
     `);
     await this.ctx.storage.deleteAll();

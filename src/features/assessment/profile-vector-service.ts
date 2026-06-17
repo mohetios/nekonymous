@@ -5,6 +5,9 @@ import {
   PROFILE_EMBEDDING_MODEL,
 } from "./constants";
 import { buildProfileEmbeddingText } from "./profile-summary";
+import { ASSESSMENT_VERSION } from "./question-bank";
+
+export const PROFILE_VECTOR_VERSION = ASSESSMENT_VERSION;
 import type { AssessmentResultSummary, AssessmentScores } from "./scoring";
 import { updateProfileVectorStatus } from "./assessment-profile-service";
 
@@ -20,7 +23,7 @@ export type ProfileVectorMetadata = {
 
 export const buildProfileVectorId = (
   userId: string,
-  version: string
+  version: string = PROFILE_VECTOR_VERSION
 ): string => `profile:${userId}:${version}`;
 
 const extractEmbedding = (response: unknown): number[] => {
@@ -69,7 +72,7 @@ export const indexCompletedProfile = async (params: {
   const now = Date.now();
   const text =
     profileSummaryText ||
-    buildProfileEmbeddingText(scores, resultSummary, locale);
+    buildProfileEmbeddingText(scores, resultSummary, locale, version);
 
   await env.DB.prepare(
     `INSERT INTO profile_vector_index_events (
@@ -171,7 +174,7 @@ export const updateVectorDiscoverability = async (
   env: Environment
 ): Promise<void> => {
   const row = await env.DB.prepare(
-    "SELECT * FROM test_profiles WHERE user_id = ?"
+    "SELECT * FROM assessment_profiles WHERE user_id = ?"
   )
     .bind(userId)
     .first<{

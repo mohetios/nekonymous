@@ -331,7 +331,7 @@ export const startAssessmentSession = async (
   attemptId: string,
   env: Environment
 ): Promise<void> => {
-  await doFetch(env, userId, "/test/start", {
+  await doFetch(env, userId, "/assessment/start", {
     method: "POST",
     body: JSON.stringify({ version, totalQuestions, attemptId }),
   });
@@ -344,7 +344,7 @@ export const getAssessmentSession = async (
   const body = await doFetch<{ session: AssessmentSession | null }>(
     env,
     userId,
-    "/test/session"
+    "/assessment/session"
   );
   return body.session;
 };
@@ -356,7 +356,7 @@ export const saveAssessmentAnswer = async (
   env: Environment,
   currentIndex?: number
 ): Promise<void> => {
-  await doFetch(env, userId, "/test/answer", {
+  await doFetch(env, userId, "/assessment/answer", {
     method: "POST",
     body: JSON.stringify({ questionId, answerValue, currentIndex }),
   });
@@ -367,7 +367,7 @@ export const setAssessmentCurrentIndex = async (
   currentIndex: number,
   env: Environment
 ): Promise<void> => {
-  await doFetch(env, userId, "/test/set-current-index", {
+  await doFetch(env, userId, "/assessment/set-current-index", {
     method: "POST",
     body: JSON.stringify({ currentIndex }),
   });
@@ -377,21 +377,21 @@ export const completeAssessmentSession = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
-  await doFetch(env, userId, "/test/complete", { method: "POST" });
+  await doFetch(env, userId, "/assessment/complete", { method: "POST" });
 };
 
 export const cancelAssessmentSession = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
-  await doFetch(env, userId, "/test/cancel", { method: "POST" });
+  await doFetch(env, userId, "/assessment/cancel", { method: "POST" });
 };
 
 export const resetAssessmentSession = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
-  await stub(env, userId).fetch("https://user-state/test/reset", {
+  await stub(env, userId).fetch("https://user-state/assessment/reset", {
     method: "DELETE",
   });
 };

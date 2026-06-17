@@ -10,6 +10,7 @@ import {
   setDiscoverable,
   type AssessmentProfileRow,
 } from "../assessment/assessment-profile-service";
+import { ASSESSMENT_VERSION } from "../assessment/question-bank";
 import { updateVectorDiscoverability } from "../assessment/profile-vector-service";
 import {
   MATCH_DISMISS_BLOCK_MS,
@@ -84,6 +85,15 @@ export const getMatchDashboard = async (
   const profile = await getMatchProfile(userId, env);
   if (!profile || profile.status !== "completed") {
     return { state: "no_profile", discoverable: false };
+  }
+
+  if (profile.version !== ASSESSMENT_VERSION) {
+    return {
+      state: "opt_in_required",
+      discoverable: false,
+      profileVersion: profile.version,
+      vectorStatus: profile.vector_status,
+    };
   }
 
   if (profile.vector_status === "failed") {
@@ -201,14 +211,15 @@ const loadCandidateProfiles = async (
 
   const placeholders = userIds.map(() => "?").join(", ");
   const rows = await env.DB.prepare(
-    `SELECT * FROM test_profiles
+    `SELECT * FROM assessment_profiles
      WHERE user_id IN (${placeholders})
        AND status = 'completed'
+       AND version = ?
        AND discoverable = 1
        AND vector_status = 'indexed'
        AND safety_tier = 'normal'`
   )
-    .bind(...userIds)
+    .bind(...userIds, ASSESSMENT_VERSION)
     .all<AssessmentProfileRow>();
 
   for (const row of rows.results ?? []) {
@@ -222,15 +233,16 @@ const fetchD1FallbackProfiles = async (
   env: Environment
 ): Promise<AssessmentProfileRow[]> => {
   const rows = await env.DB.prepare(
-    `SELECT * FROM test_profiles
+    `SELECT * FROM assessment_profiles
      WHERE discoverable = 1
        AND status = 'completed'
+       AND version = ?
        AND user_id != ?
        AND safety_tier = 'normal'
      ORDER BY updated_at DESC
      LIMIT ?`
   )
-    .bind(requesterId, MATCH_SEARCH_TOP_K)
+    .bind(ASSESSMENT_VERSION, requesterId, MATCH_SEARCH_TOP_K)
     .all<AssessmentProfileRow>();
 
   return rows.results ?? [];
@@ -380,6 +392,8 @@ const hasOpenReport = async (
 export type CandidateEligibilityOptions = {
   /** Existing match request — skip discoverability/profile search gates and cooldown. */
   forAccept?: boolean;
+  /** Search diagnostics only — ignore outbound accepted/declined cooldown. */
+  ignorePairCooldown?: boolean;
 };
 
 export const isCandidateEligible = async (
@@ -403,6 +417,7 @@ export const isCandidateEligible = async (
     if (
       !candidateProfile ||
       candidateProfile.status !== "completed" ||
+      candidateProfile.version !== ASSESSMENT_VERSION ||
       candidateProfile.discoverable !== 1 ||
       candidateProfile.vector_status !== "indexed" ||
       candidateProfile.safety_tier !== "normal"
@@ -426,6 +441,7 @@ export const isCandidateEligible = async (
 
   if (
     !options?.forAccept &&
+    !options?.ignorePairCooldown &&
     (await hasRecentPairCooldown(env, requesterId, candidateId))
   ) {
     return false;
@@ -497,6 +513,21 @@ export const findTopMatches = async (
     MATCH_RESULT_COUNT
   );
 
+  let emptyReason: string | undefined;
+  if (filtered.length === 0 && scored.length > 0) {
+    const withoutCooldown = await pickEligibleCandidates(
+      scored,
+      (candidateId) =>
+        isCandidateEligible(env, userId, candidateId, requesterState, {
+          ignorePairCooldown: true,
+        }),
+      MATCH_RESULT_COUNT
+    );
+    if (withoutCooldown.length > 0) {
+      emptyReason = "recent_cooldown";
+    }
+  }
+
   await recordMatchEvent(env, {
     type: "search",
     userId,
@@ -504,10 +535,75 @@ export const findTopMatches = async (
       resultCount: filtered.length,
       vectorCount: vectorMatches.length,
       d1PoolCount: d1Profiles.length,
+      poolSize: scored.length,
+      emptyReason,
     },
   });
 
-  return { ok: true, candidates: filtered };
+  return { ok: true, candidates: filtered, reason: emptyReason };
+};
+
+export const countUserMatchHistory = async (
+  userId: string,
+  env: Environment
+): Promise<{ requests: number; blocks: number }> => {
+  const row = await env.DB.prepare(
+    `SELECT
+       (SELECT COUNT(*) FROM match_requests
+        WHERE requester_user_id = ? OR candidate_user_id = ?) AS requests,
+       (SELECT COUNT(*) FROM match_blocks
+        WHERE user_id = ? OR blocked_user_id = ?) AS blocks`
+  )
+    .bind(userId, userId, userId, userId)
+    .first<{ requests: number; blocks: number }>();
+
+  return {
+    requests: row?.requests ?? 0,
+    blocks: row?.blocks ?? 0,
+  };
+};
+
+/** Clears match requests, blocks, and suggestions involving this user. */
+export const resetUserMatchHistory = async (
+  userId: string,
+  env: Environment
+): Promise<{ requests: number; blocks: number; suggestions: number }> => {
+  const [requests, blocks, suggestions] = await Promise.all([
+    env.DB.prepare(
+      `DELETE FROM match_requests
+       WHERE requester_user_id = ? OR candidate_user_id = ?`
+    )
+      .bind(userId, userId)
+      .run(),
+    env.DB.prepare(
+      `DELETE FROM match_blocks
+       WHERE user_id = ? OR blocked_user_id = ?`
+    )
+      .bind(userId, userId)
+      .run(),
+    env.DB.prepare(
+      `DELETE FROM match_suggestions
+       WHERE user_id = ? OR candidate_user_id = ?`
+    )
+      .bind(userId, userId)
+      .run(),
+  ]);
+
+  await recordMatchEvent(env, {
+    type: "match_history_reset",
+    userId,
+    metadata: {
+      requests: requests.meta.changes ?? 0,
+      blocks: blocks.meta.changes ?? 0,
+      suggestions: suggestions.meta.changes ?? 0,
+    },
+  });
+
+  return {
+    requests: requests.meta.changes ?? 0,
+    blocks: blocks.meta.changes ?? 0,
+    suggestions: suggestions.meta.changes ?? 0,
+  };
 };
 
 export const createMatchSuggestionBatch = async (
