@@ -1,5 +1,5 @@
 import type { Environment } from "../types";
-import { getPublicStats } from "../services/conversation-summary-service";
+import { getPublicStats } from "../features/messaging/conversation-summary-service";
 import { escapeHtml, convertToPersianNumbers } from "../utils/tools";
 import { buildUserDeepLink } from "../utils/user";
 

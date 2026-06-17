@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Environment, UserDraft } from "../../types";
+import type { Environment, UserDraft } from "../types";
 
 const INBOX_MAX_TICKETS = 50;
 const RATE_LIMIT_SECONDS = 5;

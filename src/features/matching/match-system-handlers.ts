@@ -1,28 +1,28 @@
 import type { Context } from "grammy";
-import type { Environment } from "../types";
-import { logBotError } from "../utils/logs";
-import { HuhMessage } from "../utils/messages";
+import type { Environment } from "../../types";
+import { logBotError } from "../../utils/logs";
+import { HuhMessage } from "../../i18n/messages";
 import {
   buildMatchProfileEmptyMenu,
   buildMatchProfileReadyMenu,
   buildMatchSystemMenu,
   mainMenu,
-  MENU,
-} from "../utils/constant";
-import { withHtml } from "../utils/tools";
-import { resolveOrCreateUser } from "../services/identity-service";
-import { getLatestTestProfile } from "../features/test/test-profile-service";
-import { MATCH_SYSTEM_CALLBACK, MATCH_SYSTEM_INTRO } from "../features/matching/match-system-callbacks";
-import { MATCH_DISABLED, MATCH_ENABLED } from "../features/matching/match-copy";
-import { formatMatchProfileMessage } from "../features/matching/match-profile-view";
+} from "../../bot/keyboards";
+import { MENU } from "../../bot/menu";
+import { withHtml } from "../../utils/tools";
+import { resolveOrCreateUser } from "../identity/identity-service";
+import { getLatestAssessmentProfile } from "../assessment/assessment-profile-service";
+import { MATCH_SYSTEM_CALLBACK, MATCH_SYSTEM_INTRO } from "./match-system-callbacks";
+import { MATCH_DISABLED, MATCH_ENABLED } from "./match-copy";
+import { formatMatchProfileMessage } from "./match-profile-view";
 import {
   disableDiscoverability,
   enableDiscoverability,
   expireOldMatchRequests,
   resolveMatchHubMenuVariant,
-} from "../features/matching/match-service";
-import { sendTestDashboard } from "./test";
-import { sendMatchDashboard, sendPendingMatchRequests } from "./match";
+} from "./match-service";
+import { sendAssessmentDashboard } from "../assessment/assessment-handlers";
+import { sendMatchDashboard, sendPendingMatchRequests } from "./match-handlers";
 
 const MATCH_SYSTEM_MENU_LABELS = new Set<string>([
   MENU.matchSystem,
@@ -31,7 +31,7 @@ const MATCH_SYSTEM_MENU_LABELS = new Set<string>([
   MENU.matchPending,
   MENU.matchEnable,
   MENU.matchDisable,
-  MENU.matchTest,
+  MENU.matchAssessment,
   MENU.matchRetest,
   MENU.matchBackToHub,
 ]);
@@ -57,7 +57,7 @@ export const sendMatchProfileScreen = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
-  const profile = await getLatestTestProfile(userId, env);
+  const profile = await getLatestAssessmentProfile(userId, env);
   const { text, hasProfile } = formatMatchProfileMessage(profile);
   const keyboard = hasProfile
     ? buildMatchProfileReadyMenu()
@@ -138,9 +138,9 @@ export const handleMatchSystemMenu = async (
         return true;
       }
 
-      case MENU.matchTest:
+      case MENU.matchAssessment:
       case MENU.matchRetest:
-        await sendTestDashboard(ctx, userId, env);
+        await sendAssessmentDashboard(ctx, userId, env);
         return true;
 
       default:
@@ -190,7 +190,7 @@ export const handleMatchSystemCallback = async (
         return;
 
       case MATCH_SYSTEM_CALLBACK.test:
-        await sendTestDashboard(ctx, userId, env);
+        await sendAssessmentDashboard(ctx, userId, env);
         return;
 
       default:

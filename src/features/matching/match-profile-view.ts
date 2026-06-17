@@ -1,7 +1,7 @@
-import type { TestProfileRow } from "../test/test-profile-service";
-import { parseResultSummary, profileScoresFromRow } from "../test/test-profile-service";
-import { CORE_DIMENSION_LABELS } from "../test/scoring";
-import type { TestScores } from "../test/scoring";
+import type { AssessmentProfileRow } from "../assessment/assessment-profile-service";
+import { parseResultSummary, profileScoresFromRow } from "../assessment/assessment-profile-service";
+import { CORE_DIMENSION_LABELS } from "../assessment/scoring";
+import type { AssessmentScores } from "../assessment/scoring";
 import { convertToPersianNumbers, escapeHtml } from "../../utils/tools";
 import {
   MATCH_PROFILE_NO_TEST,
@@ -31,21 +31,21 @@ const pct = (value: number): string =>
 
 const formatScoreBlock = (
   labels: Record<string, string>,
-  scores: TestScores,
-  keys: Array<keyof TestScores>
+  scores: AssessmentScores,
+  keys: Array<keyof AssessmentScores>
 ): string =>
   keys
     .map((key) => `${labels[key] ?? key}: ${pct(scores[key])}`)
     .join("\n");
 
-const discoverableLabel = (profile: TestProfileRow): string => {
+const discoverableLabel = (profile: AssessmentProfileRow): string => {
   if (profile.discoverable === 1) {
     return "فعال";
   }
   return "غیرفعال";
 };
 
-const readyForMatchingLabel = (profile: TestProfileRow): string => {
+const readyForMatchingLabel = (profile: AssessmentProfileRow): string => {
   if (profile.status !== "completed") {
     return "خیر";
   }
@@ -61,7 +61,7 @@ const readyForMatchingLabel = (profile: TestProfileRow): string => {
   return "بله";
 };
 
-const completedStatusLabel = (profile: TestProfileRow): string => {
+const completedStatusLabel = (profile: AssessmentProfileRow): string => {
   if (profile.status === "completed") {
     return "تکمیل‌شده";
   }
@@ -69,7 +69,7 @@ const completedStatusLabel = (profile: TestProfileRow): string => {
 };
 
 export const formatMatchProfileMessage = (
-  profile: TestProfileRow | null
+  profile: AssessmentProfileRow | null
 ): { text: string; hasProfile: boolean } => {
   if (!profile || profile.status !== "completed") {
     return {

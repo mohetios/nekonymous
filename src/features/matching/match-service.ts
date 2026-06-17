@@ -1,16 +1,16 @@
 import type { Environment } from "../../types";
-import { generateOpaqueId } from "../../services/crypto-service";
-import { getUserById } from "../../services/identity-service";
+import { generateOpaqueId } from "../../crypto/crypto-service";
+import { getUserById } from "../../features/identity/identity-service";
 import {
   checkCanReceive,
   getUserStateSafe,
-} from "../../services/user-state-service";
+} from "../../storage/user-state-client";
 import {
   getMatchProfile,
   setDiscoverable,
-  type TestProfileRow,
-} from "../test/test-profile-service";
-import { updateVectorDiscoverability } from "../test/profile-vector-service";
+  type AssessmentProfileRow,
+} from "../assessment/assessment-profile-service";
+import { updateVectorDiscoverability } from "../assessment/profile-vector-service";
 import {
   MATCH_DISMISS_BLOCK_MS,
   MATCH_RECENT_DECLINE_MS,
@@ -154,7 +154,7 @@ export const resolveMatchHubMenuVariant = async (
   return "default";
 };
 
-const canEnableDiscoverability = (profile: TestProfileRow): boolean =>
+const canEnableDiscoverability = (profile: AssessmentProfileRow): boolean =>
   profile.status === "completed" &&
   profile.vector_status === "indexed" &&
   profile.safety_tier === "normal";
@@ -193,8 +193,8 @@ export const disableDiscoverability = async (
 const loadCandidateProfiles = async (
   userIds: string[],
   env: Environment
-): Promise<Map<string, TestProfileRow>> => {
-  const map = new Map<string, TestProfileRow>();
+): Promise<Map<string, AssessmentProfileRow>> => {
+  const map = new Map<string, AssessmentProfileRow>();
   if (userIds.length === 0) {
     return map;
   }
@@ -209,7 +209,7 @@ const loadCandidateProfiles = async (
        AND safety_tier = 'normal'`
   )
     .bind(...userIds)
-    .all<TestProfileRow>();
+    .all<AssessmentProfileRow>();
 
   for (const row of rows.results ?? []) {
     map.set(row.user_id, row);
@@ -220,7 +220,7 @@ const loadCandidateProfiles = async (
 const fetchD1FallbackProfiles = async (
   requesterId: string,
   env: Environment
-): Promise<TestProfileRow[]> => {
+): Promise<AssessmentProfileRow[]> => {
   const rows = await env.DB.prepare(
     `SELECT * FROM test_profiles
      WHERE discoverable = 1
@@ -231,17 +231,17 @@ const fetchD1FallbackProfiles = async (
      LIMIT ?`
   )
     .bind(requesterId, MATCH_SEARCH_TOP_K)
-    .all<TestProfileRow>();
+    .all<AssessmentProfileRow>();
 
   return rows.results ?? [];
 };
 
 const buildProfilesById = async (
   pool: Map<string, number | undefined>,
-  d1Profiles: TestProfileRow[],
+  d1Profiles: AssessmentProfileRow[],
   env: Environment
-): Promise<Map<string, TestProfileRow>> => {
-  const profilesById = new Map<string, TestProfileRow>();
+): Promise<Map<string, AssessmentProfileRow>> => {
+  const profilesById = new Map<string, AssessmentProfileRow>();
 
   for (const row of d1Profiles) {
     profilesById.set(row.user_id, row);

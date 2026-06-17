@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import type { BotUser, D1User, Environment } from "../types";
+import type { BotUser, D1User, Environment } from "../../types";
 import {
   decryptDisplayName,
   decryptTelegramChatId,
@@ -7,8 +7,8 @@ import {
   encryptTelegramChatId,
   generateOpaqueId,
   hmacTelegramUserId,
-} from "./crypto-service";
-import { getUserState, initUserState } from "./user-state-service";
+} from "../../crypto/crypto-service";
+import { getUserState, initUserState } from "../../storage/user-state-client";
 
 export const ensureUserStateInitialized = async (
   env: Environment,

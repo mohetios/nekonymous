@@ -1,6 +1,6 @@
-export const TEST_VERSION = "v1";
+export const ASSESSMENT_VERSION = "v1";
 
-export type TestDimension =
+export type AssessmentDimension =
   | "honestyBoundaryRespect"
   | "emotionalReactivity"
   | "socialEnergy"
@@ -14,14 +14,14 @@ export type TestDimension =
   | "supportNeed"
   | "anonymityComfort";
 
-export type TestQuestion = {
+export type AssessmentQuestion = {
   id: string;
-  dimension: TestDimension;
+  dimension: AssessmentDimension;
   reverse?: boolean;
   text: string;
 };
 
-export const TEST_QUESTIONS: TestQuestion[] = [
+export const ASSESSMENT_QUESTIONS: AssessmentQuestion[] = [
   {
     id: "h1",
     dimension: "honestyBoundaryRespect",
@@ -277,7 +277,7 @@ export const TEST_QUESTIONS: TestQuestion[] = [
   },
 ];
 
-export const TEST_QUESTION_COUNT = TEST_QUESTIONS.length;
+export const ASSESSMENT_QUESTION_COUNT = ASSESSMENT_QUESTIONS.length;
 
-export const getQuestionAtIndex = (index: number): TestQuestion | undefined =>
-  TEST_QUESTIONS[index];
+export const getQuestionAtIndex = (index: number): AssessmentQuestion | undefined =>
+  ASSESSMENT_QUESTIONS[index];

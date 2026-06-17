@@ -3,7 +3,7 @@ export const PROFILE_EMBEDDING_MODEL = "@cf/google/embeddinggemma-300m";
 
 export const PROFILE_EMBEDDING_DIMENSION = 768;
 
-export const TEST_CALLBACK = {
+export const ASSESSMENT_CALLBACK = {
   answer: (index: number, value: number) => `t:a:${index}:${value}`,
   previous: "t:p",
   exit: "t:exit",

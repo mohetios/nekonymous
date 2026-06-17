@@ -1,5 +1,5 @@
-import type { Environment } from "../types";
-import { encryptReportDetails, generateOpaqueId } from "./crypto-service";
+import type { Environment } from "../../types";
+import { encryptReportDetails, generateOpaqueId } from "../../crypto/crypto-service";
 
 export const createReport = async (
   env: Environment,

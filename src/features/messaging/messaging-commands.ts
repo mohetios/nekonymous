@@ -1,18 +1,18 @@
 import type { Context } from "grammy";
-import type { Environment } from "../types";
+import type { Environment } from "../../types";
 import {
   handlePendingSettingsInput,
   handleSettingsMenu,
-} from "./settings";
-import { handleMatchIntroInput } from "./match";
-import { handleMatchSystemMenu } from "./match-system";
+} from "../settings/settings-handlers";
+import { handleMatchIntroInput } from "../matching/match-handlers";
+import { handleMatchSystemMenu } from "../matching/match-system-handlers";
 import {
   buildDraftMenu,
   createMessageKeyboard,
-  handleMenuCommand,
   mainMenu,
-} from "../utils/constant";
-import { logBotError } from "../utils/logs";
+} from "../../bot/keyboards";
+import { handleMenuCommand } from "../../bot/menu";
+import { logBotError } from "../../utils/logs";
 import {
   EMPTY_INBOX_MESSAGE,
   HuhMessage,
@@ -31,14 +31,14 @@ import {
   UnsupportedMessageTypeMessage,
   USER_IS_BLOCKED_MESSAGE,
   WelcomeMessage,
-} from "../utils/messages";
+} from "../../i18n/messages";
 import {
   ContactLabelLimitError,
   sanitizeNickname,
   setContactLabel,
-} from "../utils/contact";
-import { messageToPayload } from "../utils/payload";
-import { sendDecryptedMessage } from "../utils/sender";
+} from "../../utils/contact";
+import { messageToPayload } from "./payload-service";
+import { sendDecryptedMessage } from "../../utils/sender";
 import {
   deliveryContextFromTicket,
   hasDeliverablePayload,
@@ -46,14 +46,14 @@ import {
   notifyRecipientInbox,
   sendAnonymousMessage,
   toLegacyConversation,
-} from "../services/messaging-service";
+} from "./messaging-service";
 import {
   getActiveSlugForUser,
   getUserByPublicSlug,
   resolveOrCreateUser,
   toBotUser,
   getUserById,
-} from "../services/identity-service";
+} from "../identity/identity-service";
 import {
   checkCanReceive,
   clearDraft,
@@ -63,13 +63,13 @@ import {
   markTicketDelivered,
   setDraft,
   touchRateLimit,
-} from "../services/user-state-service";
+} from "../../storage/user-state-client";
 import {
   escapeHtml,
   replyHtml,
   withHtml,
-} from "../utils/tools";
-import { buildUserDeepLink, isUserLinkId, publicDisplayName } from "../utils/user";
+} from "../../utils/tools";
+import { buildUserDeepLink, isUserLinkId, publicDisplayName } from "../../utils/user";
 
 export const handleStartCommand = async (
   ctx: Context,

@@ -1,6 +1,6 @@
 import type { Environment } from "../types";
-import type { TelegramOutboxJob } from "./types";
-import { sendViaOutboxDo } from "../services/outbox-service";
+import type { TelegramOutboxJob } from "./telegram-outbox.types";
+import { sendViaOutboxDo } from "../storage/telegram-outbox-client";
 
 export const handleTelegramOutboxBatch = async (
   batch: MessageBatch<TelegramOutboxJob>,

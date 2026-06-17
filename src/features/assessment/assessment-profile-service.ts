@@ -1,13 +1,13 @@
 import type { Environment } from "../../types";
-import { generateOpaqueId } from "../../services/crypto-service";
-import type { TestResultSummary, TestScores } from "./scoring";
+import { generateOpaqueId } from "../../crypto/crypto-service";
+import type { AssessmentResultSummary, AssessmentScores } from "./scoring";
 import {
   computePrimaryIntent,
   computeProfileBucket,
   computeSafetyTier,
 } from "./scoring";
 
-export type TestProfileRow = {
+export type AssessmentProfileRow = {
   user_id: string;
   version: string;
   status: string;
@@ -34,7 +34,7 @@ export type TestProfileRow = {
   completed_at: number;
 };
 
-export const createTestAttempt = async (
+export const createAssessmentAttempt = async (
   userId: string,
   version: string,
   totalQuestions: number,
@@ -54,7 +54,7 @@ export const createTestAttempt = async (
   return id;
 };
 
-export const abandonActiveTestAttempts = async (
+export const abandonActiveAssessmentAttempts = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
@@ -68,7 +68,7 @@ export const abandonActiveTestAttempts = async (
     .run();
 };
 
-export const saveTestAnswer = async (
+export const saveAssessmentAnswer = async (
   attemptId: string,
   userId: string,
   questionId: string,
@@ -95,7 +95,7 @@ export const saveTestAnswer = async (
   ]);
 };
 
-export const completeTestAttempt = async (
+export const completeAssessmentAttempt = async (
   attemptId: string,
   userId: string,
   env: Environment
@@ -110,11 +110,11 @@ export const completeTestAttempt = async (
     .run();
 };
 
-export const saveTestProfile = async (
+export const saveAssessmentProfile = async (
   userId: string,
   version: string,
-  scores: TestScores,
-  summary: TestResultSummary,
+  scores: AssessmentScores,
+  summary: AssessmentResultSummary,
   profileSummaryText: string,
   env: Environment
 ): Promise<void> => {
@@ -212,19 +212,19 @@ export const updateProfileVectorStatus = async (
     .run();
 };
 
-export const getLatestTestProfile = async (
+export const getLatestAssessmentProfile = async (
   userId: string,
   env: Environment
-): Promise<TestProfileRow | null> => {
+): Promise<AssessmentProfileRow | null> => {
   return env.DB.prepare("SELECT * FROM test_profiles WHERE user_id = ?")
     .bind(userId)
-    .first<TestProfileRow>();
+    .first<AssessmentProfileRow>();
 };
 
 export const getMatchProfile = async (
   userId: string,
   env: Environment
-): Promise<TestProfileRow | null> => getLatestTestProfile(userId, env);
+): Promise<AssessmentProfileRow | null> => getLatestAssessmentProfile(userId, env);
 
 export const setDiscoverable = async (
   userId: string,
@@ -241,7 +241,7 @@ export const setDiscoverable = async (
     .run();
 };
 
-export const resetUserTestProfile = async (
+export const resetUserAssessmentProfile = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
@@ -251,10 +251,10 @@ export const resetUserTestProfile = async (
 };
 
 export const parseResultSummary = (
-  row: TestProfileRow
-): TestResultSummary => {
+  row: AssessmentProfileRow
+): AssessmentResultSummary => {
   try {
-    return JSON.parse(row.result_summary_json) as TestResultSummary;
+    return JSON.parse(row.result_summary_json) as AssessmentResultSummary;
   } catch {
     return {
       title: "سبک گفت‌وگو",
@@ -265,7 +265,7 @@ export const parseResultSummary = (
   }
 };
 
-export const profileScoresFromRow = (row: TestProfileRow): TestScores => ({
+export const profileScoresFromRow = (row: AssessmentProfileRow): AssessmentScores => ({
   honestyBoundaryRespect: row.honesty_boundary_respect,
   emotionalReactivity: row.emotional_reactivity,
   socialEnergy: row.social_energy,

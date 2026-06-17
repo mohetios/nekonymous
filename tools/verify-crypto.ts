@@ -10,7 +10,7 @@ import {
   encryptTelegramChatId,
   generateTicketId,
   hmacTelegramUserId,
-} from "../src/services/crypto-service.ts";
+} from "../src/crypto/crypto-service.ts";
 
 const appMasterKey = "test-app-master-key-local-32bytes!";
 const pepper = "test-hmac-pepper-local-32bytes!!";

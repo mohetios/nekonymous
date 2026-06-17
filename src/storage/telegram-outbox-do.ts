@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Environment } from "../../types";
-import type { TelegramOutboxJob } from "../../queues/types";
-import { decryptTelegramChatId } from "../../services/crypto-service";
+import type { Environment } from "../types";
+import type { TelegramOutboxJob } from "../queues/telegram-outbox.types";
+import { decryptTelegramChatId } from "../crypto/crypto-service";
 
 type SentRow = {
   idempotency_key: string;

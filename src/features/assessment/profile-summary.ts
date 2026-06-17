@@ -1,4 +1,4 @@
-import type { TestResultSummary, TestScores } from "./scoring";
+import type { AssessmentResultSummary, AssessmentScores } from "./scoring";
 
 const band = (score: number): string => {
   if (score >= 67) {
@@ -10,7 +10,7 @@ const band = (score: number): string => {
   return "moderate";
 };
 
-const paceLabel = (scores: TestScores): string => {
+const paceLabel = (scores: AssessmentScores): string => {
   if (scores.replyPace >= 67) {
     return "patient with slow replies";
   }
@@ -20,7 +20,7 @@ const paceLabel = (scores: TestScores): string => {
   return "flexible reply pace";
 };
 
-const depthLabel = (scores: TestScores): string => {
+const depthLabel = (scores: AssessmentScores): string => {
   const depth = (scores.depthPreference + scores.curiosityDepth) / 2;
   if (depth >= 67) {
     return "deep, thoughtful";
@@ -31,7 +31,7 @@ const depthLabel = (scores: TestScores): string => {
   return "balanced depth";
 };
 
-const pressureLabel = (scores: TestScores): string => {
+const pressureLabel = (scores: AssessmentScores): string => {
   if (scores.supportNeed >= 67) {
     return "low-pressure, listener-oriented";
   }
@@ -39,8 +39,8 @@ const pressureLabel = (scores: TestScores): string => {
 };
 
 export const buildProfileEmbeddingText = (
-  scores: TestScores,
-  _summary: TestResultSummary,
+  scores: AssessmentScores,
+  _summary: AssessmentResultSummary,
   locale: string
 ): string => {
   const lines = [

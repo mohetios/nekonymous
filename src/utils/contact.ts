@@ -1,11 +1,11 @@
 import type { Environment } from "../types";
-import { encryptDisplayName } from "../services/crypto-service";
+import { encryptDisplayName } from "../crypto/crypto-service";
 import {
   buildDeliveryHeader,
   buildDeliveryHeaderLine,
   buildDeliveryHeaderMarkdown,
 } from "./contact-display";
-import { setContactLabel as setLabelInDo } from "../services/user-state-service";
+import { setContactLabel as setLabelInDo } from "../storage/user-state-client";
 
 const CONTACT_LABELS_MAX = 200;
 const NICKNAME_MAX_CHARS = 32;

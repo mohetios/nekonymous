@@ -1,65 +1,65 @@
 import { InlineKeyboard, type Context } from "grammy";
-import type { Environment } from "../types";
-import { logBotError } from "../utils/logs";
-import { HuhMessage } from "../utils/messages";
-import { mainMenu } from "../utils/constant";
+import type { Environment } from "../../types";
+import { logBotError } from "../../utils/logs";
+import { HuhMessage } from "../../i18n/messages";
+import { mainMenu } from "../../bot/keyboards";
 import {
   convertToPersianNumbers,
   escapeHtml,
   withHtml,
-} from "../utils/tools";
-import { resolveOrCreateUser } from "../services/identity-service";
+} from "../../utils/tools";
+import { resolveOrCreateUser } from "../identity/identity-service";
 import {
-  cancelTestSession,
-  getTestSession,
-  resetTestSession,
-  saveTestAnswer,
-  setTestCurrentIndex,
-  startTestSession,
-} from "../services/user-state-service";
-import { TEST_CALLBACK } from "../features/test/constants";
+  cancelAssessmentSession,
+  getAssessmentSession,
+  resetAssessmentSession,
+  saveAssessmentAnswer,
+  setAssessmentCurrentIndex,
+  startAssessmentSession,
+} from "../../storage/user-state-client";
+import { ASSESSMENT_CALLBACK } from "./constants";
 import {
   buildQuestionKeyboard,
   buildResetConfirmKeyboard,
   buildResultKeyboard,
-  buildTestDashboardKeyboard,
+  buildAssessmentDashboardKeyboard,
   dashboardStatusLine,
   formatQuestionMessage,
-  TEST_DASHBOARD_INTRO,
-  TEST_EXIT_SAVED,
-  TEST_FUTURE_MATCHING_NOTE,
-  TEST_RESET_CONFIRM,
-} from "../features/test/keyboards";
+  ASSESSMENT_DASHBOARD_INTRO,
+  ASSESSMENT_EXIT_SAVED,
+  ASSESSMENT_FUTURE_MATCHING_NOTE,
+  ASSESSMENT_RESET_CONFIRM,
+} from "./keyboards";
 import {
-  completeTestFlow,
+  completeAssessmentFlow,
   resumeQuestionIndex,
   scheduleProfileIndexing,
-} from "../features/test/test-flow-service";
+} from "./assessment-flow-service";
 import {
-  abandonActiveTestAttempts,
-  createTestAttempt,
-  getLatestTestProfile,
+  abandonActiveAssessmentAttempts,
+  createAssessmentAttempt,
+  getLatestAssessmentProfile,
   parseResultSummary,
   profileScoresFromRow,
-} from "../features/test/test-profile-service";
+} from "./assessment-profile-service";
 import {
   CORE_DIMENSION_LABELS,
-  type TestResultSummary,
-  type TestScores,
-} from "../features/test/scoring";
+  type AssessmentResultSummary,
+  type AssessmentScores,
+} from "./scoring";
 import {
-  TEST_QUESTIONS,
-  TEST_QUESTION_COUNT,
-  TEST_VERSION,
-} from "../features/test/question-bank";
-import type { NekoContext } from "../utils/worker";
+  ASSESSMENT_QUESTIONS,
+  ASSESSMENT_QUESTION_COUNT,
+  ASSESSMENT_VERSION,
+} from "./question-bank";
+import type { NekoContext } from "../../utils/worker";
 
 const formatPercent = (value: number): string =>
   convertToPersianNumbers(`${Math.round(value)}٪`);
 
 const formatResultMessage = (
-  summary: TestResultSummary,
-  scores: TestScores,
+  summary: AssessmentResultSummary,
+  scores: AssessmentScores,
   includeScores: boolean
 ): string => {
   const highlights = summary.highlights
@@ -76,7 +76,7 @@ const formatResultMessage = (
     `<b>چند سیگنال اصلی:</b>\n${highlights}\n\n` +
     `<b>چند نکته برای گفت‌وگو:</b>\n${cautions}\n\n` +
     "این نتیجه برای کمک به پیشنهادهای آینده استفاده می‌شود، نه برای تشخیص روان‌شناسی." +
-    TEST_FUTURE_MATCHING_NOTE;
+    ASSESSMENT_FUTURE_MATCHING_NOTE;
 
   if (includeScores) {
     const scoreLines = (
@@ -96,15 +96,15 @@ const formatResultMessage = (
   return text;
 };
 
-export const sendTestDashboard = async (
+export const sendAssessmentDashboard = async (
   ctx: Context,
   userId: string,
   env: Environment,
   edit = false
 ): Promise<void> => {
   const [session, profile] = await Promise.all([
-    getTestSession(userId, env),
-    getLatestTestProfile(userId, env),
+    getAssessmentSession(userId, env),
+    getLatestAssessmentProfile(userId, env),
   ]);
 
   const answeredCount = session ? Object.keys(session.answers).length : 0;
@@ -116,10 +116,10 @@ export const sendTestDashboard = async (
   });
 
   const text =
-    `${TEST_DASHBOARD_INTRO}\n\n` +
+    `${ASSESSMENT_DASHBOARD_INTRO}\n\n` +
     `<b>وضعیت:</b>\n${escapeHtml(status)}`;
 
-  const keyboard = buildTestDashboardKeyboard({
+  const keyboard = buildAssessmentDashboardKeyboard({
     hasProfile: !!profile,
     hasSession: !!session,
   });
@@ -149,34 +149,34 @@ const showQuestion = async (
   }
 };
 
-const startNewTest = async (
+const startNewAssessment = async (
   ctx: Context,
   userId: string,
   env: Environment
 ): Promise<void> => {
-  await resetTestSession(userId, env);
-  await abandonActiveTestAttempts(userId, env);
-  const attemptId = await createTestAttempt(
+  await resetAssessmentSession(userId, env);
+  await abandonActiveAssessmentAttempts(userId, env);
+  const attemptId = await createAssessmentAttempt(
     userId,
-    TEST_VERSION,
-    TEST_QUESTION_COUNT,
+    ASSESSMENT_VERSION,
+    ASSESSMENT_QUESTION_COUNT,
     env
   );
-  await startTestSession(
+  await startAssessmentSession(
     userId,
-    TEST_VERSION,
-    TEST_QUESTION_COUNT,
+    ASSESSMENT_VERSION,
+    ASSESSMENT_QUESTION_COUNT,
     attemptId,
     env
   );
-  const session = await getTestSession(userId, env);
+  const session = await getAssessmentSession(userId, env);
   if (!session) {
     throw new Error("Failed to start test session");
   }
   await showQuestion(ctx, 0, !!ctx.callbackQuery);
 };
 
-export const handleTestCommand = async (
+export const handleAssessmentCommand = async (
   ctx: Context,
   env: Environment
 ): Promise<void> => {
@@ -187,14 +187,14 @@ export const handleTestCommand = async (
 
   try {
     const d1User = await resolveOrCreateUser(ctx, env);
-    await sendTestDashboard(ctx, d1User.id, env);
+    await sendAssessmentDashboard(ctx, d1User.id, env);
   } catch (error) {
-    logBotError("handleTestCommand", error);
+    logBotError("handleAssessmentCommand", error);
     await ctx.reply(HuhMessage, { reply_markup: mainMenu });
   }
 };
 
-export const handleTestCallback = async (
+export const handleAssessmentCallback = async (
   ctx: Context,
   env: Environment
 ): Promise<void> => {
@@ -211,57 +211,57 @@ export const handleTestCallback = async (
 
     await ctx.answerCallbackQuery();
 
-    if (data === TEST_CALLBACK.start || data === TEST_CALLBACK.continue) {
-      let session = await getTestSession(userId, env);
-      if (!session || data === TEST_CALLBACK.start) {
-        await startNewTest(ctx, userId, env);
+    if (data === ASSESSMENT_CALLBACK.start || data === ASSESSMENT_CALLBACK.continue) {
+      let session = await getAssessmentSession(userId, env);
+      if (!session || data === ASSESSMENT_CALLBACK.start) {
+        await startNewAssessment(ctx, userId, env);
         return;
       }
       const index = resumeQuestionIndex(session);
-      await setTestCurrentIndex(userId, index, env);
-      session = (await getTestSession(userId, env)) ?? session;
+      await setAssessmentCurrentIndex(userId, index, env);
+      session = (await getAssessmentSession(userId, env)) ?? session;
       await showQuestion(ctx, index, true);
       return;
     }
 
-    if (data === TEST_CALLBACK.menu) {
-      await sendTestDashboard(ctx, userId, env, true);
+    if (data === ASSESSMENT_CALLBACK.menu) {
+      await sendAssessmentDashboard(ctx, userId, env, true);
       return;
     }
 
-    if (data === TEST_CALLBACK.exit) {
-      await cancelTestSession(userId, env);
-      await ctx.editMessageText(TEST_EXIT_SAVED, {
+    if (data === ASSESSMENT_CALLBACK.exit) {
+      await cancelAssessmentSession(userId, env);
+      await ctx.editMessageText(ASSESSMENT_EXIT_SAVED, {
         reply_markup: new InlineKeyboard().text(
           "بازگشت به منو",
-          TEST_CALLBACK.menu
+          ASSESSMENT_CALLBACK.menu
         ),
       });
       return;
     }
 
-    if (data === TEST_CALLBACK.reset) {
-      await ctx.editMessageText(TEST_RESET_CONFIRM, {
+    if (data === ASSESSMENT_CALLBACK.reset) {
+      await ctx.editMessageText(ASSESSMENT_RESET_CONFIRM, {
         reply_markup: buildResetConfirmKeyboard(),
       });
       return;
     }
 
-    if (data === TEST_CALLBACK.resetNo) {
-      await sendTestDashboard(ctx, userId, env, true);
+    if (data === ASSESSMENT_CALLBACK.resetNo) {
+      await sendAssessmentDashboard(ctx, userId, env, true);
       return;
     }
 
-    if (data === TEST_CALLBACK.resetYes) {
-      await resetTestSession(userId, env);
-      await startNewTest(ctx, userId, env);
+    if (data === ASSESSMENT_CALLBACK.resetYes) {
+      await resetAssessmentSession(userId, env);
+      await startNewAssessment(ctx, userId, env);
       return;
     }
 
-    if (data === TEST_CALLBACK.result) {
-      const profile = await getLatestTestProfile(userId, env);
+    if (data === ASSESSMENT_CALLBACK.result) {
+      const profile = await getLatestAssessmentProfile(userId, env);
       if (!profile) {
-        await sendTestDashboard(ctx, userId, env, true);
+        await sendAssessmentDashboard(ctx, userId, env, true);
         return;
       }
       const summary = parseResultSummary(profile);
@@ -274,14 +274,14 @@ export const handleTestCallback = async (
       return;
     }
 
-    if (data === TEST_CALLBACK.previous) {
-      const session = await getTestSession(userId, env);
+    if (data === ASSESSMENT_CALLBACK.previous) {
+      const session = await getAssessmentSession(userId, env);
       if (!session) {
-        await sendTestDashboard(ctx, userId, env, true);
+        await sendAssessmentDashboard(ctx, userId, env, true);
         return;
       }
       const index = Math.max(0, session.currentIndex - 1);
-      await setTestCurrentIndex(userId, index, env);
+      await setAssessmentCurrentIndex(userId, index, env);
       await showQuestion(ctx, index, true);
       return;
     }
@@ -290,27 +290,27 @@ export const handleTestCallback = async (
     if (answerMatch) {
       const index = Number(answerMatch[1]);
       const value = Number(answerMatch[2]);
-      const session = await getTestSession(userId, env);
+      const session = await getAssessmentSession(userId, env);
       if (!session || !session.attemptId) {
-        await sendTestDashboard(ctx, userId, env, true);
+        await sendAssessmentDashboard(ctx, userId, env, true);
         return;
       }
 
-      const question = TEST_QUESTIONS[index];
+      const question = ASSESSMENT_QUESTIONS[index];
       if (!question) {
         return;
       }
 
-      await saveTestAnswer(userId, question.id, value, env, index);
+      await saveAssessmentAnswer(userId, question.id, value, env, index);
 
-      const updated = await getTestSession(userId, env);
+      const updated = await getAssessmentSession(userId, env);
       if (!updated) {
         return;
       }
 
       const answeredCount = Object.keys(updated.answers).length;
-      if (answeredCount >= TEST_QUESTION_COUNT) {
-        const result = await completeTestFlow(userId, locale, env);
+      if (answeredCount >= ASSESSMENT_QUESTION_COUNT) {
+        const result = await completeAssessmentFlow(userId, locale, env);
         const text = formatResultMessage(
           result.summary,
           result.scores,
@@ -338,14 +338,14 @@ export const handleTestCallback = async (
       }
 
       const nextIndex = index + 1;
-      await setTestCurrentIndex(userId, nextIndex, env);
+      await setAssessmentCurrentIndex(userId, nextIndex, env);
       await showQuestion(ctx, nextIndex, true);
       return;
     }
 
-    await sendTestDashboard(ctx, userId, env, true);
+    await sendAssessmentDashboard(ctx, userId, env, true);
   } catch (error) {
-    logBotError("handleTestCallback", error);
+    logBotError("handleAssessmentCallback", error);
     await ctx.reply(HuhMessage, { reply_markup: mainMenu });
   }
 };

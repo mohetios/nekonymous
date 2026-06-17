@@ -3,18 +3,18 @@ import {
   decryptMatchIntro,
   encryptMatchIntro,
   generateOpaqueId,
-} from "../../services/crypto-service";
+} from "../../crypto/crypto-service";
 import {
   getActiveSlugForUser,
   getUserById,
-} from "../../services/identity-service";
+} from "../../features/identity/identity-service";
 import {
   notifyRecipientInbox,
   sendAnonymousMessage,
-} from "../../services/messaging-service";
-import { enqueueTelegramOutbox, sendViaOutboxDo } from "../../services/outbox-service";
+} from "../../features/messaging/messaging-service";
+import { enqueueTelegramOutbox, sendViaOutboxDo } from "../../storage/telegram-outbox-client";
 import type { MessagePayload } from "../../types";
-import { clearDraft } from "../../services/user-state-service";
+import { clearDraft } from "../../storage/user-state-client";
 import {
   MATCH_REQUEST_TTL_MS,
   MATCH_PENDING_LIST_LIMIT,

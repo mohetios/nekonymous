@@ -1,5 +1,5 @@
 import type { Message } from "grammy/types";
-import type { MessagePayload } from "../types";
+import type { MessagePayload } from "../../types";
 
 export const messageToPayload = (message: Message): MessagePayload => {
   const base: MessagePayload = {

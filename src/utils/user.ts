@@ -1,10 +1,10 @@
 import type { BotUser } from "../types";
-import { isReservedDisplayName } from "./constant";
+import { isReservedDisplayName } from "../bot/menu";
 
 export {
   buildUserDeepLink,
   isPublicSlug as isUserLinkId,
-} from "../services/identity-service";
+} from "../features/identity/identity-service";
 
 const DISPLAY_NAME_MAX_CHARS = 64;
 

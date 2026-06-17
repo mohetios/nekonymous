@@ -1,4 +1,4 @@
-import type { TelegramOutboxJob } from "./queues/types";
+import type { TelegramOutboxJob } from "./queues/telegram-outbox.types";
 
 export type MessagePayload = {
   message_type?: string;

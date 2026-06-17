@@ -1,14 +1,14 @@
-import type { TestProfileRow } from "../test/test-profile-service";
-import { profileScoresFromRow } from "../test/test-profile-service";
-import type { TestScores } from "../test/scoring";
+import type { AssessmentProfileRow } from "../assessment/assessment-profile-service";
+import { profileScoresFromRow } from "../assessment/assessment-profile-service";
+import type { AssessmentScores } from "../assessment/scoring";
 import { getMatchQualityLabel } from "./match-quality";
 import type { MatchCandidate, MatchExplanation } from "./match-types";
 
 const clamp = (value: number, min = 0, max = 100): number =>
   Math.min(max, Math.max(min, value));
 
-const traitDistance = (a: TestScores, b: TestScores): number => {
-  const keys: Array<keyof TestScores> = [
+const traitDistance = (a: AssessmentScores, b: AssessmentScores): number => {
+  const keys: Array<keyof AssessmentScores> = [
     "honestyBoundaryRespect",
     "emotionalReactivity",
     "socialEnergy",
@@ -24,8 +24,8 @@ const traitDistance = (a: TestScores, b: TestScores): number => {
   return sum / keys.length;
 };
 
-const communicationDistance = (a: TestScores, b: TestScores): number => {
-  const keys: Array<keyof TestScores> = [
+const communicationDistance = (a: AssessmentScores, b: AssessmentScores): number => {
+  const keys: Array<keyof AssessmentScores> = [
     "depthPreference",
     "replyPace",
     "directness",
@@ -41,7 +41,7 @@ const communicationDistance = (a: TestScores, b: TestScores): number => {
   return sum / keys.length;
 };
 
-const boundaryDistance = (a: TestScores, b: TestScores): number => {
+const boundaryDistance = (a: AssessmentScores, b: AssessmentScores): number => {
   const boundary = Math.abs(a.honestyBoundaryRespect - b.honestyBoundaryRespect);
   const supportDirect =
     Math.abs(a.supportNeed - b.supportNeed) +
@@ -81,8 +81,8 @@ export const normalizeVectorScore = (score: number | undefined): number => {
 };
 
 const pickExplanationTitle = (
-  requester: TestScores,
-  candidate: TestScores
+  requester: AssessmentScores,
+  candidate: AssessmentScores
 ): string => {
   const depth =
     (requester.depthPreference +
@@ -107,8 +107,8 @@ const pickExplanationTitle = (
 };
 
 const buildReasons = (
-  requester: TestScores,
-  candidate: TestScores
+  requester: AssessmentScores,
+  candidate: AssessmentScores
 ): string[] => {
   const reasons: string[] = [];
 
@@ -142,8 +142,8 @@ const buildReasons = (
 };
 
 const buildCautions = (
-  requester: TestScores,
-  candidate: TestScores
+  requester: AssessmentScores,
+  candidate: AssessmentScores
 ): string[] => {
   const cautions: string[] = [];
 
@@ -169,10 +169,10 @@ const buildCautions = (
 };
 
 const computePenalties = (
-  requester: TestProfileRow,
-  candidate: TestProfileRow,
-  requesterScores: TestScores,
-  candidateScores: TestScores
+  requester: AssessmentProfileRow,
+  candidate: AssessmentProfileRow,
+  requesterScores: AssessmentScores,
+  candidateScores: AssessmentScores
 ): number => {
   let penalty = 0;
 
@@ -207,8 +207,8 @@ const computePenalties = (
 };
 
 export const scoreMatchPair = (params: {
-  requesterProfile: TestProfileRow;
-  candidateProfile: TestProfileRow;
+  requesterProfile: AssessmentProfileRow;
+  candidateProfile: AssessmentProfileRow;
   vectorScore?: number;
 }): MatchCandidate => {
   const requesterScores = profileScoresFromRow(params.requesterProfile);

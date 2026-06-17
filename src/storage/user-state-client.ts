@@ -311,7 +311,7 @@ export const purgeUserState = async (
   });
 };
 
-export type TestSession = {
+export type AssessmentSession = {
   id: string;
   version: string;
   status: string;
@@ -324,7 +324,7 @@ export type TestSession = {
   expiresAt: number | null;
 };
 
-export const startTestSession = async (
+export const startAssessmentSession = async (
   userId: string,
   version: string,
   totalQuestions: number,
@@ -337,11 +337,11 @@ export const startTestSession = async (
   });
 };
 
-export const getTestSession = async (
+export const getAssessmentSession = async (
   userId: string,
   env: Environment
-): Promise<TestSession | null> => {
-  const body = await doFetch<{ session: TestSession | null }>(
+): Promise<AssessmentSession | null> => {
+  const body = await doFetch<{ session: AssessmentSession | null }>(
     env,
     userId,
     "/test/session"
@@ -349,7 +349,7 @@ export const getTestSession = async (
   return body.session;
 };
 
-export const saveTestAnswer = async (
+export const saveAssessmentAnswer = async (
   userId: string,
   questionId: string,
   answerValue: number,
@@ -362,7 +362,7 @@ export const saveTestAnswer = async (
   });
 };
 
-export const setTestCurrentIndex = async (
+export const setAssessmentCurrentIndex = async (
   userId: string,
   currentIndex: number,
   env: Environment
@@ -373,21 +373,21 @@ export const setTestCurrentIndex = async (
   });
 };
 
-export const completeTestSession = async (
+export const completeAssessmentSession = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
   await doFetch(env, userId, "/test/complete", { method: "POST" });
 };
 
-export const cancelTestSession = async (
+export const cancelAssessmentSession = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
   await doFetch(env, userId, "/test/cancel", { method: "POST" });
 };
 
-export const resetTestSession = async (
+export const resetAssessmentSession = async (
   userId: string,
   env: Environment
 ): Promise<void> => {

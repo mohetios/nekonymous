@@ -9,7 +9,7 @@ import {
   MATCH_QUALITY_COPY,
 } from "../src/features/matching/match-quality.ts";
 import type { MatchCandidate } from "../src/features/matching/match-types.ts";
-import type { TestProfileRow } from "../src/features/test/test-profile-service.ts";
+import type { AssessmentProfileRow } from "../src/features/assessment/assessment-profile-service.ts";
 
 const fail = (message: string): never => {
   console.error(message);
@@ -27,7 +27,7 @@ type VectorMatchInput = { userId: string; vectorScore: number };
 const mergeCandidateUserIds = (
   requesterId: string,
   vectorMatches: VectorMatchInput[],
-  d1Profiles: TestProfileRow[]
+  d1Profiles: AssessmentProfileRow[]
 ): Map<string, number | undefined> => {
   const pool = new Map<string, number | undefined>();
 
@@ -94,8 +94,8 @@ const candidate = (
 
 const baseProfile = (
   userId: string,
-  overrides: Partial<TestProfileRow> = {}
-): TestProfileRow => ({
+  overrides: Partial<AssessmentProfileRow> = {}
+): AssessmentProfileRow => ({
   user_id: userId,
   version: "v1",
   status: "completed",

@@ -1,10 +1,10 @@
 import {
-  TEST_QUESTIONS,
-  type TestDimension,
-  type TestQuestion,
+  ASSESSMENT_QUESTIONS,
+  type AssessmentDimension,
+  type AssessmentQuestion,
 } from "./question-bank";
 
-export type TestScores = {
+export type AssessmentScores = {
   honestyBoundaryRespect: number;
   emotionalReactivity: number;
   socialEnergy: number;
@@ -19,14 +19,14 @@ export type TestScores = {
   anonymityComfort: number;
 };
 
-export type TestResultSummary = {
+export type AssessmentResultSummary = {
   title: string;
   shortDescription: string;
   highlights: string[];
   cautions: string[];
 };
 
-const DIMENSION_KEYS: TestDimension[] = [
+const DIMENSION_KEYS: AssessmentDimension[] = [
   "honestyBoundaryRespect",
   "emotionalReactivity",
   "socialEnergy",
@@ -41,13 +41,13 @@ const DIMENSION_KEYS: TestDimension[] = [
   "anonymityComfort",
 ];
 
-const scoredValue = (question: TestQuestion, answer: number): number =>
+const scoredValue = (question: AssessmentQuestion, answer: number): number =>
   question.reverse ? 6 - answer : answer;
 
 const dimensionAverage = (
-  questions: TestQuestion[],
+  questions: AssessmentQuestion[],
   answers: Record<string, number>,
-  dimension: TestDimension
+  dimension: AssessmentDimension
 ): number => {
   const items = questions.filter((q) => q.dimension === dimension);
   if (items.length === 0) {
@@ -69,13 +69,13 @@ const dimensionAverage = (
 const toPercent = (average: number): number =>
   Math.round(((average - 1) / 4) * 100);
 
-export const computeTestScores = (
+export const computeAssessmentScores = (
   answers: Record<string, number>
-): TestScores => {
-  const scores = {} as TestScores;
+): AssessmentScores => {
+  const scores = {} as AssessmentScores;
 
   for (const dimension of DIMENSION_KEYS) {
-    const avg = dimensionAverage(TEST_QUESTIONS, answers, dimension);
+    const avg = dimensionAverage(ASSESSMENT_QUESTIONS, answers, dimension);
     scores[dimension] = toPercent(avg);
   }
 
@@ -92,7 +92,7 @@ const level = (score: number): "low" | "mid" | "high" => {
   return "mid";
 };
 
-const pickTitle = (scores: TestScores): string => {
+const pickTitle = (scores: AssessmentScores): string => {
   const depth = (scores.depthPreference + scores.curiosityDepth) / 2;
   const warmth = scores.warmthCooperation;
   const energy = scores.socialEnergy;
@@ -118,7 +118,7 @@ const pickTitle = (scores: TestScores): string => {
   return "متعادل و سازگار";
 };
 
-const pickDescription = (scores: TestScores): string => {
+const pickDescription = (scores: AssessmentScores): string => {
   const parts: string[] = [];
 
   if (level(scores.curiosityDepth) === "high") {
@@ -144,7 +144,7 @@ const pickDescription = (scores: TestScores): string => {
   return `${parts.join(" و ")}.`;
 };
 
-const buildHighlights = (scores: TestScores): string[] => {
+const buildHighlights = (scores: AssessmentScores): string[] => {
   const ranked = [
     { key: "honestyBoundaryRespect", label: "احترام به مرزها و صداقت" },
     { key: "warmthCooperation", label: "گرمی و همکاری" },
@@ -170,7 +170,7 @@ const buildHighlights = (scores: TestScores): string[] => {
   });
 };
 
-const buildCautions = (scores: TestScores): string[] => {
+const buildCautions = (scores: AssessmentScores): string[] => {
   const notes: string[] = [];
 
   if (scores.emotionalReactivity >= 67) {
@@ -202,14 +202,14 @@ const buildCautions = (scores: TestScores): string[] => {
   return notes.slice(0, 3);
 };
 
-export const buildResultSummary = (scores: TestScores): TestResultSummary => ({
+export const buildResultSummary = (scores: AssessmentScores): AssessmentResultSummary => ({
   title: pickTitle(scores),
   shortDescription: pickDescription(scores),
   highlights: buildHighlights(scores),
   cautions: buildCautions(scores),
 });
 
-export const computePrimaryIntent = (scores: TestScores): string => {
+export const computePrimaryIntent = (scores: AssessmentScores): string => {
   const depth = (scores.depthPreference + scores.curiosityDepth) / 2;
   if (depth >= 65) {
     return "deep-talk";
@@ -224,7 +224,7 @@ export const computePrimaryIntent = (scores: TestScores): string => {
 };
 
 export const computeSafetyTier = (
-  scores: TestScores
+  scores: AssessmentScores
 ): "normal" | "limited" => {
   if (scores.honestyBoundaryRespect < 35) {
     return "limited";
@@ -232,7 +232,7 @@ export const computeSafetyTier = (
   return "normal";
 };
 
-export const computeProfileBucket = (scores: TestScores): number => {
+export const computeProfileBucket = (scores: AssessmentScores): number => {
   const avg =
     DIMENSION_KEYS.reduce((sum, key) => sum + scores[key], 0) /
     DIMENSION_KEYS.length;

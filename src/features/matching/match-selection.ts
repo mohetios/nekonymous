@@ -1,4 +1,4 @@
-import type { TestProfileRow } from "../test/test-profile-service";
+import type { AssessmentProfileRow } from "../assessment/assessment-profile-service";
 import type { MatchCandidate } from "./match-types";
 import { scoreMatchPair } from "./match-scoring";
 
@@ -10,7 +10,7 @@ export type VectorMatchInput = {
 export const mergeCandidateUserIds = (
   requesterId: string,
   vectorMatches: VectorMatchInput[],
-  d1Profiles: TestProfileRow[]
+  d1Profiles: AssessmentProfileRow[]
 ): Map<string, number | undefined> => {
   const pool = new Map<string, number | undefined>();
 
@@ -34,9 +34,9 @@ export const mergeCandidateUserIds = (
 };
 
 export const scoreCandidatePool = (
-  requesterProfile: TestProfileRow,
+  requesterProfile: AssessmentProfileRow,
   pool: Map<string, number | undefined>,
-  profilesById: Map<string, TestProfileRow>
+  profilesById: Map<string, AssessmentProfileRow>
 ): MatchCandidate[] => {
   const scored: MatchCandidate[] = [];
 

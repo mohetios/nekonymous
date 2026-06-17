@@ -4,7 +4,7 @@ import type {
   D1User,
   Environment,
   MessagePayload,
-} from "../types";
+} from "../../types";
 import {
   buildDedupeKey,
   decryptConnectionMetadata,
@@ -16,14 +16,14 @@ import {
   generateTicketId,
   getSenderAlias,
   pairConversationKey,
-} from "./crypto-service";
+} from "../../crypto/crypto-service";
 import { upsertConversationSummary } from "./conversation-summary-service";
-import { ensureUserStateInitialized } from "./identity-service";
+import { ensureUserStateInitialized } from "../identity/identity-service";
 import {
   addInboxTicket,
   getInboxTicket,
-} from "./user-state-service";
-import { enqueueTelegramOutbox } from "./outbox-service";
+} from "../../storage/user-state-client";
+import { enqueueTelegramOutbox } from "../../storage/telegram-outbox-client";
 
 const parseMessagePayload = (raw: string): MessagePayload | null => {
   try {
@@ -199,9 +199,9 @@ export const notifyRecipientInbox = async (
   recipient: D1User,
   pendingCount: number
 ): Promise<void> => {
-  const { NEW_INBOX_MESSAGE } = await import("../utils/messages");
-  const { convertToPersianNumbers } = await import("../utils/tools");
-  const { getTelegramChatId } = await import("./identity-service");
+  const { NEW_INBOX_MESSAGE } = await import("../../i18n/messages");
+  const { convertToPersianNumbers } = await import("../../utils/tools");
+  const { getTelegramChatId } = await import("../identity/identity-service");
 
   const chatId = await getTelegramChatId(recipient, env);
   const response = await fetch(
@@ -230,7 +230,7 @@ export const notifyMessageSeen = async (
   sender: D1User,
   parentMessageId?: number
 ): Promise<void> => {
-  const { YOUR_MESSAGE_SEEN_MESSAGE } = await import("../utils/messages");
+  const { YOUR_MESSAGE_SEEN_MESSAGE } = await import("../../i18n/messages");
 
   await enqueueTelegramOutbox(env, {
     idempotencyKey: `seen:${sender.id}:${parentMessageId ?? "none"}`,

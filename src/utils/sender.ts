@@ -5,7 +5,7 @@ import {
   buildDeliveryHeaderLine,
   buildDeliveryHeaderMarkdown,
 } from "./contact";
-import { UnsupportedMessageTypeMessage } from "./messages";
+import { UnsupportedMessageTypeMessage } from "../i18n/messages";
 import {
   TELEGRAM_CAPTION_MAX,
   TELEGRAM_MESSAGE_TEXT_MAX,

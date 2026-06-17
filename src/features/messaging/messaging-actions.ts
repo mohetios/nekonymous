@@ -1,10 +1,10 @@
 import type { Context } from "grammy";
-import type { Environment } from "../types";
-import { buildDraftMenu, createMessageKeyboard } from "../utils/constant";
+import type { Environment } from "../../types";
+import { buildDraftMenu, createMessageKeyboard } from "../../bot/keyboards";
 import {
   getContactLabelForSender,
   lookupContactLabel,
-} from "../utils/contact";
+} from "../../utils/contact";
 import {
   HuhMessage,
   NICKNAME_PROMPT_MESSAGE,
@@ -16,23 +16,23 @@ import {
   USER_BLOCKED_MESSAGE,
   USER_IS_BLOCKED_MESSAGE,
   USER_UNBLOCKED_MESSAGE,
-} from "../utils/messages";
+} from "../../i18n/messages";
 import {
   getActiveSlugForUser,
   getUserById,
   resolveOrCreateUser,
   toBotUser,
-} from "../services/identity-service";
-import { loadTicketForAction } from "../services/messaging-service";
-import { createReport } from "../services/report-service";
+} from "../identity/identity-service";
+import { loadTicketForAction } from "./messaging-service";
+import { createReport } from "./report-service";
 import {
   addBlock,
   isRateLimited,
   markTicketReported,
   removeBlock,
   setDraft,
-} from "../services/user-state-service";
-import { escapeHtml, withHtml } from "../utils/tools";
+} from "../../storage/user-state-client";
+import { escapeHtml, withHtml } from "../../utils/tools";
 
 const isRecipient = (
   recipientUserId: string,

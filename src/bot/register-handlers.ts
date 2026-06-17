@@ -1,25 +1,31 @@
-import { Bot, type Context } from "grammy";
+import type { Bot, Context } from "grammy";
 import type { Message } from "grammy/types";
 import type { Environment } from "../types";
-import { deferForUpdate, type NekoContext } from "../utils/worker";
 import {
   handleBlockAction,
   handleNicknameAction,
   handleReportAction,
   handleReplyAction,
   handleUnblockAction,
-} from "./actions";
+} from "../features/messaging/messaging-actions";
 import {
   handleInboxCommand,
   handleMessage,
   handleStartCommand,
-} from "./commands";
-import { handleSettingsCommand } from "./settings";
-import { handleTestCallback, handleTestCommand } from "./test";
-import { handleMatchCallback, handleMatchCommand } from "./match";
-import { handleMatchSystemCallback, handleMatchSystemCommand } from "./match-system";
-
-type BotConfig = NonNullable<ConstructorParameters<typeof Bot>[1]>;
+} from "../features/messaging/messaging-commands";
+import { handleSettingsCommand } from "../features/settings/settings-handlers";
+import {
+  handleAssessmentCallback,
+  handleAssessmentCommand,
+} from "../features/assessment/assessment-handlers";
+import {
+  handleMatchCallback,
+  handleMatchCommand,
+} from "../features/matching/match-handlers";
+import {
+  handleMatchSystemCallback,
+  handleMatchSystemCommand,
+} from "../features/matching/match-system-handlers";
 
 const isCommandMessage = (message: Message): boolean =>
   message.text?.startsWith("/") === true ||
@@ -27,35 +33,8 @@ const isCommandMessage = (message: Message): boolean =>
     (entity) => entity.type === "bot_command" && entity.offset === 0
   ) === true;
 
-let cachedBot: { key: string; bot: Bot } | null = null;
-
-const botCacheKey = (env: Environment): string =>
-  `${env.SECRET_TELEGRAM_API_TOKEN}\0${env.BOT_INFO}\0${env.APP_MASTER_KEY}`;
-
-export const createBot = (env: Environment) => {
-  const cacheKey = botCacheKey(env);
-  if (cachedBot?.key === cacheKey) {
-    return cachedBot.bot;
-  }
-
-  const {
-    SECRET_TELEGRAM_API_TOKEN,
-    BOT_INFO,
-    BOT_USERNAME,
-    PUBLIC_SITE_URL,
-  } = env;
-
-  const bot = new Bot(SECRET_TELEGRAM_API_TOKEN, {
-    botInfo: JSON.parse(BOT_INFO) as BotConfig["botInfo"],
-  });
-
-  bot.use(async (ctx, next) => {
-    const defer = deferForUpdate(ctx.update.update_id);
-    if (defer) {
-      (ctx as NekoContext).deferWork = defer;
-    }
-    await next();
-  });
+export const registerHandlers = (bot: Bot, env: Environment): void => {
+  const { BOT_USERNAME, PUBLIC_SITE_URL } = env;
 
   bot.command("start", (ctx) => handleStartCommand(ctx, env, BOT_USERNAME));
 
@@ -63,7 +42,8 @@ export const createBot = (env: Environment) => {
 
   bot.command("settings", (ctx) => handleSettingsCommand(ctx, env));
 
-  bot.command("test", (ctx) => handleTestCommand(ctx, env));
+  bot.command("assessment", (ctx) => handleAssessmentCommand(ctx, env));
+  bot.command("test", (ctx) => handleAssessmentCommand(ctx, env));
 
   bot.command("match", (ctx) => handleMatchCommand(ctx, env));
 
@@ -88,12 +68,9 @@ export const createBot = (env: Environment) => {
   bot.callbackQuery(/^n:([a-f0-9]{8})$/, onInboxCallback(handleNicknameAction));
   bot.callbackQuery(/^rp:([a-f0-9]{8})$/, onInboxCallback(handleReportAction));
 
-  bot.callbackQuery(/^t:/, (ctx) => handleTestCallback(ctx, env));
+  bot.callbackQuery(/^t:/, (ctx) => handleAssessmentCallback(ctx, env));
 
   bot.callbackQuery(/^m:/, (ctx) => handleMatchCallback(ctx, env));
 
   bot.callbackQuery(/^ms:/, (ctx) => handleMatchSystemCallback(ctx, env));
-
-  cachedBot = { key: cacheKey, bot };
-  return bot;
 };

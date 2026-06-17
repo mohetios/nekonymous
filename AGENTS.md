@@ -71,7 +71,8 @@ V1 treats old KV user/conversation/inbox storage as disposable. Do not add legac
 - **Cloudflare KV** — routing/cache only (`tg:{hash}`, `link:{slug}`)
 - **Cloudflare Durable Objects (SQLite)** — per-user hot state (`UserStateDurableObject`) and idempotent Telegram outbox (`TelegramOutboxDurableObject`)
 - **Cloudflare Queues** — `telegram-outbox` for non-critical outbound Telegram sends
-- **Web Crypto API** — HMAC, HKDF-SHA-256, AES-256-GCM (`src/services/crypto-service.ts`)
+- **Web Crypto API** — HMAC, HKDF-SHA-256, AES-256-GCM (`src/crypto/crypto-service.ts`)
+- **Workers AI + Vectorize** — profile embeddings for assessment/matching (`env.AI`, `env.PROFILE_VECTORS`)
 - **Tailwind CSS 2 (CDN)** — static HTML pages only
 - **Wrangler 4** — dev and deploy (`wrangler.jsonc`)
 - **pnpm** — package manager (lockfile present; CI still uses `npm install`)
@@ -82,50 +83,71 @@ There is no Nuxt, GraphQL, separate `workers/` package, or frontend SPA.
 
 ```
 src/
-├── index.ts                    # Worker fetch + queue handler, DO exports
+├── index.ts                    # thin entry: DO exports, fetch, queue
 ├── types.ts                    # Environment, BotUser, D1User, ticket types
 ├── bot/
-│   ├── bot.ts                  # createBot(), Grammy wiring
-│   ├── commands.ts             # /start, /inbox, message routing
-│   ├── actions.ts              # inline keyboard: reply, block, unblock, nickname, report
-│   └── settings.ts             # /settings, display name, pause, account delete
-├── services/
-│   ├── identity-service.ts     # D1 users, public links, KV routing cache
-│   ├── crypto-service.ts       # HMAC, encrypt/decrypt, ticket/ref generation
-│   ├── user-state-service.ts   # UserStateDO client (only place for DO fetch calls)
-│   ├── messaging-service.ts    # send/inbox ticket flow, outbox notifications
-│   ├── conversation-summary-service.ts
-│   ├── report-service.ts
-│   └── outbox-service.ts       # enqueue + TelegramOutboxDO dispatch
-├── storage/durable/
-│   ├── user-state-do.ts        # UserStateDurableObject
-│   └── telegram-outbox-do.ts   # TelegramOutboxDurableObject
+│   ├── create-bot.ts           # createBot(), defer middleware, bot cache
+│   ├── register-handlers.ts    # command/callback wiring
+│   ├── router.ts               # public pages + /bot webhook routes
+│   ├── menu.ts                 # MENU labels, handleMenuCommand
+│   └── keyboards.ts            # reply/inline keyboards
+├── features/
+│   ├── identity/
+│   │   └── identity-service.ts # D1 users, public links, KV routing cache
+│   ├── messaging/
+│   │   ├── messaging-service.ts
+│   │   ├── messaging-commands.ts   # /start, /inbox, message routing
+│   │   ├── messaging-actions.ts    # reply, block, unblock, nickname, report
+│   │   ├── payload-service.ts
+│   │   ├── conversation-summary-service.ts
+│   │   └── report-service.ts
+│   ├── settings/
+│   │   ├── settings-handlers.ts
+│   │   └── settings-copy.ts
+│   ├── assessment/             # conversation-style questionnaire (not unit tests)
+│   │   ├── assessment-handlers.ts
+│   │   ├── assessment-flow-service.ts
+│   │   ├── assessment-profile-service.ts
+│   │   ├── question-bank.ts, scoring.ts, keyboards.ts, …
+│   └── matching/
+│       ├── match-handlers.ts, match-system-handlers.ts
+│       ├── match-service.ts, match-request-service.ts, …
+├── crypto/
+│   └── crypto-service.ts       # HMAC, encrypt/decrypt, ticket/ref generation
+├── storage/
+│   ├── user-state-do.ts        # UserStateDurableObject class
+│   ├── user-state-client.ts    # UserStateDO client (only place for DO fetch calls)
+│   ├── telegram-outbox-do.ts   # TelegramOutboxDurableObject class
+│   └── telegram-outbox-client.ts  # enqueue + OutboxDO dispatch
 ├── queues/
-│   ├── types.ts
+│   ├── telegram-outbox.types.ts
 │   └── telegram-outbox.consumer.ts
 ├── front/
 │   ├── layout.ts
 │   ├── home.ts                 # public stats from D1
 │   ├── about.ts
 │   └── technical.ts
+├── i18n/
+│   └── messages.ts             # shared bot copy (Persian-first)
 └── utils/
-    ├── router.ts
+    ├── router.ts               # generic HTTP Router class
     ├── sender.ts               # decrypt + forward media to Telegram
-    ├── messages.ts
-    ├── messages-settings.ts
-    ├── constant.ts             # keyboards, callback prefixes
     ├── tools.ts
-    ├── user.ts                 # display-name helpers, deep links
-    ├── payload.ts              # grammy Message → MessagePayload
-    ├── contact.ts
+    ├── user.ts                 # display-name helpers, deep-link re-exports
+    ├── contact.ts, contact-display.ts
     ├── worker.ts               # defer via waitUntil
+    ├── telegram-limits.ts
+    ├── site.ts
     └── logs.ts                 # logBotError only
 
 migrations/
-└── 0001_core.sql               # D1 schema
+├── 0001_core.sql
+├── 0002_test_profiles_and_vectors.sql
+└── 0003_matching.sql
 
 tools/
-└── verify-crypto.ts            # crypto smoke tests (pnpm test:crypto)
+├── verify-crypto.ts            # pnpm test:crypto
+└── verify-matching.ts          # pnpm test:matching
 ```
 
 Do not create alternative roots unless the project already uses them.
@@ -134,7 +156,7 @@ Do not create alternative roots unless the project already uses them.
 
 ## Worker Entry and Routes
 
-`src/index.ts` is the only Worker entry.
+`src/index.ts` is the only Worker entry. It exports DO classes and delegates HTTP/queue handling.
 
 | Method | Path               | Purpose                                       |
 |--------|--------------------|-----------------------------------------------|
@@ -144,7 +166,7 @@ Do not create alternative roots unless the project already uses them.
 | POST   | `/bot`             | Telegram webhook (`webhookCallback` + secret) |
 | queue  | `telegram-outbox`  | Outbound Telegram job consumer                |
 
-Use `src/utils/router.ts` for new HTTP routes. Do not add a second router or framework.
+Route registration lives in `src/bot/router.ts`. Use `src/utils/router.ts` (`Router` class) for new HTTP routes. Do not add a second router or framework.
 
 Export `UserStateDurableObject` and `TelegramOutboxDurableObject` from `src/index.ts` for Wrangler DO bindings.
 
@@ -152,21 +174,32 @@ Export `UserStateDurableObject` and `TelegramOutboxDurableObject` from `src/inde
 
 ### Wiring
 
-- `createBot(env)` in `src/bot/bot.ts` constructs the Grammy bot and registers handlers.
-- Pass `env: Environment` into command/action handlers — do not read untyped globals.
-- Register new commands in `bot.ts`; implement logic in `commands.ts`, `actions.ts`, or `settings.ts`.
-- Keep raw `UserStateDO` / `TelegramOutboxDO` fetch calls inside service wrappers — not scattered in handlers.
+- `createBot(env)` in `src/bot/create-bot.ts` constructs the Grammy bot.
+- `registerHandlers(bot, env)` in `src/bot/register-handlers.ts` wires commands and callbacks.
+- Pass `env: Environment` into handlers — do not read untyped globals.
+- Add new commands/callbacks in `register-handlers.ts`; implement logic in the matching `features/*` handler file.
+- Keep raw `UserStateDO` / `TelegramOutboxDO` fetch calls inside `src/storage/*-client.ts` — not scattered in handlers.
 
 ### Commands and flows
 
-| Surface              | Handler location   |
-|----------------------|--------------------|
-| `/start`             | `commands.ts`      |
-| `/inbox`             | `commands.ts`      |
-| incoming messages    | `commands.ts`      |
-| reply/block/unblock/nickname/report | `actions.ts` |
-| reply keyboard menu  | `constant.ts`      |
-| `/settings`          | `settings.ts`      |
+| Surface              | Handler location                          |
+|----------------------|-------------------------------------------|
+| `/start`             | `features/messaging/messaging-commands.ts` |
+| `/inbox`             | `features/messaging/messaging-commands.ts` |
+| incoming messages    | `features/messaging/messaging-commands.ts` |
+| reply/block/unblock/nickname/report | `features/messaging/messaging-actions.ts` |
+| reply keyboard menu  | `bot/menu.ts`, `bot/keyboards.ts`         |
+| `/settings`          | `features/settings/settings-handlers.ts`  |
+| `/assessment`, `/test` (alias) | `features/assessment/assessment-handlers.ts` |
+| `/match`             | `features/matching/match-handlers.ts`     |
+| `/match_system`      | `features/matching/match-system-handlers.ts` |
+
+Callback prefixes (keep short, under 64 bytes):
+
+- `r:`, `b:`, `u:`, `n:`, `rp:` — inbox actions (8-hex ref)
+- `t:` — assessment flow
+- `m:` — matching
+- `ms:` — match-system hub
 
 Core user flow:
 
@@ -178,7 +211,9 @@ Core user flow:
 
 ### Telegram copy
 
-- User-facing bot strings live in `src/utils/messages.ts`.
+- Shared bot strings: `src/i18n/messages.ts`.
+- Settings-specific copy: `src/features/settings/settings-copy.ts`.
+- Feature-specific copy: `features/matching/match-copy.ts`, assessment keyboards, etc.
 - Keep Persian tone consistent with existing messages.
 - Use `escapeMarkdownV2` when `parse_mode: "MarkdownV2"` is set.
 - Use `convertToPersianNumbers` for counts shown to users.
@@ -187,7 +222,7 @@ Do not hardcode new English bot strings unless the task explicitly asks for loca
 
 ## Message and Crypto Rules
 
-Read `src/services/crypto-service.ts` before changing storage or inbox behavior.
+Read `src/crypto/crypto-service.ts` before changing storage or inbox behavior.
 
 | Concept                 | Role                                                                 |
 |-------------------------|----------------------------------------------------------------------|
@@ -234,7 +269,8 @@ wrangler d1 migrations apply nekonymous_core --remote
 Prefer:
 
 - bounded queries with indexes
-- `identity-service.ts` and `conversation-summary-service.ts` for D1 access
+- `features/identity/identity-service.ts` and `features/messaging/conversation-summary-service.ts` for D1 access
+- assessment profile D1 in `features/assessment/assessment-profile-service.ts`
 - upsert conversation summaries on send — no message body in D1
 
 Avoid:
@@ -245,7 +281,7 @@ Avoid:
 
 ## KV Rules
 
-`env.NEKO_KV` is **routing/cache only**. Access via `identity-service.ts`.
+`env.NEKO_KV` is **routing/cache only**. Access via `features/identity/identity-service.ts`.
 
 | Key pattern        | Value   | Purpose                    |
 |--------------------|---------|----------------------------|
@@ -274,11 +310,12 @@ One DO per internal user id (`idFromName(userId)`). Authority for:
 
 - pause, display name ciphertext, drafts, inbox tickets
 - blocks, contact labels, rate limits
+- assessment session state (`test_sessions` table in DO — legacy name)
 - processed events (schema reserved)
 
-All DO calls go through `src/services/user-state-service.ts` using `https://user-state/...` URLs.
+All DO calls go through `src/storage/user-state-client.ts` using `https://user-state/...` URLs.
 
-Key endpoints: `/init`, `/state`, `/set-draft`, `/add-ticket`, `/pending-inbox`, `/mark-delivered`, `/ticket/:ref`, `/add-block`, `/remove-block`, `/set-label`, `/check-can-receive`, `/check-rate-limit`, `/purge`.
+Key endpoints: `/init`, `/state`, `/set-draft`, `/add-ticket`, `/pending-inbox`, `/mark-delivered`, `/ticket/:ref`, `/add-block`, `/remove-block`, `/set-label`, `/check-can-receive`, `/check-rate-limit`, `/purge`, `/test/*` (assessment session).
 
 Inbox cap: 50 tickets per user DO. Pending tickets indexed by `status = 'pending'`.
 
@@ -286,7 +323,7 @@ Inbox cap: 50 tickets per user DO. Pending tickets indexed by `status = 'pending
 
 One DO per `chatHash` (`idFromName(chatHash)`). Idempotent outbound Telegram sends.
 
-Queue consumer (`src/queues/telegram-outbox.consumer.ts`) dispatches jobs via `outbox-service.ts`.
+Queue consumer (`src/queues/telegram-outbox.consumer.ts`) dispatches jobs via `src/storage/telegram-outbox-client.ts`.
 
 Prefer:
 
@@ -305,7 +342,7 @@ Treat every webhook request as an edge hot path.
 
 Prefer:
 
-- fewer imports in `index.ts` and `bot.ts`
+- fewer imports in `index.ts` and `create-bot.ts`
 - simple functions over classes (except required DO classes)
 - direct validation and service calls
 - bounded loops
@@ -337,7 +374,7 @@ Allowed at module scope:
 - pure config maps
 - compiled regex constants
 - immutable helper data
-- `Router` instance and route table in `src/index.ts`
+- `Router` instance and route table in `src/bot/router.ts`
 
 Forbidden at module scope:
 
@@ -378,6 +415,9 @@ USER_STATE_DO
 TELEGRAM_OUTBOX_DO
 
 TELEGRAM_OUTBOX_QUEUE
+
+AI
+PROFILE_VECTORS
 
 BOT_INFO
 BOT_NAME
@@ -477,7 +517,7 @@ Do not add production dependencies unless explicitly approved.
 Before proposing a dependency, check:
 
 - Can this be done with Web APIs?
-- Can this be done with a small helper in `src/utils/` or `src/services/`?
+- Can this be done with a small helper in `src/utils/` or a `features/*` module?
 - Is the library Worker-compatible?
 - Does it pull Node-only transitive dependencies?
 - Does it increase the webhook bundle size?
@@ -502,7 +542,7 @@ pnpm knip
 pnpm check
 ```
 
-`pnpm check` runs typecheck, lint, knip, and `test:crypto`.
+`pnpm check` runs typecheck, lint, knip, `test:crypto`, and `test:matching`.
 TypeScript also enforces `noUnusedLocals` and `noUnusedParameters`.
 
 Only run when explicitly requested or clearly required:
@@ -560,7 +600,7 @@ Before finalizing a Worker/bot change, verify:
 - Are all promises awaited, returned, or passed to `waitUntil`?
 - Is request-scoped state local, not global?
 - Are D1 queries bounded by purpose and indexes?
-- Are inbox operations going through `user-state-service.ts`?
+- Are inbox operations going through `user-state-client.ts`?
 - Are messages encrypted at rest and payloads cleared after delivery?
 - Are block checks and rate limits enforced server-side via UserStateDO?
 - Are webhook secrets and crypto material never logged?

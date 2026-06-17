@@ -1,12 +1,12 @@
 import type { Environment } from "../../types";
-import { generateOpaqueId } from "../../services/crypto-service";
+import { generateOpaqueId } from "../../crypto/crypto-service";
 import {
   PROFILE_EMBEDDING_DIMENSION,
   PROFILE_EMBEDDING_MODEL,
 } from "./constants";
 import { buildProfileEmbeddingText } from "./profile-summary";
-import type { TestResultSummary, TestScores } from "./scoring";
-import { updateProfileVectorStatus } from "./test-profile-service";
+import type { AssessmentResultSummary, AssessmentScores } from "./scoring";
+import { updateProfileVectorStatus } from "./assessment-profile-service";
 
 export type ProfileVectorMetadata = {
   userId: string;
@@ -41,8 +41,8 @@ export const indexCompletedProfile = async (params: {
   userId: string;
   version: string;
   locale: "fa" | "en";
-  scores: TestScores;
-  resultSummary: TestResultSummary;
+  scores: AssessmentScores;
+  resultSummary: AssessmentResultSummary;
   profileSummaryText: string;
   discoverable: boolean;
   safetyTier: "normal" | "limited";

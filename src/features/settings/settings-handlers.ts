@@ -1,14 +1,13 @@
 import { InlineKeyboard, type Context } from "grammy";
-import type { BotUser, Environment } from "../types";
+import type { BotUser, Environment } from "../../types";
 import {
   buildSettingsMenu,
   confirmClearBlocksMenu,
   confirmClearMenu,
-  isMenuLabel,
-  MENU,
   mainMenu,
-} from "../utils/constant";
-import { logBotError } from "../utils/logs";
+} from "../../bot/keyboards";
+import { isMenuLabel, MENU } from "../../bot/menu";
+import { logBotError } from "../../utils/logs";
 import {
   SETTINGS_BACK_MESSAGE,
   SETTINGS_BLOCK_LIST_EMPTY_MESSAGE,
@@ -27,27 +26,27 @@ import {
   SETTINGS_NAME_SAVED_MESSAGE,
   SETTINGS_NAME_TEXT_ONLY_MESSAGE,
   TECHNICAL_ABOUT_MESSAGE,
-} from "../utils/messages-settings";
-import { technicalAboutUrl } from "../utils/site";
-import { HuhMessage, RATE_LIMIT_MESSAGE, ABOUT_PRIVACY_COMMAND_MESSAGE } from "../utils/messages";
+} from "./settings-copy";
+import { technicalAboutUrl } from "../../utils/site";
+import { HuhMessage, RATE_LIMIT_MESSAGE, ABOUT_PRIVACY_COMMAND_MESSAGE } from "../../i18n/messages";
 import {
   convertToPersianNumbers,
   escapeHtml,
   withHtml,
-} from "../utils/tools";
+} from "../../utils/tools";
 import {
   buildUserDeepLink,
   publicDisplayName,
   sanitizeDisplayName,
-} from "../utils/user";
+} from "../../utils/user";
 import {
   createUserFromTelegram,
   deactivateUser,
   resolveOrCreateUser,
   toBotUser,
-} from "../services/identity-service";
-import { encryptDisplayName } from "../services/crypto-service";
-import { resetUserTestProfile } from "../features/test/test-profile-service";
+} from "../identity/identity-service";
+import { encryptDisplayName } from "../../crypto/crypto-service";
+import { resetUserAssessmentProfile } from "../assessment/assessment-profile-service";
 import {
   clearBlocks,
   clearDraft,
@@ -57,7 +56,7 @@ import {
   setDraft,
   setPaused,
   touchRateLimit,
-} from "../services/user-state-service";
+} from "../../storage/user-state-client";
 
 const formatTechnicalAboutMessage = (publicSiteUrl?: string): string => {
   const url = technicalAboutUrl(publicSiteUrl);
@@ -332,7 +331,7 @@ export const handleSettingsMenu = async (
       }
 
       try {
-        await resetUserTestProfile(user.id, env);
+        await resetUserAssessmentProfile(user.id, env);
         await purgeUserState(env, user.id);
         await deactivateUser(user.id, env);
         const freshD1 = await createUserFromTelegram(ctx, env);

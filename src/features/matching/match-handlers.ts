@@ -1,16 +1,16 @@
 import type { Context } from "grammy";
-import type { Environment } from "../types";
-import { logBotError } from "../utils/logs";
-import { HuhMessage } from "../utils/messages";
-import { buildDraftMenu, buildMatchSystemMenu, mainMenu } from "../utils/constant";
-import { withHtml, convertToPersianNumbers } from "../utils/tools";
-import { resolveOrCreateUser } from "../services/identity-service";
-import { setDraft, clearDraft } from "../services/user-state-service";
+import type { Environment } from "../../types";
+import { logBotError } from "../../utils/logs";
+import { HuhMessage } from "../../i18n/messages";
+import { buildDraftMenu, buildMatchSystemMenu, mainMenu } from "../../bot/keyboards";
+import { withHtml, convertToPersianNumbers } from "../../utils/tools";
+import { resolveOrCreateUser } from "../identity/identity-service";
+import { setDraft, clearDraft } from "../../storage/user-state-client";
 import {
-  getLatestTestProfile,
-} from "../features/test/test-profile-service";
-import { MATCH_CALLBACK, MATCH_INTRO_MAX_CHARS } from "../features/matching/constants";
-import { MATCH_SYSTEM_INTRO } from "../features/matching/match-system-callbacks";
+  getLatestAssessmentProfile,
+} from "../assessment/assessment-profile-service";
+import { MATCH_CALLBACK, MATCH_INTRO_MAX_CHARS } from "./constants";
+import { MATCH_SYSTEM_INTRO } from "./match-system-callbacks";
 import {
   MATCH_INTRO_EMPTY,
   MATCH_INTRO_PROMPT,
@@ -37,7 +37,7 @@ import {
   MATCH_PENDING_LIST_HEADER,
   MATCH_REQUEST_CANCELLED,
   MATCH_REQUEST_CANCEL_FAILED,
-} from "../features/matching/match-copy";
+} from "./match-copy";
 import {
   buildIncomingMatchRequestKeyboard,
   buildMatchResultsKeyboard,
@@ -46,7 +46,7 @@ import {
   formatIncomingMatchRequestMessage,
   formatMatchCandidatesMessage,
   formatOutgoingMatchRequestMessage,
-} from "../features/matching/keyboards";
+} from "./keyboards";
 import {
   createMatchSuggestionBatch,
   expireOldMatchRequests,
@@ -54,17 +54,17 @@ import {
   getMatchDashboard,
   getMatchSuggestion,
   resolveMatchHubMenuVariant,
-} from "../features/matching/match-service";
+} from "./match-service";
 import {
   acceptMatchRequest,
   cancelMatchRequest,
   createMatchRequest,
   declineMatchRequest,
   listPendingMatchRequests,
-} from "../features/matching/match-request-service";
-import { decryptMatchIntro } from "../services/crypto-service";
-import { parseMatchExplanation } from "../features/matching/match-scoring";
-import { getMatchQualityLabel } from "../features/matching/match-quality";
+} from "./match-request-service";
+import { decryptMatchIntro } from "../../crypto/crypto-service";
+import { parseMatchExplanation } from "./match-scoring";
+import { getMatchQualityLabel } from "./match-quality";
 
 const isBenignEditError = (error: unknown): boolean => {
   if (!error || typeof error !== "object" || !("description" in error)) {
@@ -226,7 +226,7 @@ const runMatchSearch = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
-  const profile = await getLatestTestProfile(userId, env);
+  const profile = await getLatestAssessmentProfile(userId, env);
   if (!profile) {
     await sendMatchDashboard(ctx, userId, env, true);
     return;

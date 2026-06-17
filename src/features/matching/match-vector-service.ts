@@ -1,7 +1,7 @@
 import type { Environment } from "../../types";
 import { logBotError } from "../../utils/logs";
-import { buildProfileVectorId } from "../test/profile-vector-service";
-import type { TestProfileRow } from "../test/test-profile-service";
+import { buildProfileVectorId } from "../assessment/profile-vector-service";
+import type { AssessmentProfileRow } from "../assessment/assessment-profile-service";
 import { MATCH_SEARCH_TOP_K } from "./constants";
 
 type VectorMatch = {
@@ -26,7 +26,7 @@ const extractUserId = (metadata: unknown): string | null => {
 };
 
 export const queryVectorCandidates = async (
-  requesterProfile: TestProfileRow,
+  requesterProfile: AssessmentProfileRow,
   locale: string,
   env: Environment
 ): Promise<VectorMatch[]> => {
