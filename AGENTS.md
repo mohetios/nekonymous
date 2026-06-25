@@ -16,16 +16,17 @@ When changing bot logic, crypto, D1, KV cache, Durable Objects, queues, or Worke
 
 Do not generate heavy abstractions, repository layers, generic service frameworks, or framework-inside-framework patterns.
 
-## V1 Code-Freeze Communication Rewrite
+## V1 routing and privacy rules
 
-During the V1 code freeze, capability-based anonymous routing takes precedence over older conversation/ref routing.
+Capability-based anonymous routing is the current model. Do not reintroduce older conversation/ref patterns.
 
 - Telegram private chat buttons hold short routing capabilities; raw capabilities are request-only and must not be stored.
-- UserStateDO stores encrypted ticket payloads and encrypted route envelopes, keyed by lookup hashes.
+- `UserStateDO` stores encrypted ticket payloads and encrypted route envelopes, keyed by lookup hashes.
 - Anonymous messaging must not write a plain sender-recipient graph or message transcript to D1.
-- The existing compact repository layout remains preferred unless a rename is explicitly needed; do not create a parallel `core/` tree while equivalent local modules exist.
-- Do not keep compatibility fallbacks for KV inbox/conversation storage.
-- Reports, labels, blocks, and pending actions should use hashes/tags/encrypted context rather than plaintext anonymous peer edges.
+- Keep the existing compact repository layout; do not create a parallel `core/` tree.
+- No KV inbox/conversation storage and no dual-read or migration fallbacks for removed storage paths.
+- Reports, labels, blocks, and pending actions use hashes/tags/encrypted context — not plaintext anonymous peer edges.
+- Do not claim E2EE, zero-knowledge delivery, perfect anonymity, or clinical/dating compatibility in code or copy.
 
 ## Agent Operating Mode
 
@@ -58,7 +59,7 @@ Keep reports short and practical.
 
 ## Current Project Identity
 
-Nekonymous is a secure anonymous Telegram messaging bot with optional conversation-style **assessment** and opt-in **matching**.
+Nekonymous is a Persian-first anonymous Telegram bot: personal deep-link messaging, conversation-style **assessment** (ارزیابی), and opt-in **matching**. Hosted relay with encryption at rest — **not** E2EE.
 
 Users share a personal link slug; others message them without revealing identity. Replies stay anonymous in both directions.
 
@@ -158,14 +159,21 @@ tools/
 ├── verify-assessment.ts               # pnpm test:assessment
 ├── verify-matching.ts                 # pnpm test:matching
 ├── audit-d1.sh / audit-d1.sql         # pnpm audit:d1
+├── sync-d1-migration-history.sql      # squash d1_migrations after migration file changes
 ├── flush-remote-d1.sql
 ├── flush-remote.sh
 └── reset-assessment-data.sql
+
+docs/
+├── architecture/matching-v1.md
+└── security/threat-model.md
 ```
 
 Do not create alternative roots unless the project already uses them.
 
 `wrangler.jsonc` is committed with binding IDs. `.dev.vars` is gitignored. Secrets are set via `wrangler secret put` in production.
+
+GitHub Actions (`.github/workflows/`) are **manual only** (`workflow_dispatch`). Deploy with `pnpm deploy` unless explicitly running a workflow.
 
 ## Worker Entry and Routes
 
@@ -204,9 +212,9 @@ Export `UserStateDurableObject` and `TelegramOutboxDurableObject` from `src/inde
 | `/match`             | `features/matching/match-handlers.ts`     |
 | `/match_system`      | `features/matching/match-system-handlers.ts` |
 
-Callback prefixes (keep short, under 64 bytes):
+Callback prefixes (keep short; capability suffix is base64url, under Telegram 64-byte limit):
 
-- `r:`, `b:`, `u:`, `n:`, `rp:` — inbox actions (8-hex ref)
+- `o:`, `r:`, `b:`, `u:`, `n:`, `rp:` — inbox actions (capability token)
 - `t:` — assessment flow
 - `m:` — matching
 - `ms:` — match-system hub
@@ -215,9 +223,9 @@ Core user flow:
 
 1. `/start` without payload → resolve/create D1 user + public link, show personal `t.me/...?start={slug}` link.
 2. `/start {slug}` → open compose draft to link owner (rate-limited, block-checked, pause-checked, no self-message).
-3. Sender sends message/media → encrypt payload + connection metadata, insert inbox ticket in recipient `UserStateDO`, upsert D1 conversation summary + `platform_stats`, notify recipient via outbox queue.
+3. Sender sends message/media → encrypt payload + connection metadata, insert inbox ticket in recipient `UserStateDO`, increment `platform_stats.messages_relayed`, notify recipient via outbox queue.
 4. `/inbox` → load pending tickets from recipient `UserStateDO`, decrypt, deliver to Telegram, clear `payload_ciphertext`, keep `connection_ciphertext` for callbacks.
-5. Inline **پاسخ** / **مسدود** / **رفع مسدودیت** / **نام خصوصی** → reply draft, block list, or nickname flow. Callback data uses short refs; never trust callback data alone — load ticket from DO and verify ownership.
+5. Inline **پاسخ** / **مسدود** / **رفع مسدودیت** / **نام خصوصی** → reply draft, block list, or nickname flow. Callback data holds capabilities; never trust callback data alone — load ticket from DO and verify ownership.
 
 ### Account reset (پاک کردن حساب)
 
@@ -375,7 +383,7 @@ Avoid:
 
 ### Matching
 
-1. Vectorize `topK` with metadata filters (`discoverable`, `locale`, `safetyTier`, `profileVersion`)
+1. Vectorize `topK` with metadata filters (`discoverable`, `matchEligible`, `locale`, `profileVersion`)
 2. Merge with bounded recent discoverable D1 profiles when index is sparse (`fetchD1FallbackProfiles`)
 3. Deterministic scoring in `match-scoring.ts` (Vectorize narrows; code decides)
 4. Match request → candidate accept → normal inbox ticket
@@ -505,6 +513,7 @@ Privacy:
 - anonymity depends on not leaking Telegram IDs in public surfaces
 - do not add logging of message content, user IDs, or ticket ids
 - error replies to users should stay generic (`HuhMessage`) — avoid echoing `JSON.stringify(error)` in new code
+- read `docs/security/threat-model.md` before changing storage, matching metadata, or public security claims
 
 Rate limiting:
 
@@ -522,7 +531,7 @@ Validate at the boundary:
 
 - Telegram update context (`ctx.from`, `ctx.match`, message payload type)
 - deep-link slug on `/start` (`isPublicSlug` / `isUserLinkId`)
-- callback query inbox refs (`r:`, `b:`, `u:`, `n:`, `rp:` + 8 hex chars)
+- callback query inbox capabilities (`o:`, `r:`, `b:`, `u:`, `n:`, `rp:` + base64url token)
 - HTTP route params sanitized by `router.ts`
 
 Prefer small explicit checks in the handler. Do not add a validation framework.
@@ -563,6 +572,7 @@ pnpm typecheck
 pnpm lint
 pnpm knip
 pnpm check
+pnpm audit:d1
 ```
 
 `pnpm check` runs typecheck, lint, knip, `test:ticketing`, `test:assessment`, and `test:matching`.
@@ -583,7 +593,8 @@ Never run destructive KV clears, deploy, or production Wrangler commands without
 - Inspect before editing.
 - Preserve unrelated changes.
 - Do not remove files unless directly required.
-- Default branch for deploy workflow is `master`.
+- Default branch is `master`.
+- Do not re-enable push-triggered GitHub Actions unless explicitly requested.
 
 ## Server Code Review Checklist
 

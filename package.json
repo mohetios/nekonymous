@@ -1,7 +1,28 @@
 {
   "name": "nekonymous",
   "version": "0.1.0",
+  "description": "Persian-first anonymous Telegram bot on Cloudflare Workers: deep-link messaging, conversation-style assessment, and opt-in matching.",
   "homepage": "https://nekonymous.mohetios.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mohetios/Nekonymous.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mohetios/Nekonymous/issues"
+  },
+  "keywords": [
+    "nekonymous",
+    "telegram-bot",
+    "anonymous-messaging",
+    "cloudflare-workers",
+    "grammy",
+    "persian",
+    "farsi",
+    "privacy",
+    "durable-objects",
+    "cloudflare-d1",
+    "vectorize"
+  ],
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260625.1",
     "@eslint/js": "^10.0.1",
