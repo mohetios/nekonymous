@@ -158,6 +158,7 @@ tools/
 ├── verify-ticketing.ts                # pnpm test:ticketing
 ├── verify-assessment.ts               # pnpm test:assessment
 ├── verify-matching.ts                 # pnpm test:matching
+├── audit-d1.sh / audit-d1.sql         # pnpm audit:d1
 ├── flush-remote-d1.sql
 ├── flush-remote.sh
 └── reset-assessment-data.sql
@@ -278,7 +279,7 @@ Rules:
 D1 (`env.DB`, database `nekonymous_core`) is source of truth for:
 
 - `users`, `public_links`
-- `reports`, `consents`
+- `reports`
 - `assessment_profiles`, `assessment_attempts`, `assessment_answers`
 - `profile_vector_index_events`
 - `match_suggestions`, `match_requests`, `match_blocks`, `match_events`
@@ -468,7 +469,6 @@ PROFILE_VECTORS
 BOT_INFO
 BOT_NAME
 BOT_USERNAME
-PUBLIC_SITE_URL?   // optional; no public pages in V1 bot-only deploy
 ```
 
 Rules:

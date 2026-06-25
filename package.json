@@ -28,6 +28,8 @@
     "test:ticketing": "node --experimental-strip-types tools/verify-ticketing.ts",
     "test:assessment": "node --experimental-strip-types tools/verify-assessment.ts",
     "test:matching": "node --experimental-strip-types tools/verify-matching.ts",
+    "audit:d1": "./tools/audit-d1.sh",
+    "audit:d1:local": "./tools/audit-d1.sh --local",
     "test": "pnpm run test:ticketing && pnpm run test:assessment && pnpm run test:matching",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test"
   },

@@ -4,8 +4,6 @@
 
 The project began as a small anonymous messaging bot and grew into a careful experiment in safer anonymous conversations: private inbox workflows, assessment-based conversation signals, and opt-in matching — without turning anonymity into marketing claims.
 
-[![Check](https://github.com/mohetios/Nekonymous/actions/workflows/check.yml/badge.svg)](https://github.com/mohetios/Nekonymous/actions/workflows/check.yml)
-
 ---
 
 ## Status
@@ -150,8 +148,7 @@ Migrations: `migrations/0001_init.sql`, `migrations/0002_platform_stats.sql`.
 | Area | Tables |
 |------|--------|
 | **Identity** | `users`, `public_links` |
-| **Relay metadata** | `conversations` (schema present; V1 relay does not store message bodies or maintain a plaintext sender–recipient graph in D1) |
-| **Safety** | `reports`, `consents` |
+| **Safety** | `reports` |
 | **Assessment** | `assessment_profiles`, `assessment_attempts`, `assessment_answers`, `profile_vector_index_events` |
 | **Matching** | `match_suggestions`, `match_requests`, `match_blocks`, `match_events` |
 | **Anonymous stats** | `platform_stats` — single row, no user ids; survives account deletion |
@@ -256,7 +253,7 @@ Settings → **پاک کردن حساب** calls `clearUserAccountAndRecreate`:
 - legal or platform-level access to Telegram data
 - perfect anonymity or identity guarantees
 
-For a maintainer-oriented threat model, see [docs/security/threat-model.md](./docs/security/threat-model.md). There is no top-level `SECURITY.md` in this repository yet.
+For a maintainer-oriented threat model, see [docs/security/threat-model.md](./docs/security/threat-model.md) (includes D1 leak scenarios and D1 vs Vectorize roles). There is no top-level `SECURITY.md` in this repository yet.
 
 ---
 
@@ -374,6 +371,21 @@ pnpm check    # typecheck + lint + knip + all verify scripts
 | `pnpm test:ticketing` | Crypto roundtrip: payload envelope, chat id seal, HMAC |
 | `pnpm test:assessment` | Question bank validation and scoring invariants |
 | `pnpm test:matching` | Deterministic ranking smoke tests |
+| `pnpm audit:d1` | Read-only remote D1 privacy audit |
+| `pnpm audit:d1:local` | Same audit against local D1 |
+
+---
+
+## D1 privacy audit
+
+Repeatable read-only check that D1 has no plaintext message bodies, raw Telegram ids, or other data that violates the V1 storage model:
+
+```bash
+pnpm audit:d1          # production D1 + KV + Vectorize summary
+pnpm audit:d1:local    # local wrangler dev D1
+```
+
+SQL reference: `tools/audit-d1.sql`. The script exits non-zero if privacy checks fail.
 
 ---
 
@@ -430,6 +442,7 @@ D1 database name: **`nekonymous_core`**, binding: **`DB`**, migrations directory
 |------|---------|
 | `0001_init.sql` | Core schema: users, links, assessment, matching, reports |
 | `0002_platform_stats.sql` | Anonymous `platform_stats` row |
+| `0003_drop_legacy_d1_tables.sql` | Drops unused legacy `conversations` and `consents` tables |
 
 ```bash
 # Local (wrangler dev --local)
@@ -491,7 +504,7 @@ Replace the URL with your Worker route or tunnel URL.
 pnpm deploy
 ```
 
-CI on `master` also runs remote D1 migrations and deploy via [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) when `CF_API_TOKEN`, `CF_ACCOUNT_ID`, and `CF_ZONE_ID` are configured.
+GitHub Actions workflows exist under [`.github/workflows/`](./.github/workflows/) but are **disabled by default** (`workflow_dispatch` only). Deploy manually with `pnpm deploy`.
 
 ### Post-deploy verification
 
@@ -522,7 +535,7 @@ Runs `typecheck`, `lint`, `knip`, `test:ticketing`, `test:assessment`, and `test
 - [ ] Persian-first copy reviewed (`src/i18n/messages.ts`, feature copy files)
 - [ ] No payment-implemented claims
 - [ ] Migrations verified locally and on staging/production
-- [ ] Deploy flow verified (`pnpm deploy` or CI)
+- [ ] Deploy flow verified (`pnpm deploy`)
 - [ ] `/start` verified
 - [ ] `/inbox` verified
 - [ ] `/assessment` verified

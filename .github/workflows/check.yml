@@ -1,10 +1,8 @@
+# Disabled by default. Run manually from the GitHub Actions tab when needed.
 name: Check
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   check:

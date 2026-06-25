@@ -1,9 +1,8 @@
+# Disabled by default. Run manually from the GitHub Actions tab when needed.
 name: Deploy to Cloudflare Workers
 
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
 
 jobs:
   deploy:
