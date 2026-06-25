@@ -15,7 +15,6 @@ import {
   HuhMessage,
   NICKNAME_PROMPT_MESSAGE,
   NoConversationFoundMessage,
-  RATE_LIMIT_MESSAGE,
   REPLAY_TO_MESSAGE,
   REPLAY_TO_NICKNAME_MESSAGE,
   SELF_MESSAGE_DISABLE_MESSAGE,
@@ -39,7 +38,6 @@ import {
 import { createReport } from "./report-service";
 import {
   addBlock,
-  isRateLimited,
   markTicketReported,
   markTicketDelivered,
   removeBlock,
@@ -170,12 +168,6 @@ export const handleReplyAction = async (
 
     if (connection.senderUserId === user.id) {
       await ctx.reply(SELF_MESSAGE_DISABLE_MESSAGE);
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    if (await isRateLimited(env, user.id)) {
-      await ctx.reply(RATE_LIMIT_MESSAGE);
       await ctx.answerCallbackQuery();
       return;
     }
@@ -389,12 +381,6 @@ export const handleNicknameAction = async (
     const senderD1 = await getUserById(connection.senderUserId, env);
     if (!senderD1) {
       await ctx.reply(NoConversationFoundMessage);
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    if (await isRateLimited(env, user.id)) {
-      await ctx.reply(RATE_LIMIT_MESSAGE);
       await ctx.answerCallbackQuery();
       return;
     }

@@ -32,7 +32,7 @@ import {
   SETTINGS_RESET_MATCH_WARNING_MESSAGE,
   TECHNICAL_ABOUT_MESSAGE,
 } from "./settings-copy";
-import { HuhMessage, RATE_LIMIT_MESSAGE, ABOUT_PRIVACY_COMMAND_MESSAGE } from "../../i18n/messages";
+import { HuhMessage, ABOUT_PRIVACY_COMMAND_MESSAGE } from "../../i18n/messages";
 import { getPlatformStats } from "../platform/platform-stats-service";
 import {
   convertToPersianNumbers,
@@ -57,11 +57,9 @@ import {
 import {
   clearBlocks,
   clearDraft,
-  isRateLimited,
   setDisplayName,
   setDraft,
   setPaused,
-  touchRateLimit,
 } from "../../storage/user-state-client";
 
 const formatAboutPrivacyMessage = async (env: Environment): Promise<string> => {
@@ -178,13 +176,6 @@ export const handlePendingSettingsInput = async (
     return true;
   }
 
-  if (await isRateLimited(env, user.id)) {
-    await ctx.reply(RATE_LIMIT_MESSAGE, {
-      reply_markup: buildSettingsMenu(user.paused),
-    });
-    return true;
-  }
-
   const displayName = sanitizeDisplayName(text);
   if (!displayName) {
     await ctx.reply(
@@ -201,7 +192,6 @@ export const handlePendingSettingsInput = async (
     );
     await setDisplayName(env, user.id, ciphertext);
     await clearDraft(env, user.id);
-    await touchRateLimit(env, user.id);
     await ctx.reply(
       SETTINGS_NAME_SAVED_MESSAGE.replace("NAME", escapeHtml(displayName)),
       withHtml({ reply_markup: buildSettingsMenu(user.paused) })

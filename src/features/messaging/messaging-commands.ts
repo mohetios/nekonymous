@@ -25,7 +25,6 @@ import {
   NoUserFoundMessage,
   OWNER_PAUSED_NOTE,
   RECIPIENT_PAUSED_MESSAGE,
-  RATE_LIMIT_MESSAGE,
   SELF_MESSAGE_DISABLE_MESSAGE,
   StartConversationMessage,
   UnsupportedMessageTypeMessage,
@@ -63,11 +62,9 @@ import {
   checkCanReceive,
   clearDraft,
   getDraft,
-  isRateLimited,
   listPendingInbox,
   markTicketDelivered,
   setDraft,
-  touchRateLimit,
 } from "../../storage/user-state-client";
 import {
   escapeHtml,
@@ -110,11 +107,6 @@ export const handleStartCommand = async (
     const linkId = ctx.match.trim();
     if (!isUserLinkId(linkId)) {
       await ctx.reply(NoUserFoundMessage);
-      return;
-    }
-
-    if (await isRateLimited(env, user.id)) {
-      await ctx.reply(RATE_LIMIT_MESSAGE);
       return;
     }
 
@@ -219,11 +211,6 @@ export const handleMessage = async (
         return;
       }
 
-      if (await isRateLimited(env, user.id)) {
-        await ctx.reply(RATE_LIMIT_MESSAGE);
-        return;
-      }
-
       try {
         const nickname = sanitizeNickname(message.text);
         await setContactLabel(
@@ -235,7 +222,6 @@ export const handleMessage = async (
           user.contactLabels
         );
         await clearDraft(env, user.id);
-        await touchRateLimit(env, user.id);
         await ctx.reply(
           nickname
             ? NICKNAME_SAVED_MESSAGE.replace("NAME", escapeHtml(nickname))
@@ -260,11 +246,6 @@ export const handleMessage = async (
         return;
       }
       await ctx.reply(HuhMessage, { reply_markup: mainMenu });
-      return;
-    }
-
-    if (await isRateLimited(env, user.id)) {
-      await ctx.reply(RATE_LIMIT_MESSAGE);
       return;
     }
 
@@ -360,7 +341,6 @@ export const handleMessage = async (
     }
 
     await clearDraft(env, user.id);
-    await touchRateLimit(env, user.id);
   } catch (error) {
     logBotError("handleMessage", error);
     await ctx.reply(HuhMessage, { reply_markup: mainMenu });

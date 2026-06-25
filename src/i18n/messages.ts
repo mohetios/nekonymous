@@ -172,7 +172,9 @@ export const YOUR_MESSAGE_SEEN_MESSAGE = `گیرنده پیام شما را دی
 
 export const RATE_LIMIT_MESSAGE = `لطفاً کمی صبر کنید.
 
-چند لحظه بعد می‌توانید دوباره پیام بفرستید.`;
+یک لحظه بعد می‌توانید ادامه دهید.`;
+
+export const RATE_LIMIT_CALLBACK_ALERT = "لطفاً کمی صبر کنید.";
 
 export const INBOX_FULL_MESSAGE = `صندوق ورودی گیرنده فعلاً پر است.
 

@@ -354,7 +354,7 @@ One DO per internal user id (`idFromName(userId)`). Authority for:
 
 All DO calls go through `src/storage/user-state-client.ts` using `https://user-state/...` URLs.
 
-Key endpoints: `/init`, `/state`, `/set-draft`, `/add-ticket`, `/pending-inbox`, `/mark-delivered`, `/ticket/:ref`, `/add-block`, `/remove-block`, `/set-label`, `/check-can-receive`, `/check-rate-limit`, `/purge`, `/assessment/*`.
+Key endpoints: `/init`, `/state`, `/set-draft`, `/add-ticket`, `/pending-inbox`, `/mark-delivered`, `/ticket/:ref`, `/add-block`, `/remove-block`, `/set-label`, `/check-can-receive`, `/consume-rate-limit`, `/purge`, `/assessment/*`.
 
 Inbox cap: 50 tickets per user DO. Pending tickets indexed by `status = 'pending'`.
 
@@ -521,8 +521,8 @@ Privacy:
 
 Rate limiting:
 
-- `UserStateDO` enforces a 5-second window via `/check-rate-limit` and `/touch-rate-limit`
-- preserve rate limits on send/reply unless explicitly changing product rules
+- `UserStateDO` enforces a **1-second** global per-user action throttle via atomic `POST /consume-rate-limit` (Grammy middleware in `src/bot/user-rate-limit.ts`)
+- preserve the global action throttle unless explicitly changing product rules
 
 Blocking:
 
@@ -599,6 +599,33 @@ Never run destructive KV clears, deploy, or production Wrangler commands without
 - Do not remove files unless directly required.
 - Default branch is `master`.
 - Do not re-enable push-triggered GitHub Actions unless explicitly requested.
+
+### Commit messages (strict)
+
+Every commit **must** use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```text
+type(scope): imperative description
+```
+
+Rules:
+
+- **type** — required, lowercase. Use: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `perf`, `build`.
+- **scope** — required, lowercase area name. Examples: `bot`, `messaging`, `matching`, `assessment`, `storage`, `identity`, `settings`, `ticketing`, `tooling`, `docs`, `ci`, `deps`.
+- **description** — required, imperative mood, concise, no trailing period. Example: `add global user-action rate limit`, not `added` or `Adds …`.
+- **body** — optional; wrap at ~72 chars when extra context is needed.
+- **breaking changes** — suffix subject with `!` or add a `BREAKING CHANGE:` footer.
+
+Examples:
+
+```text
+feat(bot): add global user-action rate limit middleware
+fix(storage): clear payload ciphertext after inbox delivery
+docs(readme): document rate limits and quotas
+chore(tooling): update telegram bot profile script
+```
+
+Do not use free-form subjects (`Update stuff`, `WIP`, `fixes`) unless the user explicitly requests otherwise.
 
 ## Server Code Review Checklist
 

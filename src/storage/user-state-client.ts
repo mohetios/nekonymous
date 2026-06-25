@@ -128,24 +128,18 @@ export const checkCanReceive = async (
     body: JSON.stringify({ senderUserId }),
   });
 
-export const isRateLimited = async (
+/** Atomically checks and records a user action; returns true when throttled. */
+export const consumeUserRateLimit = async (
   env: Environment,
   userId: string
 ): Promise<boolean> => {
   const body = await doFetch<{ limited: boolean }>(
     env,
     userId,
-    "/check-rate-limit",
+    "/consume-rate-limit",
     { method: "POST" }
   );
   return body.limited;
-};
-
-export const touchRateLimit = async (
-  env: Environment,
-  userId: string
-): Promise<void> => {
-  await doFetch(env, userId, "/touch-rate-limit", { method: "POST" });
 };
 
 export type AddTicketInput = {

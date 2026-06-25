@@ -2,8 +2,9 @@ import { DurableObject } from "cloudflare:workers";
 import type { Environment, UserDraft } from "../types";
 
 const INBOX_MAX_TICKETS = 50;
-const RATE_LIMIT_SECONDS = 5;
-const RATE_LIMIT_SCOPE = "message";
+/** Minimum gap between user actions (messages, commands, inline buttons). */
+const RATE_LIMIT_MS = 1000;
+const RATE_LIMIT_SCOPE = "user_action";
 const ASSESSMENT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const ASSESSMENT_SESSION_ID = "current";
 
@@ -262,11 +263,8 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     if (request.method === "POST" && pathname === "/check-can-receive") {
       return this.checkCanReceive(request);
     }
-    if (request.method === "POST" && pathname === "/check-rate-limit") {
-      return this.checkRateLimit();
-    }
-    if (request.method === "POST" && pathname === "/touch-rate-limit") {
-      return this.touchRateLimit();
+    if (request.method === "POST" && pathname === "/consume-rate-limit") {
+      return this.consumeRateLimit();
     }
     if (request.method === "POST" && pathname === "/add-ticket") {
       return this.addTicket(request);
@@ -494,7 +492,8 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return Response.json({ ok: true });
   }
 
-  private checkRateLimit(): Response {
+  private consumeRateLimit(): Response {
+    const now = Date.now();
     const row = this.ctx.storage.sql
       .exec<{ last_at: number }>(
         "SELECT last_at FROM rate_limits WHERE scope = ?",
@@ -502,15 +501,10 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       )
       .toArray()[0];
 
-    const limited =
-      row !== undefined &&
-      Date.now() - row.last_at < RATE_LIMIT_SECONDS * 1000;
+    if (row !== undefined && now - row.last_at < RATE_LIMIT_MS) {
+      return Response.json({ limited: true });
+    }
 
-    return Response.json({ limited });
-  }
-
-  private touchRateLimit(): Response {
-    const now = Date.now();
     this.ctx.storage.sql.exec(
       `INSERT INTO rate_limits (scope, tokens, last_at, updated_at)
        VALUES (?, 0, ?, ?)
@@ -519,7 +513,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       now,
       now
     );
-    return Response.json({ ok: true });
+    return Response.json({ limited: false });
   }
 
   private async addTicket(request: Request): Promise<Response> {

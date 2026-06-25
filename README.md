@@ -169,7 +169,7 @@ D1 stores HMACed Telegram user hashes and encrypted Telegram chat ids, not raw T
 | `drafts` | Compose / reply / settings draft state |
 | `blocks` | Per-recipient block list |
 | `contact_labels` | Private nicknames per sender |
-| `rate_limits` | Send/reply rate limiting (5-second window) |
+| `rate_limits` | Global per-user action throttle (1-second gap) |
 | `assessment_sessions` | In-progress assessment answers |
 | `processed_events` | Reserved schema |
 
@@ -178,7 +178,7 @@ D1 stores HMACed Telegram user hashes and encrypted Telegram chat ids, not raw T
 | Table | Purpose |
 |-------|---------|
 | `sent_events` | Idempotent outbound send log |
-| `rate_buckets` | Outbound rate shaping |
+| `rate_buckets` | Reserved for outbound rate shaping (schema only in V1) |
 
 ### KV
 
@@ -219,13 +219,46 @@ Nekonymous is a **hosted anonymous relay**. It hides users from each other in no
 | Payload retention | `payload_ciphertext` cleared after inbox delivery; `connection_ciphertext` may remain for actions |
 | Webhook auth | `BOT_SECRET_KEY` as `X-Telegram-Bot-Api-Secret-Token` |
 
-### Abuse controls
+### Abuse controls and rate limits
 
-- Per-user send/reply rate limit (5 seconds) in `UserStateDO`
+Nekonymous uses layered limits: one global per-user throttle on every Telegram input, plus feature-specific quotas where abuse would be costly.
+
+#### Global user-action throttle
+
+All user-driven webhook updates go through Grammy middleware (`src/bot/user-rate-limit.ts`) before handlers run:
+
+- **Scope:** every command (`/start`, `/inbox`, `/settings`, `/assessment`, `/match`, …), chat message, and inline callback (`o:`, `r:`, `t:`, `m:`, `ms:`, …)
+- **Storage:** `UserStateDurableObject.rate_limits` (scope `user_action`)
+- **Rule:** at most one consumed action per **1 second** per user (atomic `POST /consume-rate-limit` in the DO)
+- **UX:** chat replies get `RATE_LIMIT_MESSAGE`; callbacks get a short `answerCallbackQuery` toast
+
+The previous 5-second send/reply-only check was removed in favor of this single middleware path. One second is short enough for normal menu navigation and assessment taps, but caps scripted floods at roughly 60 actions/minute per user.
+
+#### Feature-specific limits
+
+| Limit | Where | Value | Purpose |
+|-------|--------|-------|---------|
+| Inbox pending cap | `UserStateDO.inbox_tickets` | 50 | Stop inbox flooding per recipient |
+| Private nicknames | `UserStateDO.contact_labels` | 200 per user | Bound label storage |
+| Display name length | settings / identity | 64 chars | Input sanitization |
+| Nickname length | contact utils | 32 chars | Input sanitization |
+| Match intro text | matching draft | 500 chars | Input sanitization |
+| Match searches | D1 `match_events` | 50 / hour | Bound Vectorize + D1 search cost |
+| Match requests created | D1 `match_events` | 300 / day | Bound outbound request spam |
+| Pair cooldown | D1 `match_requests` | 30 days after accept/decline | Prevent repeat pings to same pair |
+| Match dismiss block | D1 `match_blocks` | 30 days | Hide dismissed suggestions |
+| Pending match list UI | matching constants | 20 shown | Bounded hub rendering |
+| Match request TTL | D1 `match_requests` | 7 days | Expire stale pending requests |
+| Assessment session | `UserStateDO.assessment_sessions` | 7-day TTL | Drop abandoned in-progress sessions |
+| Outbox idempotency | `TelegramOutboxDO.sent_events` | per job key | Prevent duplicate Telegram sends |
+
+#### Other safety controls
+
 - Block before accept on new messages and replies
 - Structured report flow with encrypted optional details
-- Inbox cap (50 pending tickets)
-- Matching request/search limits and dismiss blocks
+- Webhook secret validation (`BOT_SECRET_KEY`)
+
+Matching search/request limits are enforced in `match-service.ts` via `match_events` counts. Inbox, blocks, drafts, and the global throttle are enforced in `UserStateDO`.
 
 ### Hard reset
 
@@ -245,7 +278,7 @@ Settings → **پاک کردن حساب** calls `clearUserAccountAndRecreate`:
 - casual database inspection of stored message payloads
 - public exposure of raw Telegram user ids
 - accidental long-term storage of message bodies after inbox delivery (where payload clearing is implemented)
-- basic abuse via block, report, and rate limits
+- basic abuse via block, report, global action throttle, and feature quotas
 
 **Nekonymous does not protect against:**
 

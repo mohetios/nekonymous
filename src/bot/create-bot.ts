@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import type { Environment } from "../types";
 import { deferForUpdate, type NekoContext } from "../utils/worker";
 import { registerHandlers } from "./register-handlers";
+import { createUserRateLimitMiddleware } from "./user-rate-limit";
 
 type BotConfig = NonNullable<ConstructorParameters<typeof Bot>[1]>;
 
@@ -29,6 +30,8 @@ export const createBot = (env: Environment) => {
     }
     await next();
   });
+
+  bot.use(createUserRateLimitMiddleware(env));
 
   registerHandlers(bot, env);
 
