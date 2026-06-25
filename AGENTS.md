@@ -160,6 +160,7 @@ tools/
 ├── verify-matching.ts                 # pnpm test:matching
 ├── audit-d1.sh / audit-d1.sql         # pnpm audit:d1
 ├── sync-d1-migration-history.sql      # squash d1_migrations after migration file changes
+├── set-telegram-bot-profile.sh        # pnpm bot:profile
 ├── flush-remote-d1.sql
 ├── flush-remote.sh
 └── reset-assessment-data.sql
