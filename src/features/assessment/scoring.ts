@@ -198,7 +198,7 @@ const pickTitle = (scores: AssessmentScores): string => {
   if (scores.curiosityDepth >= 0.65) {
     return "گفت‌وگوی کنجکاو و فکری";
   }
-  return "گفت‌وگوی متعادل و سازگار";
+  return "گفت‌وگوی متعادل";
 };
 
 const pickDescription = (scores: AssessmentScores): string => {

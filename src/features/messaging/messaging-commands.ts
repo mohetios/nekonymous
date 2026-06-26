@@ -18,6 +18,7 @@ import {
   HuhMessage,
   INBOX_FULL_MESSAGE,
   MESSAGE_SENT_MESSAGE,
+  REPLY_SENT_MESSAGE,
   NICKNAME_LIMIT_MESSAGE,
   NICKNAME_REMOVED_MESSAGE,
   NICKNAME_SAVED_MESSAGE,
@@ -324,7 +325,9 @@ export const handleMessage = async (
       return;
     }
 
-    await replyHtml(ctx, MESSAGE_SENT_MESSAGE, {
+    const sentMessage =
+      draft?.mode === "reply" ? REPLY_SENT_MESSAGE : MESSAGE_SENT_MESSAGE;
+    await replyHtml(ctx, sentMessage, {
       reply_to_message_id: draft?.parent_message_id,
     });
 

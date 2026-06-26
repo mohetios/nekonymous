@@ -1,6 +1,8 @@
 import type { Bot, Context } from "grammy";
 import type { Message } from "grammy/types";
 import type { Environment } from "../types";
+import { UNKNOWN_COMMAND_MESSAGE } from "../i18n/messages";
+import { mainMenu } from "./keyboards";
 import {
   handleBlockAction,
   handleNicknameAction,
@@ -34,6 +36,26 @@ const isCommandMessage = (message: Message): boolean =>
     (entity) => entity.type === "bot_command" && entity.offset === 0
   ) === true;
 
+const KNOWN_COMMANDS = new Set([
+  "start",
+  "inbox",
+  "settings",
+  "assessment",
+  "match",
+  "match_system",
+]);
+
+const unknownCommandName = (text: string): string | null => {
+  if (!text.startsWith("/")) {
+    return null;
+  }
+  const token = text.split(/\s/)[0]?.slice(1);
+  if (!token) {
+    return null;
+  }
+  return token.split("@")[0]?.toLowerCase() ?? null;
+};
+
 export const registerHandlers = (bot: Bot, env: Environment): void => {
   const { BOT_USERNAME } = env;
 
@@ -55,6 +77,20 @@ export const registerHandlers = (bot: Bot, env: Environment): void => {
     }
 
     return handleMessage(ctx, env, BOT_USERNAME);
+  });
+
+  bot.on("message:text", async (ctx) => {
+    const text = ctx.message?.text;
+    if (!text) {
+      return;
+    }
+
+    const command = unknownCommandName(text);
+    if (!command || KNOWN_COMMANDS.has(command)) {
+      return;
+    }
+
+    await ctx.reply(UNKNOWN_COMMAND_MESSAGE, { reply_markup: mainMenu });
   });
 
   const onInboxCallback =

@@ -1,40 +1,40 @@
 /** Reply-keyboard and inline button labels shown in Telegram UI. */
 
 export const MENU = {
-  about: "🛡️ درباره",
+  about: "ℹ️ درباره و حریم خصوصی",
   privacy: "🔒 حریم خصوصی",
   link: "🔗 لینک من",
-  matchSystem: "🧭 مچ‌یابی",
-  matchProfile: "👤 پروفایل من",
-  matchFind: "🔎 پیدا کردن مچ",
-  matchPending: "📥 درخواست‌های در انتظار",
-  matchEnable: "✅ فعال کردن مچ‌یابی",
-  matchDisable: "⏸️ توقف مچ‌یابی",
+  matchSystem: "🧭 پیشنهاد گفت‌وگو",
+  matchProfile: "👤 پروفایل گفت‌وگو",
+  matchFind: "🔎 پیدا کردن گزینه‌ها",
+  matchPending: "📥 درخواست‌های گفت‌وگو",
+  matchEnable: "✅ فعال‌سازی نمایش",
+  matchDisable: "⏸ توقف نمایش",
   matchAssessment: "📝 شروع ارزیابی",
   matchAssessmentRetry: "📝 ارزیابی دوباره",
-  matchBackToHub: "↩️ مچ‌یابی",
+  matchBackToHub: "↩️ بازگشت",
   settings: "⚙️ تنظیمات",
   editName: "✏️ نام",
   cancelDraft: "↩️ لغو",
-  pauseInbox: "🔕 توقف",
-  resumeInbox: "🔔 فعال",
-  clearBlockList: "🔓 آنبلاک",
-  resetMatchHistory: "🔄 ریست مچ",
+  pauseInbox: "⏸ توقف دریافت پیام",
+  resumeInbox: "▶️ فعال‌سازی دریافت پیام",
+  clearBlockList: "🚫 رفع مسدودی‌ها",
+  resetMatchHistory: "♻️ بازنشانی پیشنهادها",
   clearData: "🗑️ پاک کردن حساب",
-  technical: "📐 فنی",
-  back: "🏠 بازگشت",
-  confirmClear: "🗑️ بله، پاک کن",
-  confirmClearBlocks: "🔓 بله، آنبلاک همه",
-  confirmResetMatchHistory: "🔄 بله، ریست کن",
-  cancel: "❌ انصراف",
+  technical: "🧾 نکات فنی",
+  back: "🏠 منوی اصلی",
+  confirmClear: "🗑️ پاک کردن حساب",
+  confirmClearBlocks: "🚫 بله، رفع همه مسدودی‌ها",
+  confirmResetMatchHistory: "♻️ بله، بازنشانی کن",
+  cancel: "↩️ انصراف",
 } as const;
 
 export const INBOX_BUTTON = {
-  block: "🚫 مسدود",
+  block: "🚫 مسدود کردن",
   unblock: "🔓 رفع مسدودیت",
-  reply: "💬 پاسخ",
+  reply: "💬 پاسخ دادن",
   nickname: "🏷️ نام خصوصی",
-  report: "گزارش",
+  report: "⚠️ گزارش کردن",
 } as const;
 
 export const OPEN_INBOX_TICKET_BUTTON = "باز کردن پیام";
@@ -52,24 +52,24 @@ const plainMenuLabel = (text: string): string =>
   text.replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, "").trim();
 
 export const MATCH_BUTTON = {
-  search: "نزدیک‌ترین گزینه‌های فعلی",
-  accept: "قبول می‌کنم",
-  decline: "رد می‌کنم",
+  search: "🔎 پیدا کردن گزینه‌ها",
+  accept: "✅ پذیرفتن",
+  decline: "❌ رد کردن",
   cancelRequest: "لغو درخواست",
-  requestConversation: (index: number) => `درخواست گفت‌وگو با ${index + 1}`,
+  requestConversation: (index: number) => `✍️ درخواست ${index + 1}`,
 } as const;
 
 export const ASSESSMENT_BUTTON = {
-  start: "شروع ارزیابی",
-  continue: "ادامه ارزیابی",
-  restart: "شروع دوباره",
-  viewResult: "دیدن نتیجه",
-  viewResultAgain: "دیدن دوباره نتیجه",
+  start: "📝 شروع ارزیابی",
+  continue: "📝 ادامه ارزیابی",
+  restart: "📝 ارزیابی دوباره",
+  viewResult: "👤 پروفایل گفت‌وگو",
+  viewResultAgain: "👤 پروفایل گفت‌وگو",
   resetYes: "بله، از نو",
-  resetNo: "انصراف",
+  resetNo: "↩️ انصراف",
   previous: "قبلی",
   exit: "خروج",
-  backToMenu: "بازگشت به منو",
+  backToMenu: "↩️ بازگشت",
 } as const;
 
 export const isReservedDisplayName = (text: string): boolean => {

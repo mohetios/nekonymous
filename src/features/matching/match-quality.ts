@@ -1,3 +1,4 @@
+import type { MatchQualityLabel } from "../../i18n/matching";
 export type { MatchQualityLabel } from "../../i18n/matching";
 export {
   MATCH_QUALITY_COPY,
@@ -8,7 +9,7 @@ export {
 
 export const getMatchQualityLabel = (
   score: number
-): import("../../i18n/matching").MatchQualityLabel => {
+): MatchQualityLabel => {
   const safe = Number.isFinite(score) ? score : 0;
   if (safe >= 0.75) {
     return "strong";

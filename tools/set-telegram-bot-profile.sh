@@ -40,7 +40,7 @@ if(!j.ok){console.error(j);process.exit(1)} console.log('ok');
 
 echo "==> setMyDescription (fa)"
 read -r -d '' DESCRIPTION <<'EOF' || true
-نِکونیموس یک ربات پیام ناشناس فارسی‌محور است؛ برای ساخت لینک شخصی، دریافت پیام ناشناس، پاسخ ناشناس، ارزیابی سبک گفت‌وگو و مچ‌یابی اختیاری. پیام‌ها از طریق تلگرام و سرور ربات پردازش می‌شوند؛ داده‌های ذخیره‌شده تا حد ممکن کمینه و در حالت ذخیره رمزنگاری می‌شوند.
+نِکونیموس یک ربات پیام ناشناس فارسی‌محور است؛ برای ساخت لینک شخصی، دریافت پیام ناشناس، پاسخ ناشناس، ارزیابی سبک گفت‌وگو و پیشنهاد گفت‌وگوی اختیاری. پیام‌ها از طریق تلگرام و سرور ربات پردازش می‌شوند؛ داده‌های ذخیره‌شده تا حد ممکن کمینه و در حالت ذخیره رمزنگاری می‌شوند.
 EOF
 tg_post setMyDescription \
   --data-urlencode "description=${DESCRIPTION}" \
@@ -49,9 +49,20 @@ const fs=require('fs');const j=JSON.parse(fs.readFileSync(0,'utf8'));
 if(!j.ok){console.error(j);process.exit(1)} console.log('ok');
 "
 
+echo "==> setMyShortDescription (fa)"
+read -r -d '' SHORT_DESCRIPTION <<'EOF' || true
+پیام ناشناس، لینک شخصی، پاسخ ناشناس و پیشنهاد گفت‌وگوی اختیاری؛ فارسی‌محور و شفاف درباره مرزهای حریم خصوصی.
+EOF
+tg_post setMyShortDescription \
+  --data-urlencode "short_description=${SHORT_DESCRIPTION}" \
+  --data-urlencode "language_code=fa" | node -e "
+const fs=require('fs');const j=JSON.parse(fs.readFileSync(0,'utf8'));
+if(!j.ok){console.error(j);process.exit(1)} console.log('ok');
+"
+
 echo "==> setMyDescription (en)"
 read -r -d '' DESCRIPTION_EN <<'EOF' || true
-Nekonymous is a Persian-first anonymous messaging bot. Create a personal link, receive anonymous messages, reply anonymously, explore your conversation style, and optionally discover matches. Messages are processed through Telegram and the bot server; stored data is minimized where possible and encrypted at rest.
+Nekonymous is a Persian-first anonymous messaging bot for creating a personal link, receiving anonymous messages, replying anonymously, exploring conversation-style assessment, and optional conversation suggestions. Messages are processed through Telegram and the bot server; stored data is minimized where possible and encrypted at rest.
 EOF
 tg_post setMyDescription \
   --data-urlencode "description=${DESCRIPTION_EN}" \
@@ -60,14 +71,25 @@ const fs=require('fs');const j=JSON.parse(fs.readFileSync(0,'utf8'));
 if(!j.ok){console.error(j);process.exit(1)} console.log('ok');
 "
 
+echo "==> setMyShortDescription (en)"
+read -r -d '' SHORT_DESCRIPTION_EN <<'EOF' || true
+Anonymous messages, personal links, anonymous replies, and optional conversation suggestions with clear privacy boundaries.
+EOF
+tg_post setMyShortDescription \
+  --data-urlencode "short_description=${SHORT_DESCRIPTION_EN}" \
+  --data-urlencode "language_code=en" | node -e "
+const fs=require('fs');const j=JSON.parse(fs.readFileSync(0,'utf8'));
+if(!j.ok){console.error(j);process.exit(1)} console.log('ok');
+"
+
 echo "==> setMyCommands"
 COMMANDS_JSON='[
   {"command":"start","description":"شروع و دریافت لینک شخصی"},
-  {"command":"inbox","description":"صندوق پیام‌های ناشناس"},
+  {"command":"inbox","description":"صندوق پیام‌ها"},
   {"command":"settings","description":"تنظیمات و حریم خصوصی"},
   {"command":"assessment","description":"ارزیابی سبک گفت‌وگو"},
-  {"command":"match","description":"مچ‌یابی ناشناس"},
-  {"command":"match_system","description":"منوی مچ‌یابی"}
+  {"command":"match","description":"پیشنهاد گفت‌وگو"},
+  {"command":"match_system","description":"پیشنهادهای گفت‌وگو"}
 ]'
 tg_post setMyCommands \
   --data-urlencode "commands=${COMMANDS_JSON}" \
