@@ -1,7 +1,12 @@
-# Disabled by default. Run manually from the GitHub Actions tab when needed.
 name: Deploy GitHub Pages
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
