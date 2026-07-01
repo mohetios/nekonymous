@@ -1,0 +1,40 @@
+# Temporarily disabled. Keep this workflow in the repo, but do not run
+# production Worker deploys from GitHub Actions until it is re-enabled.
+name: Deploy to Cloudflare Workers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply D1 migrations
+        run: pnpm exec wrangler d1 migrations apply nekonymous_core --remote
+
+      - name: Publish to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
