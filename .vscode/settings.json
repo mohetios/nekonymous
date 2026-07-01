@@ -6,5 +6,6 @@
         "Nekonymous",
         "Vectorize",
         "wrangler"
-    ]
+    ],
+    "djlint.showInstallError": false
 }
