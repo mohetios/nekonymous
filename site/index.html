@@ -179,15 +179,13 @@
       .theme-toggle {
         width: 38px;
         height: 38px;
-        border: 1px solid var(--line);
+        border: 0;
         border-radius: 999px;
         display: grid;
         place-items: center;
-        background: var(--panel);
+        background: transparent;
         color: var(--muted);
         transition:
-          border-color 140ms ease,
-          background-color 140ms ease,
           color 140ms ease,
           transform 140ms ease;
       }
@@ -196,24 +194,18 @@
       .icon-link:focus-visible,
       .theme-toggle:hover,
       .theme-toggle:focus-visible {
-        border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-        background: var(--accent-soft);
         color: var(--accent-strong);
         outline: none;
         transform: translateY(-1px);
       }
 
       .icon-link.primary {
-        border-color: var(--accent);
-        background: var(--accent);
-        color: #ffffff;
+        color: var(--accent);
       }
 
       .icon-link.primary:hover,
       .icon-link.primary:focus-visible {
-        background: var(--accent-strong);
-        border-color: var(--accent-strong);
-        color: #ffffff;
+        color: var(--accent-strong);
       }
 
       .button {
@@ -463,7 +455,7 @@
       <nav class="wrap nav" aria-label="ناوبری اصلی">
         <a class="brand" href="#">
           <span>نِکونیموس</span>
-          <span class="brand-sub">/ Mohetios</span>
+          <span class="brand-sub">/ مُهتیوس</span>
         </a>
         <div class="links">
           <a class="is-active" href="#intro">معرفی</a>
