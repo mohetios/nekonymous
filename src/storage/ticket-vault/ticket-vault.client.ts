@@ -8,7 +8,8 @@ export class TicketExpiredError extends Error {
   }
 }
 
-const shardName = (ticketHash: string): string => ticketHash.slice(0, 8);
+const shardName = (ticketHash: string): string =>
+  `ticket:${ticketHash.slice(0, 2)}`;
 
 const stub = (env: Environment, ticketHash: string) =>
   env.TICKET_VAULT.get(env.TICKET_VAULT.idFromName(shardName(ticketHash)));

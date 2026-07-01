@@ -565,7 +565,8 @@ export const acceptMatchRequest = async (
       await notifyRecipientInbox(
         env,
         candidate,
-        sendResult.pendingCount
+        sendResult.pendingCount,
+        sendResult.ticketHash ?? `match:${requestId}`
       );
     } catch {
       // non-fatal

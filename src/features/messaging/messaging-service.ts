@@ -21,6 +21,7 @@ import {
 import { markInboxPointerViewed } from "../../storage/user-state-client";
 import { convertToPersianNumbers } from "../../utils/tools";
 import { INBOX_MENU_CALLBACK } from "../../utils/telegram-callbacks";
+import { messageCreatedOutboxEventKey } from "./outbox-event-key";
 
 export const hasDeliverablePayload = (payload: MessagePayload): boolean => {
   if (!payload.message_type) {
@@ -51,6 +52,7 @@ export const sendAnonymousMessage = async (
   status: number;
   pendingCount?: number;
   notify?: boolean;
+  ticketHash?: string;
 }> => {
   const result = await createSealedTicket(env, input);
   if (!result.ok) {
@@ -62,44 +64,39 @@ export const sendAnonymousMessage = async (
     status: 200,
     pendingCount: result.pendingCount,
     notify: !result.duplicate,
+    ticketHash: result.ticketHash,
   };
 };
 
 export const notifyRecipientInbox = async (
   env: Environment,
   recipient: D1User,
-  pendingCount: number
+  pendingCount: number,
+  sourceEventId: string
 ): Promise<void> => {
-  const { getTelegramChatId } = await import("../identity/identity-service");
-
-  const chatId = await getTelegramChatId(recipient, env);
   const text = UNREAD_INBOX_MESSAGE(convertToPersianNumbers(pendingCount));
-  const response = await fetch(
-    `https://api.telegram.org/bot${env.SECRET_TELEGRAM_API_TOKEN}/sendMessage`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: OPEN_INBOX_BUTTON,
-                callback_data: INBOX_MENU_CALLBACK.open,
-              },
-            ],
+  await enqueueTelegramOutbox(env, {
+    idempotencyKey: messageCreatedOutboxEventKey(sourceEventId),
+    chatCiphertext: recipient.telegram_chat_ciphertext,
+    chatHash: recipient.telegram_user_hash,
+    method: "sendMessage",
+    payload: {
+      text,
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: OPEN_INBOX_BUTTON,
+              callback_data: INBOX_MENU_CALLBACK.open,
+            },
           ],
-        },
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("inbox notify failed");
-  }
+        ],
+      },
+    },
+    priority: "low",
+    createdAt: Date.now(),
+  });
 };
 
 export const notifyMessageSeen = async (

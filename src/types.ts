@@ -1,4 +1,5 @@
 import type { TelegramOutboxJob } from "./queues/telegram-outbox.types";
+import type { StatsEvent } from "./stats/events";
 import type {
   D1UserStatus,
   InboxPointerStatus,
@@ -114,7 +115,8 @@ export interface Environment {
   TICKET_VAULT: DurableObjectNamespace;
   REPORT_LEDGER: DurableObjectNamespace;
 
-  TELEGRAM_OUTBOX_QUEUE: Queue<TelegramOutboxJob>;
+  NEKO_OUTBOX_QUEUE: Queue<TelegramOutboxJob>;
+  NEKO_STATS_QUEUE: Queue<StatsEvent>;
 
   AI: Ai;
   PROFILE_VECTORS: VectorizeIndex;

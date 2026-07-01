@@ -459,11 +459,3 @@ export const toBotUser = async (
   };
 };
 
-export const getTelegramChatId = async (
-  d1User: D1User,
-  env: Environment
-): Promise<number> =>
-  decryptTelegramChatId(
-    d1User.telegram_chat_ciphertext,
-    env.APP_MASTER_KEY
-  );

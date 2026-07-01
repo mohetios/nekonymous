@@ -12,6 +12,7 @@ How sealed tickets, the ticket vault, and inbox pointers work together. For priv
 | User state DO | `storage/user-state-do.ts` | Per-recipient inbox pointer list (no plaintext bodies) |
 | Callback routing | `utils/telegram-callbacks.ts` | Build/validate `o:`, `r:`, `b:`, … callback_data |
 | Action resolution | `features/messaging/resolve-ticket-action.ts` | Load vault record, verify owner proof, decrypt route |
+| Webhook idempotency | `storage/user-state-do.ts` + `bot/router.ts` | Two-phase update claim (`processing` lease → `done`) |
 
 D1 stores **no message bodies** and **no sender–recipient edges** for anonymous relay. `platform_stats.messages_relayed` is the only anonymous counter increment on accept.
 
@@ -23,7 +24,7 @@ sequenceDiagram
   participant S as createSealedTicket
   participant V as TicketVault DO
   participant U as UserState DO
-  participant Q as telegram-outbox queue
+  participant Q as NEKO_OUTBOX_QUEUE
 
   H->>S: sendAnonymousMessage
   S->>S: randomTicketRef, ticketHash, encrypt route + payload
@@ -42,6 +43,7 @@ Steps in code:
 5. **`PayloadCapsule`** — encrypted message/media ids.
 6. **`sealInboxTicketRef`** — encrypts callback ref into the inbox pointer row.
 7. **`storeTicket`** then **`addInboxPointer`** — if pointer insert fails, vault row is cleaned up.
+8. **Outbox event key** — recipient notification dedupe key is per message event (`outbox:message-created:{ticketHash}`), not per recipient/count.
 
 ## Inbox delivery
 
@@ -87,6 +89,16 @@ Pointers and vault rows move through `active` → `viewed` / `replied` / `blocke
 - Inbox cap: **50** active pointers per UserState DO
 - Retention: **30 days** (`INBOX_RETENTION_DAYS` in `inbox-pointer.ts`)
 - Telegram `callback_data`: **64 bytes** (enforced in `encodeInboxCallbackData`)
+
+## Webhook idempotency
+
+- Webhook events are keyed by Telegram `update_id`.
+- Claim is two-phase:
+  - `processing` with lease (`lease_until`)
+  - `done` after successful critical processing
+- Duplicate `done` updates are skipped safely.
+- Active `processing` lease prevents side-effect replay.
+- Expired `processing` lease is recoverable by a new claim.
 
 ## Related docs
 

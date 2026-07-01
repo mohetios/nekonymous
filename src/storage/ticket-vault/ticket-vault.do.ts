@@ -5,8 +5,9 @@ import type { StoreTicketInput, TicketVaultRecord } from "./ticket-vault.types";
 type TicketRow = {
   ticket_hash: string;
   owner_proof_tag: string;
-  route_enc: string | null;
+  route_enc: string;
   payload_enc: string | null;
+  meta_enc: string | null;
   status: string;
   created_at: number;
   expires_at: number;
@@ -17,6 +18,7 @@ const rowToRecord = (row: TicketRow): TicketVaultRecord => ({
   ownerProofTag: row.owner_proof_tag,
   routeEnc: row.route_enc,
   payloadEnc: row.payload_enc,
+  ...(row.meta_enc ? { metaEnc: row.meta_enc } : {}),
   status: row.status as TicketVaultRecord["status"],
   createdAt: row.created_at,
   expiresAt: row.expires_at,
@@ -44,8 +46,9 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
       CREATE TABLE IF NOT EXISTS tickets (
         ticket_hash TEXT PRIMARY KEY,
         owner_proof_tag TEXT NOT NULL,
-        route_enc TEXT,
+        route_enc TEXT NOT NULL,
         payload_enc TEXT,
+        meta_enc TEXT,
         status TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL
@@ -126,13 +129,14 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
     try {
       this.ctx.storage.sql.exec(
         `INSERT INTO tickets (
-          ticket_hash, owner_proof_tag, route_enc, payload_enc,
+          ticket_hash, owner_proof_tag, route_enc, payload_enc, meta_enc,
           status, created_at, expires_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         body.ticketHash,
         body.ownerProofTag,
         body.routeEnc,
         body.payloadEnc,
+        body.metaEnc ?? null,
         body.status ?? "active",
         body.createdAt,
         body.expiresAt
@@ -153,7 +157,7 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
       return new Response("Not found", { status: 404 });
     }
 
-    if (row.status === "expired" || row.expires_at < Date.now() || !row.route_enc) {
+    if (row.status === "expired" || row.expires_at < Date.now()) {
       this.expireTicket(ticketHash);
       return new Response("Expired", { status: 410 });
     }
@@ -182,7 +186,6 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
     this.ctx.storage.sql.exec(
       `UPDATE tickets
        SET payload_enc = NULL,
-           route_enc = NULL,
            status = 'expired'
        WHERE ticket_hash = ?`,
       ticketHash

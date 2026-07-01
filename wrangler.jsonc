@@ -24,17 +24,32 @@
   "queues": {
     "producers": [
       {
-        "binding": "TELEGRAM_OUTBOX_QUEUE",
-        "queue": "telegram-outbox"
+        "binding": "NEKO_OUTBOX_QUEUE",
+        "queue": "neko-outbox"
+      },
+      {
+        "binding": "NEKO_STATS_QUEUE",
+        "queue": "neko-stats"
+      },
+      {
+        "binding": "NEKO_DLQ",
+        "queue": "neko-dlq"
       }
     ],
     "consumers": [
       {
-        "queue": "telegram-outbox",
-        "max_batch_size": 25,
+        "queue": "neko-outbox",
+        "max_batch_size": 10,
         "max_batch_timeout": 2,
         "max_retries": 5,
-        "dead_letter_queue": "dead-letter"
+        "dead_letter_queue": "neko-dlq"
+      },
+      {
+        "queue": "neko-stats",
+        "max_batch_size": 50,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "neko-dlq"
       }
     ]
   },

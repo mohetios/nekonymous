@@ -23,14 +23,14 @@ export class ReportLedgerDurableObject extends DurableObject<Environment> {
         reporter_proof_tag TEXT NOT NULL,
         reason_code TEXT NOT NULL,
         evidence_ref TEXT,
-        created_bucket INTEGER NOT NULL
+        created_at INTEGER NOT NULL
       );
 
       CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_report
       ON report_events(reporter_proof_tag);
 
       CREATE INDEX IF NOT EXISTS idx_sender_abuse
-      ON report_events(sender_abuse_tag, created_bucket);
+      ON report_events(sender_abuse_tag, created_at);
     `);
   }
 
@@ -56,7 +56,7 @@ export class ReportLedgerDurableObject extends DurableObject<Environment> {
       !isSafeTag(body.senderAbuseTag) ||
       !isSafeTag(body.reporterProofTag) ||
       !body.reasonCode ||
-      !Number.isSafeInteger(body.createdBucket)
+      !Number.isSafeInteger(body.createdAt)
     ) {
       return new Response("Invalid report", { status: 400 });
     }
@@ -65,7 +65,7 @@ export class ReportLedgerDurableObject extends DurableObject<Environment> {
       this.ctx.storage.sql.exec(
         `INSERT INTO report_events (
           report_id, sender_abuse_tag, pair_abuse_tag, link_abuse_tag,
-          reporter_proof_tag, reason_code, evidence_ref, created_bucket
+          reporter_proof_tag, reason_code, evidence_ref, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         body.reportId,
         body.senderAbuseTag,
@@ -74,7 +74,7 @@ export class ReportLedgerDurableObject extends DurableObject<Environment> {
         body.reporterProofTag,
         body.reasonCode,
         body.evidenceRef ?? null,
-        body.createdBucket
+        body.createdAt
       );
     } catch {
       return Response.json({ ok: true, duplicate: true });

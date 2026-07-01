@@ -5,7 +5,7 @@ export const enqueueTelegramOutbox = async (
   env: Environment,
   job: TelegramOutboxJob
 ): Promise<void> => {
-  await env.TELEGRAM_OUTBOX_QUEUE.send(job, {
+  await env.NEKO_OUTBOX_QUEUE.send(job, {
     contentType: "json",
   });
 };

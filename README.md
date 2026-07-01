@@ -96,7 +96,7 @@ Telegram sees plaintext while messages travel through Telegram. The Worker sees 
 
 ## Architecture
 
-Nekonymous runs as **one Cloudflare Worker** entry (`src/index.ts`) with a Telegram webhook and a queue consumer for non-critical outbound Telegram sends.
+Nekonymous runs as **one Cloudflare Worker** entry (`src/index.ts`) with a Telegram webhook and queue consumers for non-critical outbound delivery and event-driven stats aggregation.
 
 ```mermaid
 flowchart TD
@@ -123,7 +123,7 @@ flowchart TD
 
 | Layer | Technology | Role |
 |--------|------------|------|
-| Entry | Cloudflare Worker | `POST /bot` webhook; `telegram-outbox` queue consumer |
+| Entry | Cloudflare Worker | `POST /bot` webhook; `neko-outbox` + `neko-stats` queue consumers |
 | Bot framework | Grammy | Commands, messages, inline callbacks |
 | Relational data | D1 (`nekonymous_core`) | Users, links, assessment, matching, anonymous stats |
 | Per-user hot state | `UserStateDurableObject` (SQLite) | Inbox pointers, drafts, blocks, labels, rate limits, assessment session |
@@ -173,7 +173,7 @@ D1 stores HMACed Telegram user hashes and encrypted Telegram chat ids, not raw T
 | `contact_labels` | Private nicknames per sender |
 | `rate_limits` | Global per-user action throttle (1-second gap) |
 | `assessment_sessions` | In-progress assessment answers |
-| `processed_events` | Reserved schema |
+| `processed_events` | Webhook update idempotency (`processing` lease, `done` completion) |
 
 **`TelegramOutboxDurableObject`** (one instance per chat hash):
 
@@ -466,7 +466,8 @@ Local secrets live in `.dev.vars` (from `.env.example`). Production secrets use 
 | `TELEGRAM_OUTBOX_DO` | Durable Object | yes | Idempotent outbound Telegram sends |
 | `TICKET_VAULT` | Durable Object | yes | Sealed Ticket Routing vault |
 | `REPORT_LEDGER` | Durable Object | yes | Blind Abuse Ledger |
-| `TELEGRAM_OUTBOX_QUEUE` | Queue `telegram-outbox` | yes | Async recipient notifications |
+| `NEKO_OUTBOX_QUEUE` | Queue `neko-outbox` | yes | Async recipient notifications |
+| `NEKO_STATS_QUEUE` | Queue `neko-stats` | yes | Event-driven stats aggregation |
 | `AI` | Workers AI | yes | Profile embedding generation |
 | `PROFILE_VECTORS` | Vectorize `nekonymous-profile-vectors` | yes | Match candidate discovery |
 
@@ -541,7 +542,7 @@ Replace the URL with your Worker route or tunnel URL.
 2. Create or bind resources referenced in `wrangler.jsonc` (or start from `wrangler.jsonc.example`):
    - D1 database `nekonymous_core`
    - KV namespace `NEKO_KV`
-   - Queues `telegram-outbox` and dead-letter queue
+   - Queues `neko-outbox`, `neko-stats`, and dead-letter queue `neko-dlq`
    - Durable Object classes configured in `wrangler.jsonc` (`UserStateDurableObjectV2`, `TelegramOutboxDurableObjectV2`, `TicketVaultDurableObjectV2`, `ReportLedgerDurableObjectV2`)
    - Vectorize index `nekonymous-profile-vectors`
    - Workers AI binding

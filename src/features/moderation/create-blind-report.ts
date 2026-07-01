@@ -2,7 +2,6 @@ import type { Environment } from "../../types";
 import { createReportTag } from "../../ticketing/keys";
 import { randomBase64Url } from "../../ticketing/base64url";
 import { recordReportEvent } from "../../storage/report-ledger/report-ledger.client";
-import { createdBucketForTime } from "../messaging/inbox-pointer";
 import type { RouteCapsule } from "../messaging/create-sealed-ticket";
 import { deriveBlindAbuseTags } from "./abuse-tags";
 
@@ -31,7 +30,7 @@ export const createBlindReport = async (
     reporterProofTag,
     reasonCode: input.reasonCode,
     evidenceRef: input.ticketHash.slice(0, 16),
-    createdBucket: createdBucketForTime(Date.now()),
+    createdAt: Date.now(),
   });
 
   return {

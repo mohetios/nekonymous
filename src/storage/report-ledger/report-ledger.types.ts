@@ -6,7 +6,7 @@ export type ReportLedgerEvent = {
   reporterProofTag: string;
   reasonCode: string;
   evidenceRef?: string | null;
-  createdBucket: number;
+  createdAt: number;
 };
 
 export type ReportLedgerResult = {

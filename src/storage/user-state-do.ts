@@ -6,6 +6,7 @@ import type {
   UserDraftMode,
 } from "../status";
 import { isInboxPointerTransition } from "../status";
+import { resolveProcessedEventClaim } from "./processed-events-policy";
 
 const INBOX_MAX_TICKETS = 50;
 const INBOX_PAGE_SIZE = 10;
@@ -15,6 +16,9 @@ const RATE_LIMIT_MS = 1000;
 const RATE_LIMIT_SCOPE = "user_action";
 const ASSESSMENT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const ASSESSMENT_SESSION_ID = "current";
+const PROCESSED_EVENT_LEASE_MS = 30 * 1000;
+const PROCESSED_EVENT_DONE_TTL_MS = 24 * 60 * 60 * 1000;
+const PROCESSED_EVENT_CLEANUP_LIMIT = 100;
 
 type UserStateRow = {
   user_id: string;
@@ -65,6 +69,16 @@ type InboxPointerRow = {
   expires_at: number;
   delivered_at: number | null;
   dedupe_key: string | null;
+};
+
+type ProcessedEventRow = {
+  key: string;
+  status: "processing" | "done" | "failed";
+  lease_until: number | null;
+  attempts: number;
+  created_at: number;
+  updated_at: number;
+  expires_at: number;
 };
 
 const rowToDraft = (row: DraftRow): UserDraft => ({
@@ -180,12 +194,19 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
       CREATE TABLE IF NOT EXISTS processed_events (
         key TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'processing',
+        lease_until INTEGER,
+        attempts INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL
       );
 
       CREATE INDEX IF NOT EXISTS idx_processed_events_expires
         ON processed_events(expires_at);
+      
+      CREATE INDEX IF NOT EXISTS idx_processed_events_lease
+        ON processed_events(status, lease_until);
 
       CREATE TABLE IF NOT EXISTS assessment_sessions (
         id TEXT PRIMARY KEY,
@@ -202,6 +223,36 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
       INSERT OR IGNORE INTO _sql_schema_migrations (id) VALUES (1);
     `);
+
+    // Backward-compatible column backfill for already-created DO databases.
+    try {
+      this.ctx.storage.sql.exec(
+        "ALTER TABLE processed_events ADD COLUMN status TEXT NOT NULL DEFAULT 'processing'"
+      );
+    } catch {
+      // column already exists
+    }
+    try {
+      this.ctx.storage.sql.exec(
+        "ALTER TABLE processed_events ADD COLUMN lease_until INTEGER"
+      );
+    } catch {
+      // column already exists
+    }
+    try {
+      this.ctx.storage.sql.exec(
+        "ALTER TABLE processed_events ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0"
+      );
+    } catch {
+      // column already exists
+    }
+    try {
+      this.ctx.storage.sql.exec(
+        "ALTER TABLE processed_events ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0"
+      );
+    } catch {
+      // column already exists
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -233,6 +284,15 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     }
     if (request.method === "POST" && pathname === "/consume-rate-limit") {
       return this.consumeRateLimit();
+    }
+    if (request.method === "POST" && pathname === "/processed-events/claim") {
+      return this.claimProcessedEvent(request);
+    }
+    if (request.method === "POST" && pathname === "/processed-events/complete") {
+      return this.completeProcessedEvent(request);
+    }
+    if (request.method === "POST" && pathname === "/processed-events/fail") {
+      return this.failProcessedEvent(request);
     }
     if (request.method === "POST" && pathname === "/add-inbox-pointer") {
       return this.addInboxPointer(request);
@@ -479,6 +539,127 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       now
     );
     return Response.json({ limited: false });
+  }
+
+  private cleanupProcessedEvents(now: number): void {
+    this.ctx.storage.sql.exec(
+      `DELETE FROM processed_events
+       WHERE key IN (
+         SELECT key FROM processed_events
+         WHERE expires_at <= ?
+         ORDER BY expires_at ASC
+         LIMIT ${PROCESSED_EVENT_CLEANUP_LIMIT}
+       )`,
+      now
+    );
+  }
+
+  private async claimProcessedEvent(request: Request): Promise<Response> {
+    const body = await request.json<{ eventKey?: string; leaseMs?: number }>();
+    const eventKey = body.eventKey?.trim();
+    const leaseMs =
+      typeof body.leaseMs === "number" && Number.isFinite(body.leaseMs)
+        ? Math.max(1000, Math.min(24 * 60 * 60 * 1000, Math.floor(body.leaseMs)))
+        : PROCESSED_EVENT_LEASE_MS;
+
+    if (!eventKey || eventKey.length > 128) {
+      return new Response("Invalid event key", { status: 400 });
+    }
+
+    const now = Date.now();
+    this.cleanupProcessedEvents(now);
+    const leaseUntil = now + leaseMs;
+    const expiresAt = now + PROCESSED_EVENT_DONE_TTL_MS;
+    const existing = this.ctx.storage.sql
+      .exec<ProcessedEventRow>(
+        `SELECT key, status, lease_until, attempts, created_at, updated_at, expires_at
+         FROM processed_events
+         WHERE key = ?`,
+        eventKey
+      )
+      .toArray()[0];
+
+    const claimState = resolveProcessedEventClaim(
+      existing
+        ? {
+            status: existing.status,
+            leaseUntil: existing.lease_until,
+            expiresAt: existing.expires_at,
+          }
+        : null,
+      now
+    );
+
+    if (claimState === "done") {
+      return Response.json({ state: "done" as const });
+    }
+
+    if (claimState === "processing") {
+      return Response.json({ state: "processing" as const });
+    }
+
+    if (!existing) {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO processed_events (
+          key, status, lease_until, attempts, created_at, updated_at, expires_at
+        ) VALUES (?, 'processing', ?, 1, ?, ?, ?)`,
+        eventKey,
+        leaseUntil,
+        now,
+        now,
+        expiresAt
+      );
+      return Response.json({ state: "acquired" as const });
+    }
+
+    this.ctx.storage.sql.exec(
+      `UPDATE processed_events
+       SET status = 'processing',
+           lease_until = ?,
+           attempts = attempts + 1,
+           updated_at = ?,
+           expires_at = ?
+       WHERE key = ?`,
+      leaseUntil,
+      now,
+      expiresAt,
+      eventKey
+    );
+    return Response.json({ state: "acquired" as const });
+  }
+
+  private async completeProcessedEvent(request: Request): Promise<Response> {
+    const body = await request.json<{ eventKey?: string }>();
+    const eventKey = body.eventKey?.trim();
+    if (!eventKey || eventKey.length > 128) {
+      return new Response("Invalid event key", { status: 400 });
+    }
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      `UPDATE processed_events
+       SET status = 'done',
+           lease_until = NULL,
+           updated_at = ?,
+           expires_at = ?
+       WHERE key = ?`,
+      now,
+      now + PROCESSED_EVENT_DONE_TTL_MS,
+      eventKey
+    );
+    return Response.json({ ok: true });
+  }
+
+  private async failProcessedEvent(request: Request): Promise<Response> {
+    const body = await request.json<{ eventKey?: string }>();
+    const eventKey = body.eventKey?.trim();
+    if (!eventKey || eventKey.length > 128) {
+      return new Response("Invalid event key", { status: 400 });
+    }
+    this.ctx.storage.sql.exec(
+      `DELETE FROM processed_events WHERE key = ?`,
+      eventKey
+    );
+    return Response.json({ ok: true });
   }
 
   private async addInboxPointer(request: Request): Promise<Response> {

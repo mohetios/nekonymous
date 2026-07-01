@@ -145,6 +145,43 @@ export const consumeUserRateLimit = async (
   return body.limited;
 };
 
+export const claimProcessedEvent = async (
+  env: Environment,
+  eventKey: string,
+  leaseMs?: number
+): Promise<"acquired" | "processing" | "done"> => {
+  const body = await doFetch<{ state: "acquired" | "processing" | "done" }>(
+    env,
+    "__webhook_events__",
+    "/processed-events/claim",
+    {
+      method: "POST",
+      body: JSON.stringify({ eventKey, leaseMs }),
+    }
+  );
+  return body.state;
+};
+
+export const completeProcessedEvent = async (
+  env: Environment,
+  eventKey: string
+): Promise<void> => {
+  await doFetch(env, "__webhook_events__", "/processed-events/complete", {
+    method: "POST",
+    body: JSON.stringify({ eventKey }),
+  });
+};
+
+export const failProcessedEvent = async (
+  env: Environment,
+  eventKey: string
+): Promise<void> => {
+  await doFetch(env, "__webhook_events__", "/processed-events/fail", {
+    method: "POST",
+    body: JSON.stringify({ eventKey }),
+  });
+};
+
 export type AddInboxPointerInput = {
   ticketHash: string;
   sealedTicketRef: string;

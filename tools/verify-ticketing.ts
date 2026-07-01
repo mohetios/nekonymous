@@ -62,6 +62,10 @@ if (!hash || hash.length < 16) {
 
 const ticketRef = randomTicketRef();
 const sealedTicketHash = await createTicketHash(pepper, ticketRef);
+if (sealedTicketHash.includes(ticketRef)) {
+  console.error("ticketRef should never be stored as raw lookup");
+  process.exit(1);
+}
 const ownerProofTag = await createOwnerProofTag(
   pepper,
   hash,
@@ -72,9 +76,23 @@ const ownerProofCandidate = await createOwnerProofTag(
   hash,
   sealedTicketHash
 );
+const wrongActorHash = await hmacTelegramUserId(pepper, 43);
+const wrongOwnerProof = await createOwnerProofTag(
+  pepper,
+  wrongActorHash,
+  sealedTicketHash
+);
 
 if (!constantTimeEqual(ownerProofTag, ownerProofCandidate)) {
   console.error("Owner proof check failed");
+  process.exit(1);
+}
+if (constantTimeEqual(ownerProofTag, wrongOwnerProof)) {
+  console.error("Owner proof must reject wrong actor");
+  process.exit(1);
+}
+if (ticketRef.length > 40) {
+  console.error("ticketRef too long for callback_data safety");
   process.exit(1);
 }
 
