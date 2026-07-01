@@ -43,6 +43,8 @@ import {
 import { escapeHtml, withHtml } from "../../utils/tools";
 import { sendDecryptedMessage } from "../../utils/sender";
 import { logBotError } from "../../utils/logs";
+import { emitStat } from "../../stats/emit-stat";
+import { STAT_EVENTS } from "../../stats/events";
 import {
   resolveTicketAction,
   isExpiredTicketAction,
@@ -341,6 +343,7 @@ export const handleBlockAction = async (
     );
 
     await addBlock(env, user.id, blockHash);
+    await emitStat(env, STAT_EVENTS.BLOCK_CREATED);
     await Promise.all([
       markInboxPointerBlocked(env, user.id, resolved.ticketHash),
       markTicketBlocked(env, resolved.ticketHash),
@@ -540,6 +543,9 @@ export const handleReportAction = async (
       ticketHash: resolved.ticketHash,
       route: resolved.route,
       reasonCode: "inbox_report",
+    });
+    await emitStat(env, STAT_EVENTS.REPORT_CREATED, {
+      statKey: "inbox_report",
     });
     await Promise.all([
       markInboxPointerReported(env, user.id, resolved.ticketHash),

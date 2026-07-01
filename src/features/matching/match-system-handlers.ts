@@ -13,6 +13,8 @@ import {
 import { MENU } from "../../bot/menu";
 import { withHtml } from "../../utils/tools";
 import { resolveOrCreateUser } from "../identity/identity-service";
+import { emitStat } from "../../stats/emit-stat";
+import { STAT_EVENTS } from "../../stats/events";
 import { getLatestAssessmentProfile } from "../assessment/assessment-profile-service";
 import { MATCH_SYSTEM_CALLBACK, MATCH_SYSTEM_INTRO } from "./match-system-callbacks";
 import { MATCH_DISABLED, MATCH_ENABLED } from "./match-copy";
@@ -245,6 +247,7 @@ export const handleMatchSystemCallback = async (
           await sendMatchDashboard(ctx, userId, env);
           return;
         }
+        await emitStat(env, STAT_EVENTS.DISCOVERABILITY_ENABLED);
         await ctx.reply(MATCH_ENABLED, {
           reply_markup: await matchHubReplyMenu(userId, env),
         });
@@ -253,6 +256,7 @@ export const handleMatchSystemCallback = async (
 
       case MATCH_SYSTEM_CALLBACK.disable: {
         await disableDiscoverability(userId, env);
+        await emitStat(env, STAT_EVENTS.DISCOVERABILITY_DISABLED);
         await ctx.reply(MATCH_DISABLED, {
           reply_markup: await matchHubReplyMenu(userId, env),
         });

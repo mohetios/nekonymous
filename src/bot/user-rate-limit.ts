@@ -6,6 +6,8 @@ import {
   RATE_LIMIT_MESSAGE,
 } from "../i18n/messages";
 import { consumeUserRateLimit } from "../storage/user-state-client";
+import { emitUserActive } from "../stats/emit-user-active";
+import { type NekoContext } from "../utils/worker";
 
 const isUserInputUpdate = (ctx: Context): boolean =>
   ctx.message !== undefined || ctx.callbackQuery !== undefined;
@@ -19,9 +21,11 @@ export const createUserRateLimitMiddleware =
     }
 
     let userId: string;
+    let actorHash: string;
     try {
       const user = await resolveOrCreateUser(ctx, env);
       userId = user.id;
+      actorHash = user.telegram_user_hash;
     } catch {
       await next();
       return;
@@ -31,6 +35,9 @@ export const createUserRateLimitMiddleware =
       await replyRateLimited(ctx);
       return;
     }
+
+    const nekoCtx = ctx as NekoContext;
+    nekoCtx.deferWork?.(emitUserActive(env, actorHash));
 
     await next();
   };

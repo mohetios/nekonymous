@@ -51,13 +51,14 @@
     "test:idempotency": "node --experimental-strip-types tools/verify-idempotency.ts",
     "test:assessment": "node --experimental-strip-types tools/verify-assessment.ts",
     "test:matching": "node --experimental-strip-types tools/verify-matching.ts",
+    "test:stats": "node --experimental-strip-types tools/verify-stats.ts",
     "audit:d1": "./tools/audit-d1.sh",
     "audit:d1:local": "./tools/audit-d1.sh --local",
     "audit:ticket-storage": "./tools/audit-ticket-storage.sh",
     "flush:remote": "./tools/flush-remote.sh",
     "flush:remote:local": "./tools/flush-remote.sh --local",
     "bot:profile": "./tools/set-telegram-bot-profile.sh",
-    "test": "pnpm run test:ticketing && pnpm run test:idempotency && pnpm run test:assessment && pnpm run test:matching",
+    "test": "pnpm run test:ticketing && pnpm run test:idempotency && pnpm run test:assessment && pnpm run test:matching && pnpm run test:stats",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test && pnpm run audit:ticket-storage"
   },
   "dependencies": {

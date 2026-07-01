@@ -21,6 +21,7 @@ export const MENU = {
   resetMatchHistory: "♻️ بازنشانی پیشنهادها",
   clearData: "🗑️ پاک کردن حساب",
   technical: "🧾 نکات فنی",
+  stats: "📊 آمار",
   hubBack: "↩️ بازگشت",
   settingsBack: "↩️ بازگشت",
   home: "🏠 منوی اصلی",

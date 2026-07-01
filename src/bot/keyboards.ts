@@ -90,6 +90,8 @@ export const buildSettingsMenu = (paused: boolean): Keyboard =>
     .text(MENU.about)
     .text(MENU.technical)
     .row()
+    .text(MENU.stats)
+    .row()
     .text(MENU.clearBlockList)
     .text(MENU.resetMatchHistory)
     .row()
@@ -97,6 +99,9 @@ export const buildSettingsMenu = (paused: boolean): Keyboard =>
     .row()
     .text(MENU.home)
     .resized();
+
+export const buildStatsPageKeyboard = (): InlineKeyboard =>
+  new InlineKeyboard().text("↩️ بازگشت به تنظیمات", SETTINGS_CALLBACK.back);
 
 export const buildConfirmClearDataKeyboard = (): InlineKeyboard =>
   new InlineKeyboard()

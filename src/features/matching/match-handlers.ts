@@ -1,5 +1,7 @@
 import type { Context } from "grammy";
 import type { Environment } from "../../types";
+import { emitStat } from "../../stats/emit-stat";
+import { STAT_EVENTS } from "../../stats/events";
 import { logBotError } from "../../utils/logs";
 import { HuhMessage } from "../../i18n/messages";
 import { buildDraftMenu, buildMatchSystemMenu, mainMenu } from "../../bot/keyboards";
@@ -242,6 +244,7 @@ const runMatchSearch = async (
   }
 
   const result = await findTopMatches(userId, env);
+  await emitStat(env, STAT_EVENTS.SUGGESTION_SEARCH);
   if (!result.ok) {
     if (result.reason === "search_limit") {
       await editMatchMessage(ctx, MATCH_SEARCH_LIMIT, readyInlineOptions());

@@ -9,6 +9,8 @@ import {
   withHtml,
 } from "../../utils/tools";
 import { resolveOrCreateUser } from "../identity/identity-service";
+import { emitStat } from "../../stats/emit-stat";
+import { STAT_EVENTS } from "../../stats/events";
 import {
   cancelAssessmentSession,
   getAssessmentSession,
@@ -182,6 +184,7 @@ const startNewAssessment = async (
   if (!session) {
     throw new Error("Failed to start assessment session");
   }
+  await emitStat(env, STAT_EVENTS.ASSESSMENT_STARTED);
   await showQuestion(ctx, 0, !!ctx.callbackQuery);
 };
 

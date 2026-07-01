@@ -19,7 +19,6 @@ import {
   SETTINGS_CLEAR_DATA_DONE_MESSAGE,
   SETTINGS_CLEAR_DATA_WARNING_MESSAGE,
   SETTINGS_EDIT_NAME_MESSAGE,
-  SETTINGS_HOME_MESSAGE,
   SETTINGS_CANCEL_DRAFT_MESSAGE,
   SETTINGS_PAUSE_ON_MESSAGE,
   SETTINGS_RESUME_MESSAGE,
@@ -33,12 +32,7 @@ import {
   SETTINGS_RESET_MATCH_REQUESTS_CLEARED,
   SETTINGS_RESET_MATCH_BLOCKS_CLEARED,
   TECHNICAL_ABOUT_MESSAGE,
-  SETTINGS_PAUSE_ACTIVE,
-  SETTINGS_PAUSE_DISABLE_DESC,
-  SETTINGS_PAUSE_ENABLE_DESC,
-  SETTINGS_PAUSE_INACTIVE,
 } from "./settings-copy";
-import { DISPLAY_NAME_UNSET } from "../../i18n/defaults";
 import { HuhMessage, ABOUT_PRIVACY_COMMAND_MESSAGE } from "../../i18n/messages";
 import { getPlatformStats } from "../platform/platform-stats-service";
 import {
@@ -48,7 +42,6 @@ import {
 } from "../../utils/tools";
 import {
   buildUserDeepLink,
-  publicDisplayName,
   sanitizeDisplayName,
 } from "../../utils/user";
 import {
@@ -69,6 +62,9 @@ import {
   setDraft,
   setPaused,
 } from "../../storage/user-state-client";
+import { renderSettingsHome, renderStatsPage } from "./render-stats-page";
+import { emitStat } from "../../stats/emit-stat";
+import { STAT_EVENTS } from "../../stats/events";
 
 const formatAboutPrivacyMessage = async (env: Environment): Promise<string> => {
   const stats = await getPlatformStats(env);
@@ -110,32 +106,7 @@ const showTechnicalAbout = async (
   );
 };
 
-const formatSettingsHome = (user: BotUser): string => {
-  const paused = user.paused;
-  return SETTINGS_HOME_MESSAGE.replace(
-    "USER_NAME",
-    escapeHtml(publicDisplayName(user, DISPLAY_NAME_UNSET))
-  )
-    .replace("PAUSE_STATUS", paused ? SETTINGS_PAUSE_INACTIVE : SETTINGS_PAUSE_ACTIVE)
-    .replace(
-      "PAUSE_ACTION_LABEL",
-      paused ? MENU.resumeInbox : MENU.pauseInbox
-    )
-    .replace(
-      "PAUSE_ACTION_DESC",
-      paused ? SETTINGS_PAUSE_ENABLE_DESC : SETTINGS_PAUSE_DISABLE_DESC
-    );
-};
-
-const showSettingsHome = async (
-  ctx: Context,
-  user: BotUser
-): Promise<void> => {
-  await ctx.reply(
-    formatSettingsHome(user),
-    withHtml({ reply_markup: buildSettingsMenu(user.paused) })
-  );
-};
+const showSettingsHome = renderSettingsHome;
 
 export const handleSettingsCommand = async (
   ctx: Context,
@@ -238,6 +209,11 @@ export const handleSettingsMenu = async (
       await showAboutPrivacy(ctx, user, env);
       return true;
 
+    case MENU.stats:
+      await clearDraft(env, user.id);
+      await renderStatsPage(ctx, user, env);
+      return true;
+
     case MENU.technical:
       await showTechnicalAbout(ctx, user);
       return true;
@@ -265,6 +241,7 @@ export const handleSettingsMenu = async (
     case MENU.pauseInbox:
       await setPaused(env, user.id, true);
       await clearDraft(env, user.id);
+      await emitStat(env, STAT_EVENTS.PAUSE_ENABLED);
       await ctx.reply(
         SETTINGS_PAUSE_ON_MESSAGE,
         withHtml({ reply_markup: buildSettingsMenu(true) })
@@ -273,6 +250,7 @@ export const handleSettingsMenu = async (
 
     case MENU.resumeInbox:
       await setPaused(env, user.id, false);
+      await emitStat(env, STAT_EVENTS.PAUSE_DISABLED);
       await ctx.reply(
         SETTINGS_RESUME_MESSAGE,
         withHtml({ reply_markup: buildSettingsMenu(false) })
@@ -394,6 +372,17 @@ export const handleSettingsCallback = async (
     const user = await toBotUser(d1User, env);
 
     await ctx.answerCallbackQuery();
+
+    if (data === SETTINGS_CALLBACK.stats) {
+      await renderStatsPage(ctx, user, env);
+      return;
+    }
+
+    if (data === SETTINGS_CALLBACK.back) {
+      await showSettingsHome(ctx, user);
+      return;
+    }
+
     if (ctx.callbackQuery.message) {
       await ctx.editMessageReplyMarkup({ reply_markup: undefined });
     }
@@ -451,6 +440,7 @@ export const handleSettingsCallback = async (
         return;
       }
       const freshD1 = await clearUserAccountAndRecreate(ctx, user.id, env);
+      await emitStat(env, STAT_EVENTS.HARD_RESET);
       const freshUser = await toBotUser(freshD1, env);
       await clearDraft(env, freshUser.id);
       await ctx.reply(
