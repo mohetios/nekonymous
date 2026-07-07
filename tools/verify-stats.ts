@@ -10,6 +10,9 @@ const assert = (condition: boolean, message: string): void => {
 };
 
 const bucketSensitiveCount = (value: number): string => {
+  if (value <= 0) {
+    return "۰";
+  }
   if (value < 5) {
     return "کمتر از ۵";
   }
@@ -33,10 +36,10 @@ for (const callback of Object.values(SETTINGS_CALLBACK)) {
   );
 }
 
-// 3) low report counts are bucketed
+// 3) low report counts are bucketed; zero stays explicit
 assert(
-  bucketSensitiveCount(0) === "کمتر از ۵",
-  "zero reports must bucket to کمتر از ۵"
+  bucketSensitiveCount(0) === "۰",
+  "zero reports must render as ۰"
 );
 assert(
   bucketSensitiveCount(4) === "کمتر از ۵",
@@ -72,12 +75,16 @@ const [
 
 // 4) empty stats state copy exists in formatter source
 assert(
-  formatSource.includes("هنوز داده‌ی کافی برای نمایش آمار وجود ندارد"),
+  formatSource.includes("فعلاً داده‌ای برای نمایش نیست"),
   "missing stats must render empty state copy"
 );
 assert(
-  formatSource.includes("آمار کلی نکونیموس"),
+  formatSource.includes("آمار کلی نِکونیموس"),
   "stats page must include aggregate title"
+);
+assert(
+  formatSource.includes("formatStatCount"),
+  "stats formatter must always render explicit zero counts"
 );
 
 // 5) formatted stats source must not include risky tokens

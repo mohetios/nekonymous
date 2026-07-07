@@ -57,19 +57,19 @@
     "bindings": [
       {
         "name": "USER_STATE_DO",
-        "class_name": "UserStateDurableObjectV2"
+        "class_name": "UserStateDurableObjectV3"
       },
       {
         "name": "TELEGRAM_OUTBOX_DO",
-        "class_name": "TelegramOutboxDurableObjectV2"
+        "class_name": "TelegramOutboxDurableObjectV3"
       },
       {
         "name": "TICKET_VAULT",
-        "class_name": "TicketVaultDurableObjectV2"
+        "class_name": "TicketVaultDurableObjectV3"
       },
       {
         "name": "REPORT_LEDGER",
-        "class_name": "ReportLedgerDurableObjectV2"
+        "class_name": "ReportLedgerDurableObjectV3"
       }
     ]
   },
@@ -113,6 +113,26 @@
         "TelegramOutboxDurableObject",
         "TicketVaultDurableObject",
         "ReportLedgerDurableObject"
+      ]
+    },
+    {
+      // Destructive reset phase 3: fresh V3 DO classes (remote flush).
+      "tag": "v6-create-reset-durable-objects-v3",
+      "new_sqlite_classes": [
+        "UserStateDurableObjectV3",
+        "TelegramOutboxDurableObjectV3",
+        "TicketVaultDurableObjectV3",
+        "ReportLedgerDurableObjectV3"
+      ]
+    },
+    {
+      // Destructive reset phase 4: delete V2 DO storage after V3 is live.
+      "tag": "v7-delete-durable-objects-v2",
+      "deleted_classes": [
+        "UserStateDurableObjectV2",
+        "TelegramOutboxDurableObjectV2",
+        "TicketVaultDurableObjectV2",
+        "ReportLedgerDurableObjectV2"
       ]
     }
   ],

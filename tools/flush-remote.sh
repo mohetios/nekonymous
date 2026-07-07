@@ -5,7 +5,7 @@
 #   ./tools/flush-remote.sh          # remote only
 #   ./tools/flush-remote.sh --local  # also flush local D1/KV (vectorize is remote-only)
 #
-# Requires: wrangler auth and the current wrangler.jsonc reset migration.
+# Requires: wrangler auth and pending V3 DO reset migration (v6) in wrangler.jsonc.
 
 set -euo pipefail
 
@@ -23,8 +23,9 @@ KV_BINDING="NEKO_KV"
 VECTOR_INDEX="nekonymous-profile-vectors"
 VECTOR_DIM=1024
 
-run_worker_deploy_for_do_reset() {
-  echo "==> Worker deploy for Durable Object reset migration"
+run_worker_deploy() {
+  local label="$1"
+  echo "==> Worker deploy (${label})"
   "${WRANGLER[@]}" deploy --minify
 }
 
@@ -83,16 +84,18 @@ run_vectorize_recreate() {
 }
 
 echo "!!! DESTRUCTIVE REMOTE RESET for Nekonymous !!!"
-echo "    Durable Objects: reset only when a new class-generation migration is pending"
-echo "    D1: all tables dropped + migrations reapplied"
+echo "    Durable Objects: two deploys (V3 create, then V2 delete)"
+echo "    D1: all tables dropped + squashed migration reapplied"
 echo "    KV: all keys deleted"
 echo "    Vectorize: index recreated empty"
 echo
 
-run_worker_deploy_for_do_reset
+run_worker_deploy "phase 1 — bind V3 durable objects"
 run_d1_flush --remote
 run_kv_flush --remote
 run_vectorize_recreate
+./tools/append-wrangler-do-delete-v2.sh
+run_worker_deploy "phase 2 — delete V2 durable object storage"
 
 if $LOCAL_TOO; then
   run_d1_flush --local
@@ -102,4 +105,4 @@ fi
 echo
 echo "Remote flush complete."
 echo "Users must /start again."
-echo "Note: future DO wipes require bumping the DO class generation and adding a delete migration."
+echo "Note: future DO wipes require a new class generation and delete migration pair."

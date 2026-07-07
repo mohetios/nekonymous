@@ -3,6 +3,7 @@
 
 PRAGMA foreign_keys = OFF;
 
+DROP TABLE IF EXISTS platform_stats;
 DROP TABLE IF EXISTS platform_daily_unique_stats;
 DROP TABLE IF EXISTS platform_daily_stats_by_key;
 DROP TABLE IF EXISTS platform_daily_stats;

@@ -15,6 +15,11 @@ export class TelegramOutboxDurableObjectV2 extends TelegramOutboxDurableObjectBa
 export class TicketVaultDurableObjectV2 extends TicketVaultDurableObjectBase {}
 export class ReportLedgerDurableObjectV2 extends ReportLedgerDurableObjectBase {}
 
+export class UserStateDurableObjectV3 extends UserStateDurableObjectBase {}
+export class TelegramOutboxDurableObjectV3 extends TelegramOutboxDurableObjectBase {}
+export class TicketVaultDurableObjectV3 extends TicketVaultDurableObjectBase {}
+export class ReportLedgerDurableObjectV3 extends ReportLedgerDurableObjectBase {}
+
 export default {
   fetch: async (request: Request, env: Environment, ctx: ExecutionContext) => {
     return handleRequest(request, env, ctx);

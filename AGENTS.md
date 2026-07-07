@@ -223,7 +223,7 @@ GitHub Actions (`.github/workflows/`) are **manual only** (`workflow_dispatch`).
 | queue  | `neko-outbox` | Outbound Telegram job consumer        |
 | queue  | `neko-stats` | Aggregate stats events into D1        |
 
-Export `UserStateDurableObjectV2`, `TicketVaultDurableObjectV2`, `ReportLedgerDurableObjectV2`, and `TelegramOutboxDurableObjectV2` from `src/index.ts` for Wrangler DO bindings.
+Export `UserStateDurableObjectV3`, `TicketVaultDurableObjectV3`, `ReportLedgerDurableObjectV3`, and `TelegramOutboxDurableObjectV3` from `src/index.ts` for Wrangler DO bindings.
 
 Route registration lives in `src/bot/router.ts`. Use `src/utils/router.ts` (`Router` class) for new HTTP routes. Do not add a second router or framework.
 

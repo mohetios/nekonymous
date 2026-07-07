@@ -1,19 +1,23 @@
 import { convertToPersianNumbers } from "../utils/tools";
 import type { PeriodCounts, PublicBotStats } from "./stats-reader";
 
-export const SETTINGS_STATS_EMPTY_MESSAGE = `📊 <b>آمار کلی نکونیموس</b>
+export const SETTINGS_STATS_EMPTY_MESSAGE = `📊 <b>آمار کلی نِکونیموس</b>
 
-هنوز داده‌ی کافی برای نمایش آمار وجود ندارد.
+<i>فعلاً داده‌ای برای نمایش نیست.</i>
 
-آمار با تأخیر کوتاه به‌روزرسانی می‌شود.`;
+همه‌ی اعداد از شمارش‌های تجمیعی می‌آیند و با تأخیر کوتاه به‌روز می‌شوند.`;
 
 export const SETTINGS_STATS_ERROR_MESSAGE =
   "در حال حاضر امکان نمایش آمار نیست. کمی بعد دوباره امتحان کن.";
 
-const formatCount = (value: number): string =>
-  convertToPersianNumbers(Math.max(0, value));
+/** Always render a non-negative integer with Persian digits; empty → ۰. */
+export const formatStatCount = (value: number | null | undefined): string =>
+  convertToPersianNumbers(Math.max(0, Math.floor(value ?? 0)));
 
 export const bucketSensitiveCount = (value: number): string => {
+  if (value <= 0) {
+    return formatStatCount(0);
+  }
   if (value < 5) {
     return "کمتر از ۵";
   }
@@ -26,84 +30,63 @@ export const bucketSensitiveCount = (value: number): string => {
   return "۱۰۰+";
 };
 
-const formatPeriodLines = (counts: PeriodCounts): string =>
-  `• امروز: ${formatCount(counts.today)}
-• ۷ روز اخیر: ${formatCount(counts.days7)}
-• ۳۰ روز اخیر: ${formatCount(counts.days30)}`;
+const periodInline = (counts: PeriodCounts): string =>
+  `امروز <b>${formatStatCount(counts.today)}</b> · ۷روز <b>${formatStatCount(counts.days7)}</b> · ۳۰روز <b>${formatStatCount(counts.days30)}</b>`;
 
-const hasAnyActivity = (stats: PublicBotStats): boolean => {
-  if ((stats.totalUsers ?? 0) > 0) {
-    return true;
+const section = (icon: string, title: string, lines: string[]): string =>
+  [`${icon} <b>${title}</b>`, ...lines].join("\n");
+
+const formatReplyRate7d = (stats: PublicBotStats): string => {
+  if (stats.messagesDelivered7d <= 0) {
+    return formatStatCount(0);
   }
-  const periods = [
-    stats.newUsers,
-    stats.messages,
-    stats.replies,
-    stats.reports,
-    stats.linksCreated,
-    stats.inboxOpens,
-    stats.assessmentsCompleted,
-    stats.suggestionSearches,
-  ];
-  return periods.some(
-    (period) => period.today > 0 || period.days7 > 0 || period.days30 > 0
+  const rate = Math.min(
+    100,
+    Math.round((stats.replies.days7 / stats.messagesDelivered7d) * 100)
   );
+  return formatStatCount(rate);
 };
 
 export const formatPublicBotStatsMessage = (stats: PublicBotStats): string => {
-  if (!stats.hasDailyData && !hasAnyActivity(stats) && (stats.totalUsers ?? 0) === 0) {
+  if (stats.totalUsers === null && !stats.hasDailyData) {
     return SETTINGS_STATS_EMPTY_MESSAGE;
   }
 
-  const lines = [
-    "📊 <b>آمار کلی نکونیموس</b>",
+  const totalUsers = stats.totalUsers ?? 0;
+
+  const blocks = [
+    "📊 <b>آمار کلی نِکونیموس</b>",
     "",
-    "این آمار فقط به‌صورت کلی و تجمیعی نمایش داده می‌شود.",
-    "هیچ متن پیام، مسیر پیام، فرستنده، گیرنده یا اطلاعات قابل اتصال به کاربران در این صفحه نمایش داده نمی‌شود.",
+    "<i>تجمیعی و ناشناس — بدون متن پیام، مسیر، فرستنده، گیرنده یا اطلاعات قابل اتصال به کاربر.</i>",
     "",
+    section("👥", "کاربران", [
+      `کل · <b>${formatStatCount(totalUsers)}</b>`,
+      `تازه‌وارد · ${periodInline(stats.newUsers)}`,
+    ]),
+    "",
+    section("🟢", "کاربران فعال", [periodInline(stats.activeUsers)]),
+    "",
+    section("💬", "پیام‌های ناشناس", [periodInline(stats.messages)]),
+    "",
+    section("↩️", "پاسخ‌های ناشناس", [
+      periodInline(stats.replies),
+      `نرخ پاسخ ۷روز · <b>${formatReplyRate7d(stats)}٪</b>`,
+    ]),
+    "",
+    section("🔗", "لینک‌های ساخته‌شده", [periodInline(stats.linksCreated)]),
+    "",
+    section("🗂", "باز کردن صندوق پیام‌ها", [periodInline(stats.inboxOpens)]),
+    "",
+    section("🧭", "پیشنهاد گفت‌وگو", [
+      `۳۰روز · ارزیابی <b>${formatStatCount(stats.assessmentsCompleted.days30)}</b> · جست‌وجو <b>${formatStatCount(stats.suggestionSearches.days30)}</b>`,
+    ]),
+    "",
+    section("🛡️", "گزارش‌ها", [
+      `۳۰روز · <b>${bucketSensitiveCount(stats.reports.days30)}</b>`,
+    ]),
+    "",
+    "<i>به‌روزرسانی با تأخیر کوتاه (~۱ دقیقه)</i>",
   ];
 
-  if (stats.totalUsers !== null) {
-    lines.push(
-      "👥 <b>کاربران</b>",
-      `• کل: ${formatCount(stats.totalUsers)}`,
-      "• تازه‌وارد:",
-      formatPeriodLines(stats.newUsers),
-      ""
-    );
-  }
-
-  if (stats.hasActiveUsers) {
-    lines.push("🟢 <b>کاربران فعال</b>", formatPeriodLines(stats.activeUsers), "");
-  }
-
-  lines.push("💬 <b>پیام‌ها</b>", formatPeriodLines(stats.messages), "");
-  lines.push("↩️ <b>پاسخ‌ها</b>", formatPeriodLines(stats.replies), "");
-
-  if (stats.messagesDelivered7d > 0) {
-    const replyRate = Math.min(
-      100,
-      Math.round((stats.replies.days7 / stats.messagesDelivered7d) * 100)
-    );
-    lines.push(`• نرخ پاسخ ۷ روز اخیر: ${formatCount(replyRate)}٪`, "");
-  }
-
-  lines.push(
-    "🔗 <b>لینک‌های ساخته‌شده</b>",
-    formatPeriodLines(stats.linksCreated),
-    "",
-    "🗂 <b>باز کردن صندوق</b>",
-    formatPeriodLines(stats.inboxOpens),
-    "",
-    "🧭 <b>پیشنهاد گفت‌وگو</b>",
-    `• تکمیل ارزیابی در ۳۰ روز اخیر: ${formatCount(stats.assessmentsCompleted.days30)}`,
-    `• جست‌وجوی گزینه‌ها در ۳۰ روز اخیر: ${formatCount(stats.suggestionSearches.days30)}`,
-    "",
-    "🛡️ <b>ایمنی</b>",
-    `• گزارش‌ها در ۳۰ روز اخیر: ${bucketSensitiveCount(stats.reports.days30)}`,
-    "",
-    "آمار با تأخیر کوتاه به‌روزرسانی می‌شود."
-  );
-
-  return lines.join("\n");
+  return blocks.join("\n");
 };
