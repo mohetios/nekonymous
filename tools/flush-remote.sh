@@ -5,7 +5,7 @@
 #   ./tools/flush-remote.sh          # remote only
 #   ./tools/flush-remote.sh --local  # also flush local D1/KV (vectorize is remote-only)
 #
-# Requires: wrangler auth and pending V3 DO reset migration (v6) in wrangler.jsonc.
+# Requires: wrangler auth and V3/V2 reset migrations (v6 + v7) in wrangler.jsonc.
 
 set -euo pipefail
 
@@ -22,6 +22,17 @@ DB_BINDING="DB"
 KV_BINDING="NEKO_KV"
 VECTOR_INDEX="nekonymous-profile-vectors"
 VECTOR_DIM=1024
+
+require_do_reset_migrations() {
+  if ! rg -q '"tag": "v6-create-reset-durable-objects-v3"' wrangler.jsonc; then
+    echo "Missing v6 migration tag in wrangler.jsonc" >&2
+    exit 1
+  fi
+  if ! rg -q '"tag": "v7-delete-durable-objects-v2"' wrangler.jsonc; then
+    echo "Missing v7 migration tag in wrangler.jsonc" >&2
+    exit 1
+  fi
+}
 
 run_worker_deploy() {
   local label="$1"
@@ -90,11 +101,11 @@ echo "    KV: all keys deleted"
 echo "    Vectorize: index recreated empty"
 echo
 
+require_do_reset_migrations
 run_worker_deploy "phase 1 — bind V3 durable objects"
 run_d1_flush --remote
 run_kv_flush --remote
 run_vectorize_recreate
-./tools/append-wrangler-do-delete-v2.sh
 run_worker_deploy "phase 2 — delete V2 durable object storage"
 
 if $LOCAL_TOO; then

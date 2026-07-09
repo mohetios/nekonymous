@@ -23,7 +23,7 @@ SELECT
   id,
   LENGTH(telegram_user_hash) AS hash_len,
   CASE
-    WHEN telegram_user_hash GLOB '[0-9]*' THEN 'FAIL_numeric_hash'
+    WHEN telegram_user_hash != '' AND telegram_user_hash NOT GLOB '*[^0-9]*' THEN 'FAIL_numeric_hash'
     ELSE 'ok'
   END AS hash_check,
   CASE

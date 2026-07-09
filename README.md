@@ -134,7 +134,6 @@ pnpm bot:profile
 | [docs/security/threat-model.md](./docs/security/threat-model.md) | Threat model |
 | [docs/architecture/sealed-ticket-routing-and-inbox.md](./docs/architecture/sealed-ticket-routing-and-inbox.md) | Sealed ticket + inbox |
 | [docs/architecture/matching-v1.md](./docs/architecture/matching-v1.md) | Conversation suggestions V1 |
-| [docs/mohetios/lab/nekonymous-fa.md](./docs/mohetios/lab/nekonymous-fa.md) | Mohetios Lab article (Persian) |
 | [docs/release/](./docs/release/) | Release audit notes |
 
 ## Roadmap

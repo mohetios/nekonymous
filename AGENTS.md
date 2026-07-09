@@ -43,9 +43,7 @@ Capability-based anonymous routing is the current model. Do not reintroduce olde
 | Security limits | `SECURITY.md`, `docs/security/threat-model.md` |
 | Inbox / sealed tickets | `docs/architecture/sealed-ticket-routing-and-inbox.md` |
 | Conversation suggestions | `docs/architecture/matching-v1.md` |
-| Mohetios Lab article (FA) | `docs/mohetios/lab/nekonymous-fa.md` |
 | Release audits | `docs/release/` |
-| Pre-canonicalization history | `docs/archive/v1-pre-release/` (not current) |
 
 ### Persian product terminology (user-facing)
 
@@ -199,7 +197,6 @@ docs/
 │   ├── matching-v1.md
 │   └── sealed-ticket-routing-and-inbox.md
 ├── security/threat-model.md
-├── mohetios/lab/nekonymous-fa.md
 └── release/
 
 LICENSE

@@ -9,14 +9,27 @@
       content="نِکونیموس یک ربات تلگرام فارسی‌محور برای لینک شخصی، پیام ناشناس، پاسخ ناشناس، ارزیابی سبک گفت‌وگو و پیشنهاد گفت‌وگوی اختیاری است؛ با معماری Cloudflare-native و محدودیت‌های حریم خصوصی شفاف."
     />
     <meta name="theme-color" content="#07111f" />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="author" content="Mohetios" />
     <meta property="og:title" content="نِکونیموس — پیام ناشناس با مرزهای فنی روشن" />
     <meta
       property="og:description"
       content="ربات پیام ناشناس فارسی‌محور با مدل sealed ticket، آمار تجمیعی، و مستندات فنی شفاف."
     />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Nekonymous" />
+    <meta property="og:locale" content="fa_IR" />
     <meta property="og:url" content="https://mohetios.github.io/Nekonymous/" />
+    <meta property="og:image" content="https://mohetios.github.io/Nekonymous/nekonymous-hero.webp" />
+    <meta property="og:image:alt" content="نماد نِکونیموس؛ گربه با ماسک ناشناس و پاکت نامه" />
     <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="نِکونیموس — پیام ناشناس با مرزهای فنی روشن" />
+    <meta
+      name="twitter:description"
+      content="ربات پیام ناشناس فارسی‌محور با مرزهای فنی شفاف و مستندات متن‌باز."
+    />
+    <meta name="twitter:image" content="https://mohetios.github.io/Nekonymous/nekonymous-hero.webp" />
+    <meta name="twitter:url" content="https://mohetios.github.io/Nekonymous/" />
     <link rel="canonical" href="https://mohetios.github.io/Nekonymous/" />
 
     <style>
@@ -218,8 +231,8 @@
 
       .icon-link,
       .theme-toggle {
-        width: 40px;
-        height: 40px;
+        width: 42px;
+        height: 42px;
         border: 1px solid transparent;
         border-radius: 999px;
         display: grid;
@@ -227,12 +240,11 @@
         background: transparent;
         color: var(--muted);
         cursor: pointer;
-        transition: color 140ms ease, border-color 140ms ease, transform 140ms ease;
+        transition: color 140ms ease, transform 140ms ease;
       }
 
       .icon-link:hover,
       .theme-toggle:hover {
-        border-color: var(--line);
         color: var(--accent-strong);
         transform: translateY(-1px);
       }
@@ -242,7 +254,6 @@
       }
 
       .theme-toggle[aria-pressed="true"] {
-        border-color: var(--accent);
         color: var(--accent);
       }
 
@@ -255,7 +266,7 @@
         height: 20px;
         display: none;
         place-items: center;
-        font-size: 1.05rem;
+        font-size: 20px;
         line-height: 1;
       }
 

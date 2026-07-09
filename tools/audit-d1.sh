@@ -109,7 +109,7 @@ for table in "${TABLES[@]}"; do
 done
 
 run_query "Users (hash + encrypted chat id)" \
-  "SELECT id, LENGTH(telegram_user_hash) AS hash_len, CASE WHEN telegram_user_hash GLOB '[0-9]*' THEN 'FAIL_numeric_hash' ELSE 'ok' END AS hash_check, CASE WHEN telegram_chat_ciphertext LIKE '{%' THEN 'ok_encrypted' ELSE 'FAIL_plain_chat' END AS chat_check, locale, status FROM users ORDER BY created_at LIMIT 20;"
+  "SELECT id, LENGTH(telegram_user_hash) AS hash_len, CASE WHEN telegram_user_hash != '' AND telegram_user_hash NOT GLOB '*[^0-9]*' THEN 'FAIL_numeric_hash' ELSE 'ok' END AS hash_check, CASE WHEN telegram_chat_ciphertext LIKE '{%' THEN 'ok_encrypted' ELSE 'FAIL_plain_chat' END AS chat_check, locale, status FROM users ORDER BY created_at LIMIT 20;"
 
 run_query "Match requests (intro ciphertext)" \
   "SELECT id, status, CASE WHEN intro_ciphertext LIKE '{%' THEN 'ok_encrypted' ELSE 'FAIL_plain_intro' END AS intro_check FROM match_requests ORDER BY created_at DESC LIMIT 20;"
@@ -128,7 +128,7 @@ run_query "Match events metadata preview" \
 
 echo ""
 echo "==> Privacy failure counts"
-USER_FAILS="$(count_failures "SELECT COUNT(*) AS fail_count FROM users WHERE telegram_user_hash GLOB '[0-9]*' OR telegram_chat_ciphertext NOT LIKE '{%';")"
+USER_FAILS="$(count_failures "SELECT COUNT(*) AS fail_count FROM users WHERE (telegram_user_hash != '' AND telegram_user_hash NOT GLOB '*[^0-9]*') OR telegram_chat_ciphertext NOT LIKE '{%';")"
 INTRO_FAILS="$(count_failures "SELECT COUNT(*) AS fail_count FROM match_requests WHERE intro_ciphertext NOT LIKE '{%';")"
 ANSWER_FAILS="$(count_failures "SELECT COUNT(*) AS fail_count FROM assessment_answers WHERE answer_value NOT BETWEEN 1 AND 5;")"
 printf "  users privacy failures:              %s\n" "$USER_FAILS"

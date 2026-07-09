@@ -5,7 +5,7 @@
 
 ## Summary
 
-Public surfaces were audited against the V1 product canon (Persian-first anonymous Telegram relay; conversation-style assessment; optional conversation suggestions; explicit non-goals). Bot copy in `src/i18n/` passes forbidden-term checks (negatives only). Keyboards and callbacks match the reply-vs-inline UX rules. `tools/set-telegram-bot-profile.sh` was aligned to recommended Persian BotFather strings (within Telegram length limits). `site/index.html` was copy-audited (stale DO name, English discoverability, encryption wording, docs links). `AGENTS.md` was synced to sealed-ticket architecture, current bindings, docs map, and V1 release mode. Mohetios Lab article path and content verified. Historical banner added to `ux-copy-docs-audit-v1.md`.
+Public surfaces were audited against the V1 product canon (Persian-first anonymous Telegram relay; conversation-style assessment; optional conversation suggestions; explicit non-goals). Bot copy in `src/i18n/` passes forbidden-term checks (negatives only). Keyboards and callbacks match the reply-vs-inline UX rules. `tools/set-telegram-bot-profile.sh` was aligned to recommended Persian BotFather strings (within Telegram length limits). `site/index.html` was copy-audited (stale DO name, English discoverability, encryption wording, docs links). `AGENTS.md` was synced to sealed-ticket architecture, current bindings, docs map, and V1 release mode.
 
 **Risk:** Ready for manual Telegram release test — not release-ready until BotFather profile applied and live flows verified.
 
@@ -120,11 +120,11 @@ match_system - نکات فنی پیشنهاد گفت‌وگو
 | No dating / personality-test framing | OK |
 | No payments as implemented | OK |
 | Matches README positioning | OK |
-| Live doc links only | OK — sealed-ticket, threat-model, matching-v1, lab article |
+| Live doc links only | OK — sealed-ticket, threat-model, matching-v1 |
 | Stale infra names | Fixed `TicketVaultShardDO` → `TicketVaultDO` |
 | English discoverability in product card | Fixed → «نمایش در پیشنهادها» |
 | Encryption wording | Fixed → «رمزنگاری در حالت سکون» |
-| Duplicate README doc link | Replaced with Mohetios Lab + GitHub Pages |
+| Duplicate README doc link | Replaced with GitHub Pages link |
 
 Static landing remains short: intro, product cards, infra summary, stats boundary, doc links, GitHub + bot CTA.
 
@@ -138,18 +138,6 @@ Updated in this pass:
 - Current DOs, queues (`neko-outbox`, `neko-stats`), bindings (`TICKET_VAULT`, `REPORT_LEDGER`)
 - i18n file map, stats event pipeline, `pnpm check` script list
 - Conversation suggestions naming (not matchmaking)
-
-## Mohetios Lab article audit
-
-| Check | Result |
-|-------|--------|
-| Path | `docs/mohetios/lab/nekonymous-fa.md` — intentional |
-| Status | `V1 release candidate` in front matter |
-| Terminology | پیشنهاد گفت‌وگو, ارزیابی سبک گفت‌وگو |
-| Privacy limits | Telegram + Worker plaintext processing stated |
-| Encryption | «در حالت سکون» where implemented |
-| Stale root lab path | Removed from repo; README links current path |
-| Not README duplicate | Narrative lab article — OK |
 
 ## Grep exceptions
 
@@ -167,7 +155,7 @@ Updated in this pass:
 | Term | Location | Reason |
 |------|----------|--------|
 | Same negatives | `site/index.html`, `nekonymous-fa.md` | Explicit «چی نیست» sections |
-| Audit references | `final-docs-canonicalization-v1.md`, `ux-copy-docs-audit-v1.md` | Historical grep checklist |
+| Audit references | `public-surface-verification-v1.md` | Current release audit checklist |
 
 ### English forbidden terms
 
@@ -195,5 +183,4 @@ No unexplained positive occurrences in live user-facing surfaces.
 - [ ] Verify BotFather profile visually (name, descriptions, commands)
 - [ ] Real Telegram flow test (link → send → inbox → reply → block → assessment → suggestion → request)
 - [ ] Verify [mohetios.github.io/Nekonymous/](https://mohetios.github.io/Nekonymous/)
-- [ ] Publish Mohetios Lab article
 - [ ] Draft GitHub release
