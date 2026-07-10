@@ -75,7 +75,7 @@ const [
 
 // 4) empty stats state copy exists in formatter source
 assert(
-  formatSource.includes("فعلاً داده‌ای برای نمایش نیست"),
+  formatSource.includes("فعلاً داده‌ای برای نمایش ندارم"),
   "missing stats must render empty state copy"
 );
 assert(

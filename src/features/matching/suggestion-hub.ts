@@ -3,7 +3,10 @@ import type { Environment } from "../../types";
 import { renderScreen } from "../../bot/render-screen";
 import { ASSESSMENT_BUTTON } from "../../i18n/labels";
 import { MENU } from "../../bot/menu";
-import { formatSuggestionHubMessage } from "../../i18n/matching";
+import {
+  MATCH_HUB_STATUS,
+  formatSuggestionHubMessage,
+} from "../../i18n/matching";
 import { getAssessmentSession } from "../../storage/user-state-client";
 import { getLatestAssessmentProfile } from "../assessment/assessment-profile-service";
 import {
@@ -20,12 +23,12 @@ const assessmentStatusLine = (
   hasSession: boolean
 ): string => {
   if (hasSession) {
-    return "ارزیابی: در حال انجام";
+    return MATCH_HUB_STATUS.assessmentInProgress;
   }
   if (hasProfile) {
-    return "ارزیابی: تکمیل‌شده";
+    return MATCH_HUB_STATUS.assessmentCompleted;
   }
-  return "ارزیابی: هنوز شروع نشده";
+  return MATCH_HUB_STATUS.assessmentNotStarted;
 };
 
 const discoverabilityStatusLine = (
@@ -33,11 +36,11 @@ const discoverabilityStatusLine = (
   hasProfile: boolean
 ): string => {
   if (!hasProfile) {
-    return "نمایش در پیشنهادها: نیاز به ارزیابی کامل";
+    return MATCH_HUB_STATUS.discoverabilityNeedsAssessment;
   }
   return discoverable
-    ? "نمایش در پیشنهادها: فعال"
-    : "نمایش در پیشنهادها: غیرفعال";
+    ? MATCH_HUB_STATUS.discoverabilityActive
+    : MATCH_HUB_STATUS.discoverabilityInactive;
 };
 
 const eligibilityLineForDashboard = (
@@ -45,15 +48,15 @@ const eligibilityLineForDashboard = (
 ): string => {
   switch (state) {
     case "no_profile":
-      return "جست‌وجو: بعد از تکمیل ارزیابی فعال می‌شود.";
+      return MATCH_HUB_STATUS.searchNeedsAssessment;
     case "vector_pending":
-      return "جست‌وجو: پروفایل در حال آماده‌سازی است.";
+      return MATCH_HUB_STATUS.searchVectorPending;
     case "vector_failed":
-      return "جست‌وجو: فعلاً در دسترس نیست.";
+      return MATCH_HUB_STATUS.searchUnavailable;
     case "opt_in_required":
-      return "جست‌وجو: نمایش در پیشنهادها را فعال کن.";
+      return MATCH_HUB_STATUS.searchNeedsOptIn;
     case "ready":
-      return "جست‌وجو: آماده";
+      return MATCH_HUB_STATUS.searchReady;
   }
 };
 
@@ -83,8 +86,10 @@ export const renderSuggestionHub = async (
     ),
     pendingLine:
       pendingCount > 0
-        ? `درخواست‌های باز: ${convertToPersianNumbers(String(pendingCount))}`
-        : "درخواست‌های باز: نداری",
+        ? MATCH_HUB_STATUS.pendingCount(
+            convertToPersianNumbers(String(pendingCount))
+          )
+        : MATCH_HUB_STATUS.pendingNone,
     eligibilityLine: eligibilityLineForDashboard(dashboard.state),
   });
 

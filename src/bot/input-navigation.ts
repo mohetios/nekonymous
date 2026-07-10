@@ -1,19 +1,15 @@
 import { Keyboard, type Context } from "grammy";
 import type { Environment } from "../types";
 import { INPUT_CANCELLED_MESSAGE } from "../i18n/messages";
+import {
+  DRAFT_CANCEL_LABEL,
+  INPUT_PLACEHOLDERS,
+} from "../i18n/labels";
 import { withHtml } from "../utils/tools";
 import { clearDraft } from "../storage/user-state-client";
 import { mainMenu } from "./keyboards";
 
-export const DRAFT_CANCEL_LABEL = "↩️ لغو";
-
-export const INPUT_PLACEHOLDERS = {
-  compose: "پیامت را بنویس…",
-  reply: "پاسخت را بنویس…",
-  nickname: "نام خصوصی را وارد کن…",
-  display_name: "نام نمایشی را وارد کن…",
-  match_intro: "پیام شروع گفت‌وگو را بنویس…",
-} as const;
+export { DRAFT_CANCEL_LABEL, INPUT_PLACEHOLDERS };
 
 export type InputPlaceholderKey = keyof typeof INPUT_PLACEHOLDERS;
 

@@ -23,6 +23,10 @@ import {
   SETTINGS_RESET_MATCH_WARNING_MESSAGE,
   SETTINGS_RESET_MATCH_REQUESTS_CLEARED,
   SETTINGS_RESET_MATCH_BLOCKS_CLEARED,
+  SETTINGS_PAUSE_DONE_CALLBACK,
+  SETTINGS_RESUME_DONE_CALLBACK,
+  SETTINGS_BLOCK_LIST_EMPTY_CALLBACK,
+  SETTINGS_RESET_MATCH_EMPTY_CALLBACK,
 } from "../../i18n/settings";
 import { HuhMessage, ABOUT_PRIVACY_COMMAND_MESSAGE } from "../../i18n/messages";
 import {
@@ -207,7 +211,7 @@ export const handleSettingsCallback = async (
       await setPaused(env, user.id, true);
       await emitStat(env, STAT_EVENTS.PAUSE_ENABLED);
       const updated = await toBotUser(d1User, env);
-      await ctx.answerCallbackQuery({ text: "دریافت پیام متوقف شد." });
+      await ctx.answerCallbackQuery({ text: SETTINGS_PAUSE_DONE_CALLBACK });
       await ctx.editMessageText(
         formatSettingsHome(updated),
         withHtml({ reply_markup: buildSettingsHomeKeyboard(true) })
@@ -219,7 +223,7 @@ export const handleSettingsCallback = async (
       await setPaused(env, user.id, false);
       await emitStat(env, STAT_EVENTS.PAUSE_DISABLED);
       const updated = await toBotUser(d1User, env);
-      await ctx.answerCallbackQuery({ text: "دریافت پیام فعال شد." });
+      await ctx.answerCallbackQuery({ text: SETTINGS_RESUME_DONE_CALLBACK });
       await ctx.editMessageText(
         formatSettingsHome(updated),
         withHtml({ reply_markup: buildSettingsHomeKeyboard(false) })
@@ -242,7 +246,7 @@ export const handleSettingsCallback = async (
 
     if (data === SETTINGS_CALLBACK.clearBlocks) {
       if (user.blockedUserIds.length === 0) {
-        await ctx.answerCallbackQuery({ text: "فهرست مسدودی‌ها خالی است." });
+        await ctx.answerCallbackQuery({ text: SETTINGS_BLOCK_LIST_EMPTY_CALLBACK });
         return;
       }
       await setDraft(env, user.id, {
@@ -263,7 +267,7 @@ export const handleSettingsCallback = async (
     if (data === SETTINGS_CALLBACK.resetMatch) {
       const history = await countUserMatchHistory(user.id, env);
       if (history.requests === 0 && history.blocks === 0) {
-        await ctx.answerCallbackQuery({ text: "چیزی برای بازنشانی نیست." });
+        await ctx.answerCallbackQuery({ text: SETTINGS_RESET_MATCH_EMPTY_CALLBACK });
         return;
       }
       await setDraft(env, user.id, {

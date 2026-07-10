@@ -1,3 +1,5 @@
+import { BOT_COMMAND_DESCRIPTIONS } from "../i18n/labels.ts";
+
 /** Slash commands registered in register-handlers and recognized as valid. */
 export const BOT_COMMANDS = [
   "start",
@@ -8,11 +10,11 @@ export const BOT_COMMANDS = [
 ] as const;
 
 export const BOT_COMMAND_DEFINITIONS = [
-  { command: "start", description: "شروع و دریافت لینک ناشناس" },
-  { command: "inbox", description: "دیدن صندوق پیام‌ها" },
-  { command: "settings", description: "تنظیمات و حریم خصوصی" },
-  { command: "assessment", description: "ارزیابی سبک گفت‌وگو" },
-  { command: "match", description: "پیشنهادهای گفت‌وگو" },
+  { command: "start", description: BOT_COMMAND_DESCRIPTIONS.start },
+  { command: "inbox", description: BOT_COMMAND_DESCRIPTIONS.inbox },
+  { command: "settings", description: BOT_COMMAND_DESCRIPTIONS.settings },
+  { command: "assessment", description: BOT_COMMAND_DESCRIPTIONS.assessment },
+  { command: "match", description: BOT_COMMAND_DESCRIPTIONS.match },
 ] as const satisfies ReadonlyArray<{
   command: (typeof BOT_COMMANDS)[number];
   description: string;

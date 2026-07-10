@@ -16,8 +16,8 @@ import {
   NICKNAME_PROMPT_MESSAGE,
   NoConversationFoundMessage,
   REPORT_SUBMITTED_MESSAGE,
-  REPLAY_TO_MESSAGE,
-  REPLAY_TO_NICKNAME_MESSAGE,
+  REPLY_TO_MESSAGE,
+  REPLY_TO_NICKNAME_MESSAGE,
   SELF_MESSAGE_DISABLE_MESSAGE,
   USER_BLOCKED_MESSAGE,
   USER_IS_BLOCKED_MESSAGE,
@@ -176,8 +176,8 @@ export const handleReplyAction = async (
     });
 
     const replyPrompt = senderLabel
-      ? REPLAY_TO_NICKNAME_MESSAGE.replace("NICKNAME", escapeHtml(senderLabel))
-      : REPLAY_TO_MESSAGE;
+      ? REPLY_TO_NICKNAME_MESSAGE.replace("NICKNAME", escapeHtml(senderLabel))
+      : REPLY_TO_MESSAGE;
 
     await ctx.reply(replyPrompt, withHtml({
       reply_markup: buildDraftCancelKeyboard(INPUT_PLACEHOLDERS.reply),

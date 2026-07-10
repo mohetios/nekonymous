@@ -1,7 +1,7 @@
 import type { BotUser } from "../../types";
 import {
-  SETTINGS_PAUSE_ACTIVE,
-  SETTINGS_PAUSE_INACTIVE,
+  SETTINGS_INBOX_STATUS_ACTIVE,
+  SETTINGS_INBOX_STATUS_PAUSED,
   SETTINGS_HOME_MESSAGE,
 } from "../../i18n/settings";
 import { DISPLAY_NAME_UNSET } from "../../i18n/defaults";
@@ -15,6 +15,6 @@ export const formatSettingsHome = (user: BotUser): string => {
     escapeHtml(publicDisplayName(user, DISPLAY_NAME_UNSET))
   ).replace(
     "PAUSE_STATUS",
-    paused ? SETTINGS_PAUSE_INACTIVE : SETTINGS_PAUSE_ACTIVE
+    paused ? SETTINGS_INBOX_STATUS_PAUSED : SETTINGS_INBOX_STATUS_ACTIVE
   );
 };

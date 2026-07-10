@@ -3,12 +3,12 @@ import type { PeriodCounts, PublicBotStats } from "./stats-reader";
 
 export const SETTINGS_STATS_EMPTY_MESSAGE = `📊 <b>آمار کلی نِکونیموس</b>
 
-<i>فعلاً داده‌ای برای نمایش نیست.</i>
+<i>فعلاً داده‌ای برای نمایش ندارم.</i>
 
 همه‌ی اعداد از شمارش‌های تجمیعی می‌آیند و با تأخیر کوتاه به‌روز می‌شوند.`;
 
 export const SETTINGS_STATS_ERROR_MESSAGE =
-  "در حال حاضر امکان نمایش آمار نیست. کمی بعد دوباره امتحان کن.";
+  "فعلاً نتونستم آمار رو نمایش بدم. کمی بعد دوباره امتحان کن.";
 
 /** Always render a non-negative integer with Persian digits; empty → ۰. */
 export const formatStatCount = (value: number | null | undefined): string =>
@@ -75,7 +75,7 @@ export const formatPublicBotStatsMessage = (stats: PublicBotStats): string => {
     "",
     section("🔗", "لینک‌های ساخته‌شده", [periodInline(stats.linksCreated)]),
     "",
-    section("🗂", "باز کردن صندوق پیام‌ها", [periodInline(stats.inboxOpens)]),
+    section("📥", "باز کردن صندوق پیام‌ها", [periodInline(stats.inboxOpens)]),
     "",
     section("🧭", "پیشنهاد گفت‌وگو", [
       `۳۰روز · ارزیابی <b>${formatStatCount(stats.assessmentsCompleted.days30)}</b> · جست‌وجو <b>${formatStatCount(stats.suggestionSearches.days30)}</b>`,

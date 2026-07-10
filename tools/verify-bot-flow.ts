@@ -212,7 +212,8 @@ assert(
 );
 
 assert(
-  inputNavigationSource.includes("↩️ لغو"),
+  labelsSource.includes("↩️ لغو") &&
+    inputNavigationSource.includes("DRAFT_CANCEL_LABEL"),
   "draft keyboard must only expose cancel"
 );
 assert(

@@ -1,7 +1,11 @@
 import type { Context } from "grammy";
 import type { Environment } from "../../types";
 import { createMessageKeyboard, buildInboxPaginationKeyboard, mainMenu } from "../../bot/keyboards";
-import { EMPTY_INBOX_MESSAGE, HuhMessage } from "../../i18n/messages";
+import {
+  EMPTY_INBOX_MESSAGE,
+  HuhMessage,
+  INBOX_HAS_MORE_MESSAGE,
+} from "../../i18n/messages";
 import { createBlockHash } from "../../ticketing/ticketing-service";
 import { replyHtml, withHtml } from "../../utils/tools";
 import { logBotError } from "../../utils/logs";
@@ -163,7 +167,7 @@ const deliverInboxPage = async (
 
   const hasMore = typeof page.nextOffset === "number";
   if (hasMore && page.nextOffset !== undefined) {
-    await ctx.reply("پیام‌های بیشتری در صندوقت هست.", {
+    await ctx.reply(INBOX_HAS_MORE_MESSAGE, {
       reply_markup: buildInboxPaginationKeyboard(page.nextOffset),
     });
   }

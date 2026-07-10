@@ -7,7 +7,7 @@ export const MENU = {
   settings: "⚙️ تنظیمات",
   matchProfile: "👤 پروفایل گفت‌وگو",
   matchFind: "🔎 پیدا کردن گزینه‌ها",
-  matchPending: "📥 درخواست‌ها",
+  matchPending: "📥 درخواست‌های گفت‌وگو",
   matchEnable: "✅ فعال‌سازی نمایش",
   matchDisable: "⏸ توقف نمایش",
   matchAssessment: "📝 شروع ارزیابی",
@@ -22,6 +22,24 @@ export const MENU = {
   stats: "📊 آمار",
 } as const;
 
+export const DRAFT_CANCEL_LABEL = "↩️ لغو";
+
+export const INPUT_PLACEHOLDERS = {
+  compose: "پیامت رو بنویس...",
+  reply: "جوابت رو بنویس...",
+  nickname: "نام خصوصی رو بنویس...",
+  display_name: "نام نمایشی رو بنویس...",
+  match_intro: "پیام شروع گفت‌وگو رو بنویس...",
+} as const;
+
+export const BOT_COMMAND_DESCRIPTIONS = {
+  start: "شروع و دریافت لینک پیام ناشناس",
+  inbox: "باز کردن صندوق پیام‌ها",
+  settings: "تنظیمات و حریم خصوصی",
+  assessment: "ارزیابی سبک گفت‌وگو",
+  match: "پیشنهاد گفت‌وگو",
+} as const;
+
 export const BACK_BUTTON = {
   toSettings: "↩️ بازگشت به تنظیمات",
   toSuggestions: "↩️ بازگشت به پیشنهادها",
@@ -30,9 +48,9 @@ export const BACK_BUTTON = {
 /** Inline-only confirmation labels (never on reply keyboard). */
 export const CONFIRM_BUTTON = {
   yesDelete: "بله، حسابم را پاک کن",
-  confirmClearBlocks: "رفع همه مسدودی‌ها",
+  confirmClearBlocks: "رفع همه‌ی مسدودی‌ها",
   confirmResetMatch: "بازنشانی پیشنهادها",
-  cancel: "انصراف",
+  cancel: "↩️ لغو",
 } as const;
 
 export const INBOX_BUTTON = {
@@ -41,7 +59,7 @@ export const INBOX_BUTTON = {
   reply: "💬 پاسخ دادن",
   nickname: "🏷️ نام خصوصی",
   report: "⚠️ گزارش کردن",
-  loadMore: "نمایش پیام‌های بیشتر",
+  loadMore: "پیام‌های بیشتر",
 } as const;
 
 export const OPEN_INBOX_BUTTON = "📥 باز کردن صندوق";
@@ -62,7 +80,7 @@ export const isMainMenuLabel = (text: string): boolean =>
 
 export const MATCH_BUTTON = {
   search: "🔎 پیدا کردن گزینه‌ها",
-  pending: "📥 درخواست‌ها",
+  pending: "📥 درخواست‌های گفت‌وگو",
   profile: "👤 پروفایل گفت‌وگو",
   accept: "✅ پذیرفتن",
   decline: "❌ رد کردن",
@@ -78,7 +96,7 @@ export const ASSESSMENT_BUTTON = {
   viewResult: "👤 پروفایل گفت‌وگو",
   viewResultAgain: "👤 پروفایل گفت‌وگو",
   resetYes: "✅ تأیید",
-  resetNo: "↩️ انصراف",
+  resetNo: "↩️ لغو",
   previous: "⬅️ قبلی",
   exit: "ذخیره و خروج",
   backToSuggestions: BACK_BUTTON.toSuggestions,
