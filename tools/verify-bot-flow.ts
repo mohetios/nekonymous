@@ -258,6 +258,42 @@ assert(
   "BotFather tooling must not publish /match_system"
 );
 
+const extractProfileHeredoc = (varName: string): string => {
+  const match = profileScriptSource.match(
+    new RegExp(`read -r -d '' ${varName} <<'EOF' \\|\\| true\\n([\\s\\S]*?)\\nEOF`)
+  );
+  assert(match, `BotFather tooling must define ${varName} heredoc`);
+  return match[1];
+};
+
+const PROFILE_LIMITS = {
+  // Keep in sync with tools/set-telegram-bot-profile.sh
+  name: 64,
+  description: 512,
+  shortDescription: 120,
+} as const;
+
+const profileNameMatch = profileScriptSource.match(/^BOT_NAME="([^"]*)"/m);
+assert(profileNameMatch, "BotFather tooling must define BOT_NAME");
+const profileName = profileNameMatch[1];
+assert(
+  profileName.length <= PROFILE_LIMITS.name,
+  `BotFather name must be <= ${PROFILE_LIMITS.name} chars (${profileName.length})`
+);
+
+for (const [label, varName, max] of [
+  ["description (fa)", "DESCRIPTION", PROFILE_LIMITS.description],
+  ["short_description (fa)", "SHORT_DESCRIPTION", PROFILE_LIMITS.shortDescription],
+  ["description (en)", "DESCRIPTION_EN", PROFILE_LIMITS.description],
+  ["short_description (en)", "SHORT_DESCRIPTION_EN", PROFILE_LIMITS.shortDescription],
+] as const) {
+  const text = extractProfileHeredoc(varName);
+  assert(
+    text.length <= max,
+    `BotFather ${label} must be <= ${max} chars (${text.length})`
+  );
+}
+
 const srcFiles = await listSourceFiles();
 for (const relativePath of srcFiles) {
   const source = await readSource(`../src/${relativePath}`);
