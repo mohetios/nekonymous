@@ -8,81 +8,81 @@ const selfText = (
   const copy: Record<ConversationDimension, [{ fa: string; en: string }, { fa: string; en: string }]> = {
     depth: [
       {
-        fa: "معمولاً دوست دارم گفت‌وگو به موضوع‌های عمیق‌تر برسد.",
+        fa: "معمولاً دوست دارم گفت‌وگو به موضوع‌های عمیق‌تر برسه.",
         en: "I usually like conversations to move toward deeper topics.",
       },
       {
-        fa: "برایم راحت است درباره‌ی معنا، احساس یا تجربه‌های مهم حرف بزنم.",
+        fa: "برام راحته درباره‌ی معنا، احساس یا تجربه‌های مهم حرف بزنم.",
         en: "I am comfortable talking about meaning, feelings, or important experiences.",
       },
     ],
     replyPace: [
       {
-        fa: "ترجیح می‌دهم در گفت‌وگوها پاسخ‌ها نسبتاً سریع رد و بدل شود.",
+        fa: "ترجیح می‌دم توی گفت‌وگو، جواب‌ها نسبتاً سریع رد و بدل بشن.",
         en: "I prefer fairly quick back-and-forth in chats.",
       },
       {
-        fa: "وقتی پیامی می‌فرستم، معمولاً منتظر ادامه‌ی زودهنگام گفت‌وگو هستم.",
+        fa: "وقتی پیامی می‌فرستم، معمولاً منتظرم گفت‌وگو زود ادامه پیدا کنه.",
         en: "When I send a message, I usually expect the conversation to continue soon.",
       },
     ],
     directness: [
       {
-        fa: "معمولاً خواسته‌ها و نظرم را روشن و مستقیم می‌گویم.",
+        fa: "معمولاً خواسته‌ها و نظرم رو روشن و مستقیم می‌گم.",
         en: "I usually state my needs and opinions clearly and directly.",
       },
       {
-        fa: "برایم مهم است در گفت‌وگو کمتر حدس بزنم طرف مقابل چه منظوری دارد.",
+        fa: "برام مهمه توی گفت‌وگو کمتر حدس بزنم طرف مقابل چه منظوری داره.",
         en: "I prefer not to guess what the other person means in a conversation.",
       },
     ],
     energy: [
       {
-        fa: "در گفت‌وگو معمولاً انرژی و هیجان نسبتاً بالایی دارم.",
+        fa: "توی گفت‌وگو معمولاً انرژی و هیجان نسبتاً بالایی دارم.",
         en: "I usually bring fairly high energy to conversations.",
       },
       {
-        fa: "دوست دارم گفت‌وگو پرتحرک و پر از پیام‌های پی‌درپی باشد.",
+        fa: "دوست دارم گفت‌وگو پرتحرک و پر از پیام‌های پی‌درپی باشه.",
         en: "I like chats that feel active with frequent messages.",
       },
     ],
     playfulness: [
       {
-        fa: "در گفت‌وگو از شوخی و لحن سبک‌تر استفاده می‌کنم.",
+        fa: "توی گفت‌وگو از شوخی و لحن سبک‌تر استفاده می‌کنم.",
         en: "I use humor and a lighter tone in conversation.",
       },
       {
-        fa: "برایم طبیعی است گاهی گفت‌وگو را با لحن بازیگوشانه ادامه دهم.",
+        fa: "برام طبیعیه گاهی گفت‌وگو رو با لحن بازیگوشانه ادامه بدم.",
         en: "It feels natural for me to keep a playful tone at times.",
       },
     ],
     supportStyle: [
       {
-        fa: "وقتی کسی ناراحت است، اول می‌خواهم شنیده شود و همدلی شود.",
+        fa: "وقتی کسی ناراحته، اول می‌خوام شنیده بشه و همدلی بگیره.",
         en: "When someone is upset, I want them to feel heard first.",
       },
       {
-        fa: "در موقعیت‌های احساسی، فوراً به دنبال راه‌حل عملی نمی‌روم.",
+        fa: "توی موقعیت‌های احساسی، فوراً دنبال راه‌حل عملی نمی‌رم.",
         en: "In emotional situations, I do not immediately jump to practical fixes.",
       },
     ],
     disclosurePace: [
       {
-        fa: "معمولاً نسبتاً زود درباره‌ی موضوع‌های شخصی صحبت می‌کنم.",
+        fa: "معمولاً نسبتاً زود درباره‌ی موضوع‌های شخصی حرف می‌زنم.",
         en: "I usually open up about personal topics fairly early.",
       },
       {
-        fa: "برایم طبیعی است در گفت‌وگوهای تازه، به‌تدریج جزئیات بیشتری بگویم.",
+        fa: "برام طبیعیه توی گفت‌وگوهای تازه، کم‌کم جزئیات بیشتری بگم.",
         en: "In new chats, I naturally share more detail over time.",
       },
     ],
     repairStyle: [
       {
-        fa: "اگر سوءتفاهمی پیش بیاید، سریع تلاش می‌کنم گفت‌وگو را ترمیم کنم.",
+        fa: "اگه سوءتفاهمی پیش بیاد، سریع تلاش می‌کنم گفت‌وگو رو ترمیم کنم.",
         en: "If a misunderstanding happens, I try to repair the conversation quickly.",
       },
       {
-        fa: "برایم مهم است بعد از اختلاف کوچک، دوباره ارتباط را عادی کنم.",
+        fa: "برام مهمه بعد از یک اختلاف کوچک، دوباره ارتباط رو عادی کنم.",
         en: "After a small conflict, I care about restoring normal contact.",
       },
     ],
@@ -96,15 +96,15 @@ const desiredText = (
 ): { fa: string; en: string } => {
   const copy: Record<ConversationDimension, { fa: string; en: string }> = {
     depth: {
-      fa: "در گفت‌وگوی ایده‌آل، چه عمقی برایت راحت‌تر است؟",
+      fa: "در گفت‌وگوی ایده‌آل، چه عمقی برات راحت‌تره؟",
       en: "In an ideal chat, what depth feels most comfortable for you?",
     },
     replyPace: {
-      fa: "در گفت‌وگوی ایده‌آل، چه ریتمی از پاسخ‌دهی را ترجیح می‌دهی؟",
+      fa: "در گفت‌وگوی ایده‌آل، چه ریتمی از جواب‌دادن رو ترجیح می‌دی؟",
       en: "In an ideal chat, what reply pace do you prefer?",
     },
     directness: {
-      fa: "در گفت‌وگوی ایده‌آل، طرف مقابل چقدر مستقیم باشد؟",
+      fa: "در گفت‌وگوی ایده‌آل، طرف مقابل چقدر مستقیم باشه؟",
       en: "In an ideal chat, how direct should the other person be?",
     },
     energy: {
@@ -112,19 +112,19 @@ const desiredText = (
       en: "In an ideal chat, what energy level do you prefer?",
     },
     playfulness: {
-      fa: "در گفت‌وگوی ایده‌آل، چقدر شوخی و لحن سبک برایت مناسب است؟",
+      fa: "در گفت‌وگوی ایده‌آل، چقدر شوخی و لحن سبک برات مناسبه؟",
       en: "In an ideal chat, how much playfulness feels right?",
     },
     supportStyle: {
-      fa: "در گفت‌وگوی ایده‌آل، طرف مقابل بیشتر شنونده باشد یا راه‌حل بدهد؟",
+      fa: "در گفت‌وگوی ایده‌آل، طرف مقابل بیشتر شنونده باشه یا راه‌حل بده؟",
       en: "In an ideal chat, should the other person listen more or offer solutions?",
     },
     disclosurePace: {
-      fa: "در گفت‌وگوی ایده‌آل، چقدر زود باز شدن درباره‌ی موضوع‌های شخصی را می‌پسندی؟",
+      fa: "در گفت‌وگوی ایده‌آل، چقدر زود وارد موضوع‌های شخصی شدن رو می‌پسندی؟",
       en: "In an ideal chat, how quickly should personal topics open up?",
     },
     repairStyle: {
-      fa: "در گفت‌وگوی ایده‌آل، بعد از سوءتفاهم چه واکنشی را ترجیح می‌دهی؟",
+      fa: "در گفت‌وگوی ایده‌آل، بعد از سوءتفاهم چه واکنشی رو ترجیح می‌دی؟",
       en: "In an ideal chat, how should misunderstandings be handled?",
     },
   };

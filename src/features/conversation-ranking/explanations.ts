@@ -14,15 +14,26 @@ import {
 } from "./constants.ts";
 import { computeDirectionalFit } from "./directional-fit.ts";
 
-const DIMENSION_LABELS_FA: Record<ConversationDimension, string> = {
-  depth: "عمق گفت‌وگو",
-  replyPace: "ریتم پاسخ",
-  directness: "مستقیم‌بودن",
-  energy: "انرژی گفت‌وگو",
-  playfulness: "سبک و شوخی",
-  supportStyle: "همراهی احساسی",
-  disclosurePace: "سرعت باز شدن",
-  repairStyle: "ترمیم سوءتفاهم",
+const DIMENSION_REASON_FA: Record<ConversationDimension, string> = {
+  depth: "هر دوتون گفت‌وگوی عمیق‌تر رو دوست دارین.",
+  replyPace: "ریتم جواب‌دادنتون به هم نزدیکه.",
+  directness: "هر دوتون با حرف روشن راحت‌تر هستین.",
+  energy: "انرژی گفت‌وگوتون به هم نزدیکه.",
+  playfulness: "هر دوتون از شوخی توی گفت‌وگو لذت می‌برین.",
+  supportStyle: "سبک حمایت‌کردنتون شبیه همه.",
+  disclosurePace: "برای بازکردن بحث‌های شخصی تقریباً یک ریتم دارین.",
+  repairStyle: "بعد از سوءتفاهم تقریباً یک مدل برگشتن به گفت‌وگو رو دوست دارین.",
+};
+
+const DIMENSION_DIFFERENCE_FA: Record<ConversationDimension, string> = {
+  depth: "یکی‌تون گفت‌وگوی عمیق‌تری دوست داره.",
+  replyPace: "یکی‌تون معمولاً سریع‌تر جواب می‌ده.",
+  directness: "یکی‌تون کمی مستقیم‌تر حرف می‌زنه.",
+  energy: "یکی‌تون گفت‌وگوی پرپیام‌تری دوست داره.",
+  playfulness: "یکی‌تون شوخی بیشتری توی گفت‌وگو دوست داره.",
+  supportStyle: "یکی‌تون بیشتر شنیدن رو می‌پسنده و یکی‌تون راه‌حل‌دادن رو.",
+  disclosurePace: "یکی‌تون زودتر وارد موضوع‌های شخصی می‌شه.",
+  repairStyle: "یکی‌تون زودتر برای ترمیم سوءتفاهم برمی‌گرده.",
 };
 
 const DIMENSION_LABELS_EN: Record<ConversationDimension, string> = {
@@ -56,8 +67,6 @@ export const buildSuggestionExplanation = (
   candidate: ConversationProfile,
   locale: ProfileLocale
 ): string => {
-  const labels = locale === "en" ? DIMENSION_LABELS_EN : DIMENSION_LABELS_FA;
-
   const scored = CONVERSATION_DIMENSIONS.map((dimension) => {
     const fit = dimensionFit(requester, candidate, dimension);
     if (fit === null) {
@@ -84,12 +93,14 @@ export const buildSuggestionExplanation = (
     const parts: string[] = [];
     if (aligned.length > 0) {
       parts.push(
-        `Aligned on ${aligned.map((entry) => labels[entry.dimension]).join(" and ")}.`
+        `Aligned on ${aligned
+          .map((entry) => DIMENSION_LABELS_EN[entry.dimension])
+          .join(" and ")}.`
       );
     }
     if (differences.length > 0) {
       parts.push(
-        `Different pace on ${labels[differences[0].dimension]}.`
+        `Different pace on ${DIMENSION_LABELS_EN[differences[0].dimension]}.`
       );
     }
     if (parts.length === 0) {
@@ -100,17 +111,15 @@ export const buildSuggestionExplanation = (
 
   const parts: string[] = [];
   if (aligned.length > 0) {
-    parts.push(
-      `هم‌راستایی در ${aligned.map((entry) => labels[entry.dimension]).join(" و ")}.`
-    );
+    parts.push(...aligned.map((entry) => `• ${DIMENSION_REASON_FA[entry.dimension]}`));
   }
   if (differences.length > 0) {
-    parts.push(`تفاوت معنادار در ${labels[differences[0].dimension]}.`);
+    parts.push(`\nیک تفاوت احتمالی:\n• ${DIMENSION_DIFFERENCE_FA[differences[0].dimension]}`);
   }
   if (parts.length === 0) {
-    parts.push("هم‌پوشانی متوازن در سبک گفت‌وگو.");
+    parts.push("• سبک گفت‌وگوتون چند نقطه‌ی مشترک قابل شروع داره.");
   }
-  return parts.join(" ");
+  return parts.join("\n");
 };
 
 export const intentsAreCompatible = (

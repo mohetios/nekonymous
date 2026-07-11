@@ -8,17 +8,19 @@ import {
 import {
   MATCH_CANDIDATES_HEADER,
   MATCH_CANDIDATES_WHY_FIT,
+  MATCH_DISCOVERABILITY_ENABLED,
   MATCH_INTRO_PROMPT,
   MATCH_NO_CANDIDATES,
   MATCH_NO_CANDIDATES_COOLDOWN,
-  MATCH_OPT_IN,
   MATCH_PENDING_EMPTY,
+  MATCH_PROFILE_FAILED,
   MATCH_PROFILE_HEADER,
   MATCH_PROFILE_NO_ASSESSMENT,
   MATCH_PROFILE_PRIVACY_NOTE,
   MATCH_RECENT_PAIR_COOLDOWN,
   MATCH_REQUEST_LIMIT,
   MATCH_REQUEST_SENT,
+  MATCH_SEARCH_INDEX_PENDING,
   MATCH_SEARCH_LIMIT,
   MATCH_SUGGESTION_INVALID,
 } from "../../i18n/matching";
@@ -28,6 +30,7 @@ import { logBotError } from "../../utils/logs";
 import { emitStat } from "../../stats/emit-stat.ts";
 import { STAT_EVENTS } from "../../stats/events.ts";
 import {
+  isProfileSearchReady,
   loadRequesterProfileContext,
   setConversationDiscoverability,
 } from "../conversation-profile/profile-service";
@@ -49,6 +52,13 @@ import {
 import { sendProfileDashboard } from "../conversation-profile/profile-handlers";
 
 const INTRO_MAX_CHARS = 500;
+
+const profileUnavailableMessage = (
+  reason: "no_profile" | "profile_failed"
+): string =>
+  reason === "profile_failed"
+    ? MATCH_PROFILE_FAILED
+    : MATCH_PROFILE_NO_ASSESSMENT;
 
 export const handleMatchCommand = async (
   ctx: Context,
@@ -95,7 +105,14 @@ export const handleMatchCallback = async (
       await ctx.answerCallbackQuery();
       const profileContext = await loadRequesterProfileContext(env, user.id);
       if (!profileContext.ok) {
-        await ctx.reply(MATCH_PROFILE_NO_ASSESSMENT, withHtml({ reply_markup: mainMenu }));
+        await ctx.reply(
+          profileUnavailableMessage(profileContext.reason),
+          withHtml({ reply_markup: mainMenu })
+        );
+        return;
+      }
+      if (!isProfileSearchReady(profileContext)) {
+        await ctx.reply(MATCH_SEARCH_INDEX_PENDING, withHtml({ reply_markup: mainMenu }));
         return;
       }
 
@@ -149,7 +166,10 @@ export const handleMatchCallback = async (
       await ctx.answerCallbackQuery();
       const profileContext = await loadRequesterProfileContext(env, user.id);
       if (!profileContext.ok) {
-        await ctx.reply(MATCH_PROFILE_NO_ASSESSMENT, withHtml({ reply_markup: mainMenu }));
+        await ctx.reply(
+          profileUnavailableMessage(profileContext.reason),
+          withHtml({ reply_markup: mainMenu })
+        );
         return;
       }
 
@@ -167,10 +187,17 @@ export const handleMatchCallback = async (
       const result = await setConversationDiscoverability(env, user.id, true);
       await ctx.answerCallbackQuery();
       if (!result.ok) {
-        await ctx.reply(MATCH_PROFILE_NO_ASSESSMENT, withHtml({ reply_markup: mainMenu }));
+        const message =
+          result.reason === "not_ready"
+            ? MATCH_SEARCH_INDEX_PENDING
+            : MATCH_PROFILE_NO_ASSESSMENT;
+        await ctx.reply(message, withHtml({ reply_markup: mainMenu }));
         return;
       }
-      await ctx.reply(MATCH_OPT_IN, withHtml({ reply_markup: mainMenu }));
+      await ctx.reply(
+        MATCH_DISCOVERABILITY_ENABLED,
+        withHtml({ reply_markup: mainMenu })
+      );
       await renderSuggestionHub(ctx, env, from.id.toString());
       return;
     }
@@ -294,7 +321,14 @@ export const handleConversationIntroInput = async (
 
   const profileContext = await loadRequesterProfileContext(env, userId);
   if (!profileContext.ok) {
-    await ctx.reply(MATCH_PROFILE_NO_ASSESSMENT, withHtml({ reply_markup: mainMenu }));
+    await ctx.reply(
+      profileUnavailableMessage(profileContext.reason),
+      withHtml({ reply_markup: mainMenu })
+    );
+    return true;
+  }
+  if (!isProfileSearchReady(profileContext)) {
+    await ctx.reply(MATCH_SEARCH_INDEX_PENDING, withHtml({ reply_markup: mainMenu }));
     return true;
   }
 

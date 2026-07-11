@@ -235,6 +235,13 @@ export const getProfileDashboardMeta = async (
   };
 };
 
+const READABLE_PROFILE_STATUSES = new Set<ProfileVaultRecordStatus>([
+  "private",
+  "indexing",
+  "discoverable",
+  "index_failed",
+]);
+
 export type RequesterProfileContext =
   | {
       ok: true;
@@ -243,7 +250,13 @@ export type RequesterProfileContext =
       vaultStatus: ProfileVaultRecordStatus;
       revision: number;
     }
-  | { ok: false; reason: "no_profile" | "profile_loading" | "profile_failed" };
+  | { ok: false; reason: "no_profile" | "profile_failed" };
+
+export const isProfileSearchReady = (
+  context: RequesterProfileContext
+): context is Extract<RequesterProfileContext, { ok: true }> =>
+  context.ok &&
+  (context.vaultStatus === "private" || context.vaultStatus === "discoverable");
 
 export const loadRequesterProfileContext = async (
   env: Environment,
@@ -268,11 +281,11 @@ export const loadRequesterProfileContext = async (
     return { ok: false, reason: "no_profile" };
   }
 
-  if (record.status === "index_failed" || record.status === "invalidated") {
-    return { ok: false, reason: "profile_failed" };
-  }
-  if (record.status === "indexing") {
-    return { ok: false, reason: "profile_loading" };
+  if (!READABLE_PROFILE_STATUSES.has(record.status)) {
+    return {
+      ok: false,
+      reason: record.status === "invalidated" ? "no_profile" : "profile_failed",
+    };
   }
 
   const profileKey = await deriveProfileEncryptionKey(
@@ -319,17 +332,11 @@ export const setConversationDiscoverability = async (
 ): Promise<{ ok: true } | { ok: false; reason: "no_profile" | "not_ready" }> => {
   const context = await loadRequesterProfileContext(env, userId);
   if (!context.ok) {
-    return {
-      ok: false,
-      reason: context.reason === "profile_loading" ? "not_ready" : "no_profile",
-    };
+    return { ok: false, reason: "no_profile" };
   }
 
   if (enabled) {
-    if (
-      context.vaultStatus !== "private" &&
-      context.vaultStatus !== "discoverable"
-    ) {
+    if (!isProfileSearchReady(context)) {
       return { ok: false, reason: "not_ready" };
     }
     await setProfileStatus(

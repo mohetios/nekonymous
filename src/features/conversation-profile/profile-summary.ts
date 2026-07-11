@@ -2,7 +2,7 @@ import { CONVERSATION_DIMENSIONS } from "./constants.ts";
 import type { ConversationProfile, ProfileLocale } from "./types.ts";
 
 const INTENT_LABELS_FA: Record<ConversationProfile["currentIntent"], string> = {
-  light: "گفت‌وگوی سبک و کم‌فشار",
+  light: "گفت‌وگوی سبک و ساده",
   deep: "گفت‌وگوی عمیق‌تر",
   support: "شنیده‌شدن و همراهی",
   exploration: "کشف موضوع‌های تازه",
@@ -30,6 +30,16 @@ const DIMENSION_LABELS_FA: Record<(typeof CONVERSATION_DIMENSIONS)[number], stri
 
 const formatPercent = (value: number): string =>
   `${Math.round(value * 100)}٪`;
+
+const styleLevelFa = (value: number): string => {
+  if (value >= 0.7) {
+    return "پررنگ";
+  }
+  if (value >= 0.45) {
+    return "متعادل";
+  }
+  return "آرام‌تر";
+};
 
 export const buildProfileSummaryText = (
   profile: ConversationProfile,
@@ -70,20 +80,22 @@ export const buildProfileSummaryText = (
 
   const lines = [
     `تمایل فعلی: ${intentLabel}.`,
-    "این خلاصه فقط تصویری از سبک گفت‌وگوی توست، نه برچسب شخصیتی.",
+    "این فقط خلاصه‌ی ترجیحات گفت‌وگوت هست.",
   ];
 
   if (topDimensions.length > 0) {
     lines.push(
-      "چند ترجیح پررنگ‌تر: " +
+      "ویژگی‌های پررنگ‌تر: " +
         topDimensions
           .map(
             (entry) =>
-              `${DIMENSION_LABELS_FA[entry.dimension]} (${formatPercent(entry.self)})`
+              `${DIMENSION_LABELS_FA[entry.dimension]}: ${styleLevelFa(entry.self)}`
           )
           .join("، ")
     );
   }
+
+  lines.push("نتیجه‌ی تست شخصیت یا تعریف قطعی تو نیست.");
 
   return lines.join("\n");
 };

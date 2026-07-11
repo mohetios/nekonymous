@@ -1,222 +1,150 @@
-# راهنمای لحن فارسی نِکونیموس
+# Nekonymous Persian Voice and Tone
 
-## 1. تعریف شخصیت نِکونیموس
+This is the source of truth for Persian interaction copy in Nekonymous.
 
-نِکونیموس یک گربه‌ی نارنجی ناشناس است که پیام‌های ناشناس را بین آدم‌ها می‌رساند.
+## Core Voice
 
-او جوان، کم‌حرف، باهوش، کمی شیطون، اینترنت‌بلد و بی‌قضاوت است. نِکو مثل یک mascot کودکانه حرف نمی‌زند و مثل متن رسمی محصول هم نیست؛ فارسی معمولی و کوتاه حرف می‌زند و فقط گاهی واکنش گربه‌ای دارد.
+Nekonymous is a young orange cat that carries anonymous messages. It speaks like a concise, internet-aware Persian speaker: warm, direct, slightly playful, and never childish.
 
-جمله‌ی معرفی canonical:
-
-```text
-من نِکونیموسم؛ یه گربه‌ی نارنجی که پیام‌های ناشناس رو بین آدما می‌رسونه.
-```
-
-این جمله فقط در معرفی اولیه استفاده می‌شود. در پیام‌های بعدی لازم نیست دوباره گربه بودن نِکو توضیح داده شود.
-
-## 2. مخاطب اصلی
-
-مخاطب اصلی کاربر ایرانی تلگرام است: جوان، فارسی‌زبان، آشنا با دکمه‌ها و flowهای بات، و حساس به متن‌های ترجمه‌شده، رسمی یا بیش‌ازحد تبلیغاتی.
-
-متن باید برای خواندن سریع در تلگرام مناسب باشد: کوتاه، واضح، بدون wall of text و با next action روشن.
-
-## 3. اصول لحن فارسی
-
-- فارسی طبیعی و محاوره‌ای بنویس: «می‌تونی»، «اگه»، «برات»، «فعلاً».
-- پیش‌فرض خطاب «تو» است، نه «شما».
-- جمله‌ها کوتاه باشند و هر پیام معمولی بیشتر از چند خط توضیح ندهد.
-- از ترکیب رسمی و محاوره‌ای پرهیز کن: «می‌توانید دوباره امتحان کنی» ممنوع است.
-- از ادبیات SaaS و اداری دوری کن: «عملیات با موفقیت انجام شد» ننویس.
-- slang تاریخ‌مصرف‌دار یا بیش‌ازحد خودمانی ننویس: «خفن»، «داداش»، «سم»، «ردفلگ».
-- معنی و مسیر بعدی همیشه از شخصیت مهم‌تر است.
-
-## 4. واژگان canonical
-
-| مفهوم | عبارت فارسی |
-| --- | --- |
-| anonymous message | پیام ناشناس |
-| personal anonymous link | لینک پیام ناشناس / لینک ناشناس |
-| inbox | صندوق پیام‌ها |
-| anonymous reply | پاسخ ناشناس |
-| reply | پاسخ دادن |
-| private nickname | نام خصوصی |
-| block | مسدود کردن |
-| report | گزارش کردن |
-| pause inbox | توقف دریافت پیام |
-| resume inbox | فعال‌سازی دریافت پیام |
-| assessment | ارزیابی سبک گفت‌وگو |
-| conversation profile | پروفایل گفت‌وگو |
-| conversation suggestion | پیشنهاد گفت‌وگو |
-| conversation request | درخواست گفت‌وگو |
-| match intro | پیام شروع گفت‌وگو |
-| hard reset | پاک کردن حساب |
-| encrypted at rest | رمزنگاری در حالت سکون |
-
-محور اصلی محصول همیشه «پیام ناشناس» است.
-
-## 5. واژگان ممنوع
-
-در متن فعال محصول استفاده نشود:
-
-- مچ، مچ‌یابی
-- تست شخصیت، تشخیص شخصیت، درصد سازگاری، سازگارترین
-- نیمه گمشده، dating، کراش
-- پیام‌رسان امن، کاملاً امن، امن‌ترین
-- ناشناس کامل، ناشناسی مطلق
-- رمزنگاری سرتاسری
-- هیچ‌کس نمی‌فهمد، تلگرام نمی‌بیند، سرور نمی‌بیند
-- در کوچک، دنیای جادویی، مسیر جادویی، صندوقچه، رازخانه، پیک اسرار
-
-استثنا: در متن‌های privacy/about فقط برای توضیح منفی و دقیق درباره چیزی که نِکونیموس نیست، می‌توان از بعضی عبارت‌ها استفاده کرد.
-
-## 6. قواعد استفاده از «میو»
-
-«میو» زبان کامل نِکو نیست؛ فقط واکنش کوتاه احساسی است.
-
-واکنش‌های مجاز:
-
-- `میو،` برای شروع دوستانه، greeting، acknowledgment نرم.
-- `میو؟` برای command نامفهوم، داده‌ی پیدا نشده یا خطای سبک.
-- `میووو...` برای empty state، انتظار یا سکوت.
-
-قواعد:
-
-- در هر پیام حداکثر یک واکنش گربه‌ای.
-- در هر flow لازم نیست همه پیام‌ها «میو» داشته باشند.
-- در پیام‌های report، block، privacy، reset و data deletion از «میو» استفاده نکن.
-- از صداهای ساختگی مثل `mrrp`، `مِروپ`، `پررر` و `هیس` در copy فعال استفاده نکن.
-
-فرمول مناسب:
+The product keyword is:
 
 ```text
-میو؟
-این یکی رو نفهمیدم.
-از دکمه‌های پایین استفاده کن.
+پیام ناشناس
 ```
 
-## 7. قواعد emoji
-
-emoji کم و هدفمند باشد.
-
-emojiهای پیش‌فرض:
-
-- 🐾 برای حضور نِکو یا successهای سبک
-- 🔗 لینک
-- 📥 صندوق
-- 💬 پاسخ
-- 🏷️ نام خصوصی
-- 🚫 مسدود کردن
-- ⚠️ گزارش
-- ⚙️ تنظیمات
-- 🧭 پیشنهاد گفت‌وگو
-- 📝 ارزیابی
-- 🗑️ پاک کردن حساب
-
-قواعد:
-
-- در هر پیام معمولی حداکثر یک emoji تزئینی.
-- دکمه‌ها می‌توانند emoji داشته باشند، ولی label باید کوتاه بماند.
-- از emojiهای احساسی زیاد مثل `😂`، `🥹`، `😍`، `🔥`، `✨` استفاده نکن.
-- `😼` فقط برای rate limit سبک یا لحظه‌ی بازیگوش غیرحساس مناسب است.
-- پیام‌های حساس بدون emoji تزئینی باشند.
-
-## 8. Tone matrix
-
-| وضعیت | لحن | نمونه |
-| --- | --- | --- |
-| welcome، لینک آماده، inbox empty، unknown command | دوستانه و کوتاه، گاهی «میو» | میو، لینک پیام ناشناست آماده‌ست 🐾 |
-| compose، pagination، settings، assessment progress | مستقیم و کاربردی | پیامت رو بنویس. من همون رو ناشناس می‌رسونم. |
-| report، block، privacy، reset، خطای جدی | روشن، بی‌شوخی، بدون واکنش گربه‌ای | این کار قابل برگشت نیست. |
-
-## 9. Sensitive-state rules
-
-- درباره privacy claim قوی‌تر از implementation نده.
-- واضح بگو تلگرام و Worker هنگام پردازش پیام را می‌بینند.
-- واضح بگو نِکونیموس E2EE یا zero-knowledge نیست.
-- ناشناسی کامل تضمین نکن.
-- بگو داده‌های حساس ذخیره‌شده، در محدوده‌های پیاده‌سازی‌شده، در حالت سکون رمزنگاری می‌شوند.
-- بگو متن پیام بعد از نمایش موفق در صندوق پاک می‌شود، ولی اطلاعات لازم برای actionها ممکن است تا زمان انقضا باقی بماند.
-- در report/block/reset از شوخی، «میو» و emoji تزئینی استفاده نکن.
-
-## 10. Button rules
-
-- label کوتاه و actionمحور باشد.
-- callback data یا command name را برای تغییر متن عوض نکن.
-- button text با متن صفحه هماهنگ باشد.
-- اگر دکمه destructive است، confirmation واضح لازم است.
-
-نمونه‌های canonical:
+Prefer clear product words:
 
 ```text
-🔗 لینک من
-📥 صندوق پیام‌ها
-🧭 پیشنهاد گفت‌وگو
-⚙️ تنظیمات
-💬 پاسخ دادن
-🏷️ نام خصوصی
-🚫 مسدود کردن
-⚠️ گزارش کردن
-✅ پذیرفتن
-❌ رد کردن
-↩️ لغو درخواست
-📝 شروع ارزیابی
-👤 پروفایل گفت‌وگو
-↩️ بازگشت
-↩️ لغو
+پیام ناشناس
+لینک پیام ناشناس
+صندوق پیام‌ها
+پیام تازه
+پاسخ ناشناس
+نام خصوصی
+مسدود کردن
+گزارش کردن
+ارزیابی سبک گفت‌وگو
+پروفایل گفت‌وگو
+پیشنهاد گفت‌وگو
+درخواست گفت‌وگو
+پیام شروع
+نمایش در پیشنهادها
 ```
 
-## 11. Examples
+Do not use story-like UX terms such as «صندوقچه»، «در کوچک»، «پیک اسرار»، «اتاق اعتراف»، «مسیر جادویی»، or «رازخانه».
 
-Welcome:
+## Persian Register
+
+Use controlled conversational Persian:
 
 ```text
-میو، رسیدی 🐾
-
-من نِکونیموسم؛
-یه گربه‌ی نارنجی که پیام‌های ناشناس رو بین آدما می‌رسونه.
+تو
+می‌تونی
+نمی‌تونی
+اگه
+برات
+همین‌جا
+فعلاً
+دوباره
+با خودته
+بهت خبر می‌دم
 ```
 
-Compose:
+Avoid formal system language:
 
 ```text
-هرچی می‌خوای بنویس.
-
-من همون رو ناشناس می‌رسونم.
+کاربر گرامی
+می‌باشد
+می‌گردد
+ثبت گردید
+قابل قبول است
+در حال حاضر امکان‌پذیر نمی‌باشد
+لطفاً نسبت به انتخاب گزینه اقدام نمایید
 ```
 
-Success:
+Avoid short-lived slang:
 
 ```text
-پیامت رسید 🐾
+خفن
+سم
+فاز
+کراش
+ردفلگ
+چیل
+داداش
 ```
 
-Unknown:
+## Cat Reactions
+
+Cat reactions are occasional, not a tic.
+
+Use `میو،` for first greetings, warm returns, and soft positive starts.
+Use `میو؟` for unclear input or light errors.
+Use `میووو...` for waiting, empty inboxes, or no results.
+Use `میو!` rarely, only for low-risk happy moments.
+
+Do not use unfamiliar cat sounds such as `mrrp`, `مِروپ`, `پررر`, `هیس`, `میعویی`, or `مییی‌و`.
+
+Most messages should not start with `میو`. Never use cat reactions in privacy, report, block, abuse, or account deletion copy.
+
+## Emoji
+
+The personality emoji is `🐾`. Use at most one decorative emoji per message. It is acceptable in low-risk success messages.
+
+Do not use decorative emoji in privacy, report, block, abuse, or delete flows. Avoid `✨🔥😂🥹😍`.
+
+## Tone Modes
+
+Warm and character-led:
+welcome, personal link, fresh message, empty inbox, assessment completion, request sent.
+
+Neutral and functional:
+compose prompts, replies, private nickname, pagination, profile status, assessment questions, request lists.
+
+Calm error:
+temporary failures, invalid links, expired requests, invalid input, limits.
+
+Serious:
+reports, blocking, privacy, account deletion, data deletion, abuse, serious failures. No jokes, no cat reactions, no decorative emoji.
+
+## Privacy Claims
+
+Never claim perfect anonymity, E2EE, zero-knowledge delivery, exact compatibility, clinical/personality diagnosis, dating compatibility, or secure messenger positioning.
+
+Use clear limitation language:
 
 ```text
-میو؟
-
-این یکی رو نفهمیدم.
-از دکمه‌های پایین استفاده کن.
+نِکونیموس پیام‌رسان رمزنگاری سرتاسری نیست و ناشناسی کامل رو تضمین نمی‌کنه.
+تلگرام و سرور بات هنگام پردازش، متن پیام رو می‌بینن.
 ```
 
-Privacy:
+Stored sensitive data may be described as encrypted at rest only where implemented.
+
+## Conversation Suggestions
+
+Do not show compatibility percentages, quality labels, or matching language such as «مچ»، «درصد سازگاری»، «نزدیکی محدود»، or «سبک گفت‌وگوی خیلی نزدیک».
+
+Suggestion explanations should show understandable reasons and, when useful, one possible difference:
 
 ```text
-نِکونیموس هویت تلگرامی کاربران را در جریان معمول به طرف مقابل نشان نمی‌دهد.
+چیزهایی که بینتون نزدیکه:
+• ریتم جواب‌دادنتون به هم نزدیکه.
+• هر دوتون گفت‌وگوی عمیق‌تر رو دوست دارین.
 
-اما پیام از تلگرام و زیرساخت پردازش بات عبور می‌کند؛ این سیستم رمزنگاری سرتاسری نیست.
+یک تفاوت احتمالی:
+• یکی‌تون معمولاً سریع‌تر جواب می‌ده.
 ```
 
-## 12. QA checklist
+Differences should not sound like warnings or problems.
 
-- آیا متن فارسی طبیعی و غیرترجمه‌ای است؟
-- آیا next action روشن است؟
-- آیا «پیام ناشناس» محور copy باقی مانده؟
-- آیا «میو» کم و معنی‌دار استفاده شده؟
-- آیا متن‌های حساس بدون شوخی و emoji تزئینی هستند؟
-- آیا واژگان ممنوع در متن فعال نیامده‌اند، مگر توضیح منفی privacy؟
-- آیا placeholderها، HTML و MarkdownV2 سالم‌اند؟
-- آیا button label تغییر کرده ولی callback data ثابت مانده؟
-- آیا privacy claim دقیق و مطابق threat model است؟
-- آیا assessment به‌عنوان تست شخصیت معرفی نشده؟
-- آیا پیشنهاد گفت‌وگو بدون زبان مچ/درصد/سازگاری نوشته شده؟
+## Assessment
+
+Use «ارزیابی سبک گفت‌وگو», not «تست». The copy may explicitly say it is not a personality test or psychological diagnosis.
+
+Do not hardcode the assessment question count in UI text. Import it from the canonical question bank/constants.
+
+## Implementation Rules
+
+Change visible copy, labels, placeholders, and language documentation only. Do not change commands, callback identifiers, callback prefixes, business logic, database schema, ranking formulas, scoring, rate limits, storage behavior, retention, or keyboard architecture while doing a voice pass.
+
+Before merging copy changes, run targeted audits for forbidden formal phrases, matching terms, cat sounds, and privacy claims.

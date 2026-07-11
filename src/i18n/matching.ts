@@ -74,7 +74,6 @@ export const MATCH_HUB_STATUS = {
   searchNeedsAssessment: "جست‌وجو: بعد از ارزیابی",
   searchVectorPending: "جست‌وجو: در حال آماده‌شدن",
   searchUnavailable: "جست‌وجو: فعلاً در دسترس نیست",
-  searchNeedsOptIn: "جست‌وجو: اول نمایش در پیشنهادها رو فعال کن.",
   searchReady: "جست‌وجو: آماده",
   pendingNone: "درخواست‌های باز: نداری",
   pendingCount: (count: string): string => `درخواست‌های باز: ${count}`,

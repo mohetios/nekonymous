@@ -1,6 +1,7 @@
 import type { Environment } from "../../types";
 import {
   getProfileDashboardMeta,
+  isProfileSearchReady,
   loadRequesterProfileContext,
 } from "../conversation-profile/profile-service.ts";
 import type { SuggestionHubMenuOptions } from "./types.ts";
@@ -38,11 +39,7 @@ export const buildSuggestionHubView = async (
     if (meta.discoverable) {
       discoverabilityLine = MATCH_HUB_STATUS.discoverabilityActive;
       discoverabilityVariant = "can_disable";
-    } else if (
-      profileContext.ok &&
-      (profileContext.vaultStatus === "private" ||
-        profileContext.vaultStatus === "discoverable")
-    ) {
+    } else if (isProfileSearchReady(profileContext)) {
       discoverabilityLine = MATCH_HUB_STATUS.discoverabilityInactive;
       discoverabilityVariant = "can_enable";
     } else {
@@ -50,19 +47,21 @@ export const buildSuggestionHubView = async (
     }
   }
 
+  const profileVaultStatus = profileContext.ok ? profileContext.vaultStatus : null;
+
   let eligibilityLine: string = MATCH_HUB_STATUS.searchNeedsAssessment;
-  if (profileContext.ok) {
+  if (isProfileSearchReady(profileContext)) {
     eligibilityLine = MATCH_HUB_STATUS.searchReady;
-  } else if (profileContext.ok === false) {
-    if (profileContext.reason === "profile_loading") {
-      eligibilityLine = MATCH_HUB_STATUS.searchVectorPending;
-    } else if (profileContext.reason === "profile_failed") {
-      eligibilityLine = MATCH_HUB_STATUS.searchUnavailable;
-    }
+  } else if (profileVaultStatus === "indexing") {
+    eligibilityLine = MATCH_HUB_STATUS.searchVectorPending;
+  } else if (profileVaultStatus === "index_failed") {
+    eligibilityLine = MATCH_HUB_STATUS.searchUnavailable;
+  } else if (!profileContext.ok && profileContext.reason === "profile_failed") {
+    eligibilityLine = MATCH_HUB_STATUS.searchUnavailable;
   }
 
-  const showFind = profileContext.ok;
-  const showProfile = meta.hasProfile;
+  const showFind = isProfileSearchReady(profileContext);
+  const showProfile = profileContext.ok;
   const assessmentLabel = meta.hasProfile
     ? MENU.matchAssessmentRetry
     : MENU.matchAssessment;
