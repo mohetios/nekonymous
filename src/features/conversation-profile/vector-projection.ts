@@ -6,7 +6,7 @@ import type {
 import type { VectorRouteRole } from "../../storage/profile-vault/profile-vault.types";
 
 export const VECTOR_DIMENSION = 8;
-/** Vectorize platform minimum; semantic values occupy the first 8 dimensions. */
+/** Vectorize platform minimum ([32, 1536]); semantic values occupy dims 0..7. */
 export const VECTOR_INDEX_DIMENSION = 32;
 
 export const padVectorForIndex = (values: number[]): number[] => {

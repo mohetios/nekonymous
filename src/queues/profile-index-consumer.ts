@@ -1,6 +1,11 @@
 import type { Environment } from "../types";
-import type { ProfileIndexJob } from "./profile-index.types";
+import {
+  shouldAckIndexJobEarly,
+  shouldSkipUpsertForDiscoverableProfile,
+  shouldSkipVerifyForDiscoverableProfile,
+} from "./profile-index-policy.ts";
 import { PROFILE_INDEX_SCHEMA_VERSION } from "./profile-index.types";
+import type { ProfileIndexJob } from "./profile-index.types";
 import {
   createIndexJobLookupHash,
   createVectorLookupHash,
@@ -118,7 +123,7 @@ const runUpsert = async (
   jobRecord: IndexJobRecord,
   profile: ProfileVaultRecord
 ): Promise<JobOutcome> => {
-  if (profile.status === "discoverable") {
+  if (shouldSkipUpsertForDiscoverableProfile(profile.status)) {
     return { type: "ack" };
   }
 
@@ -197,7 +202,7 @@ const runVerify = async (
   profile: ProfileVaultRecord,
   deliveryAttempt: number
 ): Promise<JobOutcome> => {
-  if (profile.status === "discoverable") {
+  if (shouldSkipVerifyForDiscoverableProfile(profile.status)) {
     return { type: "ack" };
   }
   if (!jobRecord.vectorsEnc) {
@@ -284,18 +289,12 @@ const processJob = async (
     job.indexJobRef
   );
   const jobRecord = await getIndexJobRecord(env, jobHash);
+  const routeKey = await deriveIndexJobRouteKey(env.APP_MASTER_KEY, jobHash);
+
   if (!jobRecord) {
     return { type: "ack" };
   }
-  if (jobRecord.status === "completed") {
-    return { type: "ack" };
-  }
-  if (jobRecord.status === "expired" || jobRecord.expiresAt <= Date.now()) {
-    await setIndexJobStatus(env, jobHash, "expired");
-    return { type: "ack" };
-  }
 
-  const routeKey = await deriveIndexJobRouteKey(env.APP_MASTER_KEY, jobHash);
   const route = await decryptEnvelope<IndexJobRouteCapsule>(
     routeKey,
     jobRecord.routeEnc,
@@ -303,23 +302,25 @@ const processJob = async (
   );
 
   const profile = await getProfileRecord(env, route.profileHash);
-  if (!profile) {
-    return { type: "ack" };
-  }
   if (
-    profile.revision !== route.revision ||
-    profile.revision !== jobRecord.revision
+    shouldAckIndexJobEarly(jobRecord, profile, route.revision, Date.now())
   ) {
+    if (
+      jobRecord.status !== "completed" &&
+      (jobRecord.status === "expired" || jobRecord.expiresAt <= Date.now())
+    ) {
+      await setIndexJobStatus(env, jobHash, "expired");
+    }
     return { type: "ack" };
   }
 
   if (job.action === "upsert") {
-    return runUpsert(env, job, jobHash, jobRecord, profile);
+    return runUpsert(env, job, jobHash, jobRecord, profile!);
   }
   if (job.action === "verify") {
-    return runVerify(env, jobHash, jobRecord, profile, deliveryAttempt);
+    return runVerify(env, jobHash, jobRecord, profile!, deliveryAttempt);
   }
-  return runDelete(env, jobHash, jobRecord, profile);
+  return runDelete(env, jobHash, jobRecord, profile!);
 };
 
 export const handleProfileIndexBatch = async (

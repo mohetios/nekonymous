@@ -265,9 +265,12 @@ resolve one-time indexJobRef
 self-v2-fa, desired-v2-fa, self-v2-en, desired-v2-en
 ```
 
-Index: `nekonymous-conversation-v2` — **8 dimensions**, **euclidean** metric. Do not reuse 1024-d `nekonymous-profile-vectors`.
+Index: `nekonymous-conversation-v2` — **euclidean** metric. Do not reuse 1024-d `nekonymous-profile-vectors`.
 
-Vectorize stores: random ID, 8 quantized values, namespace. Optional metadata: `schemaVersion` only.
+**Semantic dimension count:** 8 (quantized self/desired projection).  
+**Vectorize index dimension count:** 32 — Cloudflare Vectorize requires `[32, 1536]` per index; values are zero-padded after the first 8 semantic dimensions. Euclidean distance on padded vectors equals distance on the 8-d semantic slice (identical tail dimensions add zero delta).
+
+Vectorize stores: random ID, padded vector values, namespace. Optional metadata: `schemaVersion` only — no user id, locale, or discoverability flag in metadata (locale lives in namespace string only).
 
 Full normalized values remain inside encrypted profile; ranking uses decrypted profile, not quantized vectors.
 

@@ -20,6 +20,39 @@ Track refactor progress phase by phase. **Do not start the next phase while the 
 | 13 | Statistics and learning readiness | ✅ Done | Aggregate stats events emitted |
 | 14 | Test and audit suite | ✅ Done | `pnpm check` green |
 | 15 | Final removal and documentation sync | ✅ Done | V1 dirs removed, docs updated |
+| 16 | Release verification (manual + privacy) | ⬜ Pending | Two-account E2E + full storage-plane audit |
+
+## Phase 16 — release gates (pre sign-off)
+
+Static `pnpm check` is necessary but **not sufficient**. All must pass before production sign-off:
+
+### Source control
+
+- [x] Commit on `master`
+- [ ] Tag + push `pre-release-conversation-v2-*` to remote
+
+### Two-account Telegram E2E (mandatory)
+
+```text
+/start A + B → /assessment both → raw answers cleared → vectors verified
+→ discoverability on both → A searches → intro → B request notify
+→ B accepts → intro via sealed inbox → reply → block/report
+→ hard reset removes profile + vectors
+```
+
+Also: decline, cancel, duplicate send, double accept, disable discoverability, retake profile, stale index job, expired request.
+
+### Queue idempotency (at-least-once)
+
+Automated policy: `pnpm test:profile-index-idempotency`. Remote: duplicate jobs, stale revision, delete twice, disable during upsert.
+
+### Privacy audit (all storage planes)
+
+`pnpm audit:d1` plus manual DO/queue/Vectorize/log inspection — no raw Telegram IDs, capability refs, plaintext answers/intros, or D1 profile edges.
+
+### DO migration freeze
+
+After pre-release sign-off, avoid new delete migrations. Recovery = current commit + wrangler config + fresh resources + redeploy (rollback does not restore DO storage).
 
 ## Phase artifacts
 
