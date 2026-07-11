@@ -25,21 +25,30 @@ import {
 } from "./resolve-ticket-action";
 import { expireTicketRecord } from "../../storage/ticket-vault/ticket-vault.client";
 import { listInboxPage, markInboxPointerViewed } from "../../storage/user-state-client";
-import { recordInboxOpened, recordMessageDelivered } from "../../stats/product-events";
+import { recordInboxOpened, recordMessageDelivered, recordMessageExpired } from "../../stats/product-events";
 
 const MAX_INBOX_DECRYPT_PER_REQUEST = 10;
 
 const expireTicketsBestEffort = async (
   env: Environment,
   ticketHashes: string[]
-): Promise<void> => {
-  await Promise.all(
+): Promise<number> => {
+  if (ticketHashes.length === 0) {
+    return 0;
+  }
+
+  const results = await Promise.all(
     ticketHashes.map((ticketHash) =>
-      expireTicketRecord(env, ticketHash).catch((error) =>
-        logBotError("renderInbox:expire", error)
-      )
+      expireTicketRecord(env, ticketHash)
+        .then(() => true)
+        .catch((error) => {
+          logBotError("renderInbox:expire", error);
+          return false;
+        })
     )
   );
+
+  return results.filter(Boolean).length;
 };
 
 const deliverInboxPage = async (
@@ -55,7 +64,10 @@ const deliverInboxPage = async (
   const d1User = await resolveOrCreateUser(ctx, env);
   const user = await toBotUser(d1User, env);
   const page = await listInboxPage(env, user.id, offset);
-  await expireTicketsBestEffort(env, page.expiredTicketHashes);
+  const expiredCount = await expireTicketsBestEffort(env, page.expiredTicketHashes);
+  if (expiredCount > 0) {
+    await recordMessageExpired(env, expiredCount);
+  }
 
   if (page.pointers.length === 0 && offset === 0) {
     await ctx.reply(EMPTY_INBOX_MESSAGE, withHtml({ reply_markup: mainMenu }));

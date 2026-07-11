@@ -45,6 +45,7 @@ Capability-based anonymous routing is the current model. Do not reintroduce olde
 | Bot commands / keyboards / callbacks | `docs/architecture/bot-interaction-v1.md` |
 | Inbox / sealed tickets | `docs/architecture/sealed-ticket-routing-and-inbox.md` |
 | Conversation profile + suggestions (V2) | `docs/architecture/conversation-suggestions-v2.md` |
+| Platform stats engine | `docs/architecture/platform-stats-engine.md` |
 | Release sign-off | `docs/release/pre-release-conversation-v2-acca6b9.md` |
 | Persian voice | `docs/brand/nekonymous-fa-voice-and-tone.md` |
 
@@ -163,8 +164,7 @@ src/
 │   ├── ticketing/                 # sealed-ticket + conversation capability crypto
 │   │   ├── base64url.ts, hkdf.ts, hmac.ts, aes-gcm.ts, envelope.ts, keys.ts
 │   │   ├── ticketing-service.ts, conversation-keys.ts, conversation-resolvers.ts
-│   └── platform/
-│       └── platform-stats-service.ts  # anonymous lifetime counters
+│   └── platform/                      # (reserved; stats live in src/stats/)
 ├── storage/
 │   ├── user-state-do.ts
 │   ├── user-state-client.ts         # only place for UserStateDO fetch calls
@@ -357,8 +357,8 @@ Prefer:
 
 - bounded queries with indexes
 - `features/identity/identity-service.ts` for users/links/delete
-- `features/platform/platform-stats-service.ts` for public aggregate stats
-- increment anonymous stats via `emitStat` / `incrementPlatformStat` on accepted sends — no message body or sender-recipient edge in D1
+- `src/stats/stats-reader.ts` (`getPublicBotStats`) for public aggregate stats display
+- increment anonymous stats via `record*()` in `src/stats/product-events.ts` on accepted sends — no message body or sender-recipient edge in D1
 
 Avoid:
 
@@ -369,7 +369,7 @@ Avoid:
 
 ## KV Rules
 
-`env.NEKO_KV` is **routing/cache only**. Routing access lives in `features/identity/identity-service.ts`; public aggregate stats may use short-lived `cache:*` keys in `src/stats/` and `src/features/platform/`.
+`env.NEKO_KV` is **routing/cache only**. Routing access lives in `features/identity/identity-service.ts`; public aggregate stats may use short-lived `cache:*` keys in `src/stats/`.
 
 | Key pattern         | Value   | Purpose                  |
 |---------------------|---------|--------------------------|

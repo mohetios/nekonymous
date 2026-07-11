@@ -6,6 +6,7 @@ import {
 } from "./profile-index-policy.ts";
 import { PROFILE_INDEX_SCHEMA_VERSION } from "./profile-index.types";
 import type { ProfileIndexJob } from "./profile-index.types";
+import { recordProfileIndexed, recordProfileIndexFailed } from "../stats/product-events";
 import {
   createIndexJobLookupHash,
   createVectorLookupHash,
@@ -227,6 +228,7 @@ const runVerify = async (
       profile.revision
     );
     await setIndexJobStatus(env, jobHash, "completed");
+    await recordProfileIndexed(env);
     return { type: "ack" };
   }
 
@@ -238,6 +240,7 @@ const runVerify = async (
       profile.revision
     );
     await setIndexJobStatus(env, jobHash, "expired");
+    await recordProfileIndexFailed(env);
     return { type: "ack" };
   }
 

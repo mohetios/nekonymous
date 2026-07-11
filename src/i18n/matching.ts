@@ -6,6 +6,9 @@ export const MATCH_DISCOVERABILITY_ENABLED =
 export const MATCH_SEARCH_LIMIT =
   "فعلاً نمی‌تونی دوباره جست‌وجو کنی.\n\nکمی بعد امتحان کن.";
 
+export const MATCH_SEARCH_FAILED =
+  "فعلاً نتونستم پیشنهادها رو بارگذاری کنم.\n\nکمی بعد دوباره امتحان کن.";
+
 export const MATCH_REQUEST_LIMIT =
   "سهم درخواست‌های امروزت تموم شده.\n\nفردا دوباره می‌تونی درخواست بفرستی.";
 

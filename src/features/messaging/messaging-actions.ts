@@ -37,8 +37,7 @@ import {
   setDraft,
 } from "../../storage/user-state-client";
 import { escapeHtml, withHtml } from "../../utils/tools";
-import { emitStat } from "../../stats/emit-stat";
-import { STAT_EVENTS } from "../../stats/events";
+import { recordBlockCreated, recordReportCreated } from "../../stats/product-events";
 import {
   resolveTicketAction,
   isExpiredTicketAction,
@@ -243,7 +242,7 @@ export const handleBlockAction = async (
     );
 
     await addBlock(env, user.id, blockHash);
-    await emitStat(env, STAT_EVENTS.BLOCK_CREATED);
+    await recordBlockCreated(env);
     await Promise.all([
       markInboxPointerBlocked(env, user.id, resolved.ticketHash),
       markTicketBlocked(env, resolved.ticketHash),
@@ -446,9 +445,7 @@ export const handleReportAction = async (
       route: resolved.route,
       reasonCode: "inbox_report",
     });
-    await emitStat(env, STAT_EVENTS.REPORT_CREATED, {
-      statKey: "inbox_report",
-    });
+    await recordReportCreated(env, "inbox_report");
     await Promise.all([
       markInboxPointerReported(env, user.id, resolved.ticketHash),
       markTicketRecordReported(env, resolved.ticketHash),

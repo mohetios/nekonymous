@@ -20,20 +20,21 @@ const isBenignEditError = (error: unknown): boolean => {
 
 export const renderScreen = async (
   ctx: Context,
-  screen: RenderedScreen
+  screen: RenderedScreen,
+  renderOptions?: { skipAnswer?: boolean }
 ): Promise<void> => {
   const options = withHtml({ reply_markup: screen.replyMarkup });
 
-  if (ctx.callbackQuery) {
-    await ctx.answerCallbackQuery();
-    if (ctx.callbackQuery.message) {
-      try {
-        await ctx.editMessageText(screen.text, options);
+  if (ctx.callbackQuery?.message) {
+    if (!renderOptions?.skipAnswer) {
+      await ctx.answerCallbackQuery();
+    }
+    try {
+      await ctx.editMessageText(screen.text, options);
+      return;
+    } catch (error) {
+      if (isBenignEditError(error)) {
         return;
-      } catch (error) {
-        if (isBenignEditError(error)) {
-          return;
-        }
       }
     }
   }

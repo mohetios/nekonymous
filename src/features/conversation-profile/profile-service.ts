@@ -38,8 +38,11 @@ import { buildConversationProfile, profileHasSafetyState } from "./profile-build
 import { clearProfileSession, getProfileSession } from "./profile-session-service.ts";
 import { hasCompleteAnswers } from "./validation.ts";
 import type { ConversationProfile, ProfileLocale } from "./types.ts";
-import { emitStat } from "../../stats/emit-stat.ts";
-import { STAT_EVENTS } from "../../stats/events.ts";
+import {
+  recordDiscoverabilityEnabled,
+  recordDiscoverabilityDisabled,
+  recordProfileIndexRequested,
+} from "../../stats/product-events";
 
 const capabilityScope = (userId: string): string => `profile-capability:v2:${userId}`;
 
@@ -179,6 +182,7 @@ export const finalizeProfileSession = async (
       schemaVersion: PROFILE_INDEX_SCHEMA_VERSION,
       attempt: 0,
     });
+    await recordProfileIndexRequested(env);
   } catch (error) {
     throw new Error("Profile index queue submission failed", { cause: error });
   }
@@ -288,15 +292,20 @@ export const loadRequesterProfileContext = async (
     };
   }
 
-  const profileKey = await deriveProfileEncryptionKey(
-    env.APP_MASTER_KEY,
-    profileHash
-  );
-  const profile = await decryptEnvelope<ConversationProfile>(
-    profileKey,
-    record.profileEnc,
-    profileEncAad(profileHash)
-  );
+  let profile: ConversationProfile;
+  try {
+    const profileKey = await deriveProfileEncryptionKey(
+      env.APP_MASTER_KEY,
+      profileHash
+    );
+    profile = await decryptEnvelope<ConversationProfile>(
+      profileKey,
+      record.profileEnc,
+      profileEncAad(profileHash)
+    );
+  } catch {
+    return { ok: false, reason: "profile_failed" };
+  }
 
   return {
     ok: true,
@@ -352,7 +361,7 @@ export const setConversationDiscoverability = async (
       userId
     );
     await setUserDiscoverable(env, userId, true);
-    await emitStat(env, STAT_EVENTS.DISCOVERABILITY_ENABLED);
+    await recordDiscoverabilityEnabled(env);
     return { ok: true };
   }
 
@@ -364,7 +373,7 @@ export const setConversationDiscoverability = async (
     undefined
   );
   await setUserDiscoverable(env, userId, false);
-  await emitStat(env, STAT_EVENTS.DISCOVERABILITY_DISABLED);
+  await recordDiscoverabilityDisabled(env);
   return { ok: true };
 };
 

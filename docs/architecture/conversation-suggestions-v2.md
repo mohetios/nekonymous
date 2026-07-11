@@ -434,17 +434,32 @@ Callback payloads must not include candidate ID, profile ID, user ID, score, or 
 
 ## Statistics (aggregate only)
 
-Emit (failures never break user flows):
+Canonical reference: [platform-stats-engine.md](./platform-stats-engine.md).
+
+All product stats go through `src/stats/product-events.ts` → `neko-stats` queue → D1. Failures never break user flows.
+
+**Profile + index**
 
 ```text
 profile_started, profile_completed,
 profile_index_requested, profile_indexed, profile_index_failed,
-discoverability_enabled, discoverability_disabled,
+discoverability_enabled, discoverability_disabled
+```
+
+**Suggestions + requests**
+
+```text
 suggestion_search, suggestion_shown, suggestion_dismissed,
-request_sent, request_accepted, request_declined, request_canceled, request_expired,
-first_reply, second_interaction,
+request_sent, request_accepted, request_declined, request_canceled
+```
+
+**Safety**
+
+```text
 block_created, report_created
 ```
+
+Lazy expiry of suggestion/request capabilities is **not** emitted separately; terminal actions above are the counters.
 
 **Future learning (disabled in V2 launch):** internal contract only for coarse pair feature bucket, rank position bucket, terminal outcome, day bucket — no pair-level D1 rows until separate privacy review.
 

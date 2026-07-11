@@ -15,10 +15,11 @@ import { ELIGIBILITY_MAX_CONCURRENT_PAIR_LOOKUPS } from "./constants.ts";
 import { filterEligibleCandidates } from "./eligibility.ts";
 import { rerankWithExposure } from "./exposure-reranker.ts";
 import type { RetrievalRequest } from "./types.ts";
+import { logBotError } from "../../utils/logs.ts";
 
 export type SuggestionSearchResult =
   | { ok: true; results: RankedCandidate[]; remainingSearches?: number }
-  | { ok: false; reason: "search_limited" | "no_candidates" };
+  | { ok: false; reason: "search_limited" | "no_candidates" | "search_failed" };
 
 const mapBounded = async <T, R>(
   items: T[],
@@ -85,68 +86,83 @@ const buildExposureTokenMap = async (
   return new Map(entries);
 };
 
+const loadRecentExposure = async (
+  env: Environment,
+  userId: string
+): Promise<Set<string>> => {
+  try {
+    return new Set(await getActiveExposureTokenHashes(env, userId));
+  } catch (error) {
+    logBotError("searchConversationSuggestions:exposure", error);
+    return new Set();
+  }
+};
+
 export const searchConversationSuggestions = async (
   env: Environment,
   userId: string,
   request: RetrievalRequest
 ): Promise<SuggestionSearchResult> => {
-  const budget = await consumeSuggestionSearchBudget(env, userId);
-  if (budget.limited) {
-    return { ok: false, reason: "search_limited" };
+  try {
+    const budget = await consumeSuggestionSearchBudget(env, userId);
+    if (budget.limited) {
+      return { ok: false, reason: "search_limited" };
+    }
+
+    const retrieval = await retrieveConversationCandidates(env, request);
+    if (retrieval.candidates.length === 0) {
+      return { ok: false, reason: "no_candidates" };
+    }
+
+    const pairTagsByProfile = await buildPairTagMap(
+      env,
+      request.requesterProfileHash,
+      retrieval.candidates.map((candidate) => candidate.profileHash)
+    );
+
+    const pairStates = await getPairStatesBatch(
+      env,
+      [...pairTagsByProfile.values()],
+      ELIGIBILITY_MAX_CONCURRENT_PAIR_LOOKUPS
+    );
+
+    const eligible = filterEligibleCandidates(
+      retrieval.candidates,
+      pairTagsByProfile,
+      pairStates
+    );
+    if (eligible.length === 0) {
+      return { ok: false, reason: "no_candidates" };
+    }
+
+    const ranked = rankCandidateProfiles(
+      request.requesterProfile,
+      eligible,
+      pairTagsByProfile
+    );
+    if (ranked.length === 0) {
+      return { ok: false, reason: "no_candidates" };
+    }
+
+    const exposureTokenByPairTag = await buildExposureTokenMap(
+      env,
+      ranked.map((candidate) => candidate.pairTag)
+    );
+    const recentExposure = await loadRecentExposure(env, userId);
+
+    const results = rerankWithExposure(
+      ranked,
+      recentExposure,
+      exposureTokenByPairTag
+    );
+
+    return {
+      ok: true,
+      results,
+      remainingSearches: budget.remaining,
+    };
+  } catch (error) {
+    logBotError("searchConversationSuggestions", error);
+    return { ok: false, reason: "search_failed" };
   }
-
-  const retrieval = await retrieveConversationCandidates(env, request);
-  if (retrieval.candidates.length === 0) {
-    return { ok: false, reason: "no_candidates" };
-  }
-
-  const pairTagsByProfile = await buildPairTagMap(
-    env,
-    request.requesterProfileHash,
-    retrieval.candidates.map((candidate) => candidate.profileHash)
-  );
-
-  const pairStates = await getPairStatesBatch(
-    env,
-    [...pairTagsByProfile.values()],
-    ELIGIBILITY_MAX_CONCURRENT_PAIR_LOOKUPS
-  );
-
-  const eligible = filterEligibleCandidates(
-    retrieval.candidates,
-    pairTagsByProfile,
-    pairStates
-  );
-  if (eligible.length === 0) {
-    return { ok: false, reason: "no_candidates" };
-  }
-
-  const ranked = rankCandidateProfiles(
-    request.requesterProfile,
-    eligible,
-    pairTagsByProfile
-  );
-  if (ranked.length === 0) {
-    return { ok: false, reason: "no_candidates" };
-  }
-
-  const exposureTokenByPairTag = await buildExposureTokenMap(
-    env,
-    ranked.map((candidate) => candidate.pairTag)
-  );
-  const recentExposure = new Set(
-    await getActiveExposureTokenHashes(env, userId)
-  );
-
-  const results = rerankWithExposure(
-    ranked,
-    recentExposure,
-    exposureTokenByPairTag
-  );
-
-  return {
-    ok: true,
-    results,
-    remainingSearches: budget.remaining,
-  };
 };

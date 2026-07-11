@@ -15,7 +15,7 @@ How sealed tickets, the ticket vault, and inbox pointers work together. For priv
 | Payload ciphertext temporary | **Implemented** — cleared after successful inbox delivery |
 | Inbox retention 30 days | **Implemented** (`INBOX_RETENTION_DAYS` in `inbox-pointer.ts`) |
 | Callback actions after view | **Implemented** — route material kept until expiry for reply/block/report/nickname |
-| Aggregate relay counter in D1 | **Implemented** (`platform_daily_stats.message_created` via `neko-stats`) |
+| Aggregate relay counter in D1 | **Implemented** (`message_created` via `neko-stats`; see [platform-stats-engine.md](./platform-stats-engine.md)) |
 
 ## Components
 

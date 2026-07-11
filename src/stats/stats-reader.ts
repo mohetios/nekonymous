@@ -16,8 +16,10 @@ export type PublicBotStats = {
   newUsers: PeriodCounts;
   activeUsers: PeriodCounts;
   messages: PeriodCounts;
+  messagesExpired: PeriodCounts;
   replies: PeriodCounts;
   reports: PeriodCounts;
+  blocks: PeriodCounts;
   linksCreated: PeriodCounts;
   inboxOpens: PeriodCounts;
   assessmentsCompleted: PeriodCounts;
@@ -72,10 +74,13 @@ const buildPeriodCounts = (
 
 const MESSAGE_EVENT_NAMES = [STAT_EVENTS.MESSAGE_CREATED];
 
-const ASSESSMENT_EVENT_NAMES = [STAT_EVENTS.ASSESSMENT_COMPLETED];
+const ASSESSMENT_EVENT_NAMES = [
+  STAT_EVENTS.PROFILE_COMPLETED,
+  STAT_EVENTS.ASSESSMENT_COMPLETED,
+];
 
 const publicStatsCacheKey = (today: string): string =>
-  `cache:public-bot-stats:v1:${today}`;
+  `cache:public-bot-stats:v2:${today}`;
 
 const isPeriodCounts = (value: unknown): value is PeriodCounts => {
   if (!value || typeof value !== "object") {
@@ -101,8 +106,10 @@ const isPublicBotStats = (value: unknown): value is PublicBotStats => {
     isPeriodCounts(record.newUsers) &&
     isPeriodCounts(record.activeUsers) &&
     isPeriodCounts(record.messages) &&
+    isPeriodCounts(record.messagesExpired) &&
     isPeriodCounts(record.replies) &&
     isPeriodCounts(record.reports) &&
+    isPeriodCounts(record.blocks) &&
     isPeriodCounts(record.linksCreated) &&
     isPeriodCounts(record.inboxOpens) &&
     isPeriodCounts(record.assessmentsCompleted) &&
@@ -159,11 +166,14 @@ export const getPublicBotStats = async (
   const trackedEvents = [
     STAT_EVENTS.USER_CREATED,
     STAT_EVENTS.MESSAGE_CREATED,
+    STAT_EVENTS.MESSAGE_EXPIRED,
     STAT_EVENTS.MESSAGE_DELIVERED,
     STAT_EVENTS.REPLY_SENT,
     STAT_EVENTS.REPORT_CREATED,
+    STAT_EVENTS.BLOCK_CREATED,
     STAT_EVENTS.LINK_CREATED,
     STAT_EVENTS.INBOX_OPENED,
+    STAT_EVENTS.PROFILE_COMPLETED,
     STAT_EVENTS.ASSESSMENT_COMPLETED,
     STAT_EVENTS.SUGGESTION_SEARCH,
   ];
@@ -256,6 +266,13 @@ export const getPublicBotStats = async (
       day7,
       day30
     ),
+    messagesExpired: buildPeriodCounts(
+      dailyRows,
+      [STAT_EVENTS.MESSAGE_EXPIRED],
+      today,
+      day7,
+      day30
+    ),
     replies: buildPeriodCounts(
       dailyRows,
       [STAT_EVENTS.REPLY_SENT],
@@ -266,6 +283,13 @@ export const getPublicBotStats = async (
     reports: buildPeriodCounts(
       dailyRows,
       [STAT_EVENTS.REPORT_CREATED],
+      today,
+      day7,
+      day30
+    ),
+    blocks: buildPeriodCounts(
+      dailyRows,
+      [STAT_EVENTS.BLOCK_CREATED],
       today,
       day7,
       day30

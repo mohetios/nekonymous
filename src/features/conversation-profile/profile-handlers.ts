@@ -14,8 +14,10 @@ import {
 } from "../../i18n/conversation-profile-ui";
 import { resolveOrCreateUser } from "../identity/identity-service";
 import { hmacTelegramUserId } from "../ticketing/ticketing-service";
-import { emitStat } from "../../stats/emit-stat";
-import { STAT_EVENTS } from "../../stats/events";
+import {
+  recordProfileStarted,
+  recordProfileCompleted,
+} from "../../stats/product-events";
 import { escapeHtml, withHtml } from "../../utils/tools";
 import { logBotError } from "../../utils/logs";
 import { renderSuggestionHub } from "../conversation-suggestions/suggestion-hub";
@@ -125,7 +127,7 @@ const startNewProfileSession = async (
 ): Promise<void> => {
   await prepareProfileRetake(env, userId);
   await startProfileSession(env, userId);
-  await emitStat(env, STAT_EVENTS.PROFILE_STARTED);
+  await recordProfileStarted(env);
   await showQuestion(ctx, 0);
 };
 
@@ -137,7 +139,7 @@ const completeProfile = async (
 ): Promise<void> => {
   const actorHash = await hmacTelegramUserId(env.APP_HMAC_PEPPER, telegramUserId);
   const result = await finalizeProfileSession(env, userId, actorHash, "fa");
-  await emitStat(env, STAT_EVENTS.PROFILE_COMPLETED);
+  await recordProfileCompleted(env);
 
   const summary = escapeHtml(buildProfileSummaryText(result.profile, "fa"));
   const text =

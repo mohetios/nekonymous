@@ -25,8 +25,7 @@ import {
 import { upsertPairStateRecord } from "../../storage/pair-ledger/pair-ledger.client";
 import { recordExposureTokenHash } from "../../storage/user-state-client";
 import type { Environment } from "../../types";
-import { emitStat } from "../../stats/emit-stat.ts";
-import { STAT_EVENTS } from "../../stats/events.ts";
+import { recordSuggestionDismissed } from "../../stats/product-events";
 import type { RankedCandidate } from "../conversation-ranking/types.ts";
 import { PAIR_DISMISS_COOLDOWN_MS } from "./constants.ts";
 
@@ -191,7 +190,7 @@ export const dismissSuggestionTicket = async (
       expiresAt: Date.now() + PAIR_DISMISS_COOLDOWN_MS,
     });
 
-    await emitStat(env, STAT_EVENTS.SUGGESTION_DISMISSED);
+    await recordSuggestionDismissed(env);
     return { ok: true };
   } catch (error) {
     if (error instanceof CapabilityExpiredError) {

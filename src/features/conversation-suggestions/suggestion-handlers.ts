@@ -20,15 +20,19 @@ import {
   MATCH_RECENT_PAIR_COOLDOWN,
   MATCH_REQUEST_LIMIT,
   MATCH_REQUEST_SENT,
+  MATCH_SEARCH_FAILED,
   MATCH_SEARCH_INDEX_PENDING,
   MATCH_SEARCH_LIMIT,
   MATCH_SUGGESTION_INVALID,
 } from "../../i18n/matching";
+import { HuhMessage } from "../../i18n/messages";
 import { hmacTelegramUserId } from "../ticketing/ticketing-service";
 import { escapeHtml, withHtml } from "../../utils/tools";
 import { logBotError } from "../../utils/logs";
-import { emitStat } from "../../stats/emit-stat.ts";
-import { STAT_EVENTS } from "../../stats/events.ts";
+import {
+  recordSuggestionSearch,
+  recordSuggestionShown,
+} from "../../stats/product-events";
 import {
   isProfileSearchReady,
   loadRequesterProfileContext,
@@ -59,6 +63,91 @@ const profileUnavailableMessage = (
   reason === "profile_failed"
     ? MATCH_PROFILE_FAILED
     : MATCH_PROFILE_NO_ASSESSMENT;
+
+const searchFailureMessage = (
+  reason: "search_limited" | "no_candidates" | "search_failed"
+): string => {
+  if (reason === "search_limited") {
+    return MATCH_SEARCH_LIMIT;
+  }
+  if (reason === "search_failed") {
+    return MATCH_SEARCH_FAILED;
+  }
+  return MATCH_NO_CANDIDATES_COOLDOWN;
+};
+
+const answerCallbackSafely = async (ctx: Context): Promise<void> => {
+  try {
+    await ctx.answerCallbackQuery();
+  } catch {
+    // Callback may already be answered or expired.
+  }
+};
+
+const runSuggestionSearch = async (
+  ctx: Context,
+  env: Environment,
+  userId: string,
+  actorHash: string
+): Promise<void> => {
+  const profileContext = await loadRequesterProfileContext(env, userId);
+  if (!profileContext.ok) {
+    await ctx.reply(
+      profileUnavailableMessage(profileContext.reason),
+      withHtml({ reply_markup: mainMenu })
+    );
+    return;
+  }
+  if (!isProfileSearchReady(profileContext)) {
+    await ctx.reply(MATCH_SEARCH_INDEX_PENDING, withHtml({ reply_markup: mainMenu }));
+    return;
+  }
+
+  const search = await searchConversationSuggestions(env, userId, {
+    requesterProfileHash: profileContext.profileHash,
+    requesterProfile: profileContext.profile,
+  });
+
+  if (!search.ok) {
+    await ctx.reply(
+      searchFailureMessage(search.reason),
+      withHtml({ reply_markup: mainMenu })
+    );
+    return;
+  }
+
+  await recordSuggestionSearch(env);
+  let issued;
+  try {
+    issued = await issueSuggestionTickets(env, actorHash, search.results);
+    await recordSuggestionExposure(
+      env,
+      userId,
+      issued.map((entry) => entry.pairTag)
+    );
+  } catch (error) {
+    logBotError("runSuggestionSearch:issue", error);
+    await ctx.reply(MATCH_SEARCH_FAILED, withHtml({ reply_markup: mainMenu }));
+    return;
+  }
+
+  if (issued.length === 0) {
+    await ctx.reply(MATCH_NO_CANDIDATES, withHtml({ reply_markup: mainMenu }));
+    return;
+  }
+
+  await recordSuggestionShown(env);
+
+  await ctx.reply(MATCH_CANDIDATES_HEADER, withHtml({ reply_markup: mainMenu }));
+  for (const [index, entry] of issued.entries()) {
+    await ctx.reply(
+      `<b>${index + 1}.</b> ${MATCH_CANDIDATES_WHY_FIT}\n${escapeHtml(entry.explanation)}`,
+      withHtml({
+        reply_markup: buildSuggestionCandidateKeyboard(entry.suggestionRef),
+      })
+    );
+  }
+};
 
 export const handleMatchCommand = async (
   ctx: Context,
@@ -102,56 +191,12 @@ export const handleMatchCallback = async (
     const actorHash = await hmacTelegramUserId(env.APP_HMAC_PEPPER, from.id);
 
     if (data === SUGGESTION_HUB_CALLBACK.search) {
-      await ctx.answerCallbackQuery();
-      const profileContext = await loadRequesterProfileContext(env, user.id);
-      if (!profileContext.ok) {
-        await ctx.reply(
-          profileUnavailableMessage(profileContext.reason),
-          withHtml({ reply_markup: mainMenu })
-        );
-        return;
-      }
-      if (!isProfileSearchReady(profileContext)) {
-        await ctx.reply(MATCH_SEARCH_INDEX_PENDING, withHtml({ reply_markup: mainMenu }));
-        return;
-      }
-
-      const search = await searchConversationSuggestions(env, user.id, {
-        requesterProfileHash: profileContext.profileHash,
-        requesterProfile: profileContext.profile,
-      });
-
-      if (!search.ok) {
-        const message =
-          search.reason === "search_limited"
-            ? MATCH_SEARCH_LIMIT
-            : MATCH_NO_CANDIDATES_COOLDOWN;
-        await ctx.reply(message, withHtml({ reply_markup: mainMenu }));
-        return;
-      }
-
-      await emitStat(env, STAT_EVENTS.SUGGESTION_SEARCH);
-      const issued = await issueSuggestionTickets(env, actorHash, search.results);
-      if (issued.length === 0) {
-        await ctx.reply(MATCH_NO_CANDIDATES, withHtml({ reply_markup: mainMenu }));
-        return;
-      }
-
-      await recordSuggestionExposure(
-        env,
-        user.id,
-        issued.map((entry) => entry.pairTag)
-      );
-      await emitStat(env, STAT_EVENTS.SUGGESTION_SHOWN);
-
-      await ctx.reply(MATCH_CANDIDATES_HEADER, withHtml({ reply_markup: mainMenu }));
-      for (const [index, entry] of issued.entries()) {
-        await ctx.reply(
-          `<b>${index + 1}.</b> ${MATCH_CANDIDATES_WHY_FIT}\n${escapeHtml(entry.explanation)}`,
-          withHtml({
-            reply_markup: buildSuggestionCandidateKeyboard(entry.suggestionRef),
-          })
-        );
+      await answerCallbackSafely(ctx);
+      try {
+        await runSuggestionSearch(ctx, env, user.id, actorHash);
+      } catch (error) {
+        logBotError("handleMatchCallback:search", error);
+        await ctx.reply(HuhMessage, withHtml({ reply_markup: mainMenu }));
       }
       return;
     }
@@ -184,28 +229,34 @@ export const handleMatchCallback = async (
     }
 
     if (data === SUGGESTION_HUB_CALLBACK.enableDiscover) {
-      const result = await setConversationDiscoverability(env, user.id, true);
-      await ctx.answerCallbackQuery();
-      if (!result.ok) {
-        const message =
-          result.reason === "not_ready"
-            ? MATCH_SEARCH_INDEX_PENDING
-            : MATCH_PROFILE_NO_ASSESSMENT;
-        await ctx.reply(message, withHtml({ reply_markup: mainMenu }));
-        return;
+      try {
+        const result = await setConversationDiscoverability(env, user.id, true);
+        if (!result.ok) {
+          const message =
+            result.reason === "not_ready"
+              ? MATCH_SEARCH_INDEX_PENDING
+              : MATCH_PROFILE_NO_ASSESSMENT;
+          await ctx.reply(message, withHtml({ reply_markup: mainMenu }));
+          return;
+        }
+        await ctx.reply(
+          MATCH_DISCOVERABILITY_ENABLED,
+          withHtml({ reply_markup: mainMenu })
+        );
+        await renderSuggestionHub(ctx, env, from.id.toString(), { skipAnswer: true });
+      } finally {
+        await answerCallbackSafely(ctx);
       }
-      await ctx.reply(
-        MATCH_DISCOVERABILITY_ENABLED,
-        withHtml({ reply_markup: mainMenu })
-      );
-      await renderSuggestionHub(ctx, env, from.id.toString());
       return;
     }
 
     if (data === SUGGESTION_HUB_CALLBACK.disableDiscover) {
-      await setConversationDiscoverability(env, user.id, false);
-      await ctx.answerCallbackQuery();
-      await renderSuggestionHub(ctx, env, from.id.toString());
+      try {
+        await setConversationDiscoverability(env, user.id, false);
+        await renderSuggestionHub(ctx, env, from.id.toString(), { skipAnswer: true });
+      } finally {
+        await answerCallbackSafely(ctx);
+      }
       return;
     }
 
@@ -218,8 +269,8 @@ export const handleMatchCallback = async (
     await ctx.answerCallbackQuery();
   } catch (error) {
     logBotError("handleMatchCallback", error);
-    await ctx.answerCallbackQuery();
-    await ctx.reply(MATCH_SUGGESTION_INVALID, withHtml({ reply_markup: mainMenu }));
+    await answerCallbackSafely(ctx);
+    await ctx.reply(HuhMessage, withHtml({ reply_markup: mainMenu }));
   }
 };
 

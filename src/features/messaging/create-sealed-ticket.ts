@@ -11,8 +11,7 @@ import {
 } from "../ticketing/keys";
 import { createMessageDedupeKey, getSenderAlias } from "../ticketing/ticketing-service";
 import { ensureUserStateInitialized } from "../identity/identity-service";
-import { incrementPlatformStat } from "../platform/platform-stats-service";
-import { STAT_EVENTS } from "../../stats/events";
+import { recordMessageCreated } from "../../stats/product-events";
 import {
   addInboxPointer,
   type AddInboxPointerResult,
@@ -231,7 +230,7 @@ export const createSealedTicket = async (
     return { ok: false, status: 500 };
   }
 
-  await incrementPlatformStat(env, STAT_EVENTS.MESSAGE_CREATED);
+  await recordMessageCreated(env);
 
   return {
     ok: true,

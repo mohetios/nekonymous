@@ -967,27 +967,62 @@
       <section class="wrap" id="stats">
         <div class="section-head">
           <p class="eyebrow">آمار</p>
-          <h2>آمار کلی، نه پرونده‌ی کاربر</h2>
+          <h2>موتور آمار ناشناس</h2>
           <p class="section-copy">
-            رویدادهای مهم به Queue فرستاده و به شمارنده‌های روزانه تبدیل می‌شوند. داشبورد و
-            صفحه آمار فقط همین شمارنده‌های تجمیعی را می‌خوانند؛ نه متن پیام، مسیر تیکت یا
-            فهرست ارتباط کاربران را.
+            رویدادهای مهم از handlerها به صف <code>neko-stats</code> می‌روند، در consumer به
+            شمارنده‌های روزانه D1 تبدیل می‌شوند، و صفحه «آمار کلی» در تنظیمات فقط همین
+            تجمیع‌ها را می‌خواند — نه متن پیام، مسیر تیکت، یا گراف ارتباط کاربران.
           </p>
         </div>
 
+        <div class="info-table" role="region" aria-label="جریان آمار">
+          <table>
+            <tbody>
+              <tr>
+                <th scope="row">تولید</th>
+                <td><code>record*()</code> در <code>src/stats/product-events.ts</code></td>
+              </tr>
+              <tr>
+                <th scope="row">صف</th>
+                <td><code>NEKO_STATS_QUEUE</code> → <code>handleStatsBatch</code></td>
+              </tr>
+              <tr>
+                <th scope="row">ذخیره</th>
+                <td>
+                  <code>platform_daily_stats</code>،
+                  <code>platform_daily_stats_by_key</code>،
+                  <code>platform_daily_unique_stats</code>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">نمایش</th>
+                <td>
+                  <code>getPublicBotStats</code> + کش ۶۰ثانیه‌ای KV → صفحه آمار در
+                  <code>/settings</code>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">قانون</th>
+                <td>best-effort — خطای صف هرگز جریان کاربر را قطع نمی‌کند</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <p class="note">
-          این صفحه عدد زنده نمایش نمی‌دهد. کارت‌های زیر فقط نوع آمار عمومی قابل نمایش را نشان می‌دهند.
+          این صفحه عدد زنده نمایش نمی‌دهد. کارت‌های زیر نوع آمار عمومی و رویدادهای wired در
+          کد را نشان می‌دهند.
         </p>
 
         <div class="stats-grid">
-          <div class="stat-card"><strong>کاربران</strong><span>تعداد کل و کاربران فعال در بازه‌های زمانی</span></div>
-          <div class="stat-card"><strong>پیام‌ها</strong><span>پیام‌های ساخته‌شده، تحویل‌شده و منقضی‌شده</span></div>
-          <div class="stat-card"><strong>پاسخ‌ها</strong><span>تعداد پاسخ و نرخ کلی ادامه گفت‌وگو</span></div>
-          <div class="stat-card"><strong>ایمنی</strong><span>تعداد تجمیعی گزارش‌ها و مسدودسازی‌ها</span></div>
-          <div class="stat-card"><strong>پروفایل گفت‌وگو</strong><span>شروع و تکمیل ارزیابی، بدون نمایش پاسخ خام</span></div>
-          <div class="stat-card"><strong>پیشنهادها</strong><span>جست‌وجو، نمایش و رد یا پذیرش درخواست‌ها</span></div>
-          <div class="stat-card"><strong>عملکرد</strong><span>رویدادهای ارسال و خطاهای عملیاتی به‌صورت کلی</span></div>
-          <div class="stat-card"><strong>حریم خصوصی</strong><span>بدون رتبه‌بندی عمومی یا آمار مخصوص یک کاربر</span></div>
+          <div class="stat-card"><strong>کاربران</strong><span><code>user_created</code> · <code>user_active</code> (یکتا در روز)</span></div>
+          <div class="stat-card"><strong>لینک</strong><span><code>link_created</code> · <code>link_opened</code> (باز کردن deep link)</span></div>
+          <div class="stat-card"><strong>پیام‌ها</strong><span><code>message_created</code> · <code>message_delivered</code> · <code>message_expired</code></span></div>
+          <div class="stat-card"><strong>صندوق</strong><span><code>inbox_opened</code> · <code>reply_sent</code></span></div>
+          <div class="stat-card"><strong>ایمنی</strong><span><code>block_created</code> · <code>report_created</code> (با statKey اختیاری)</span></div>
+          <div class="stat-card"><strong>ارزیابی</strong><span><code>profile_started</code> · <code>profile_completed</code> · index queue events</span></div>
+          <div class="stat-card"><strong>پیشنهادها</strong><span><code>suggestion_search</code> · <code>suggestion_shown</code> · <code>suggestion_dismissed</code></span></div>
+          <div class="stat-card"><strong>درخواست‌ها</strong><span><code>request_sent</code> · accepted · declined · canceled</span></div>
         </div>
       </section>
 
@@ -1017,6 +1052,10 @@
           <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/security/threat-model.md">
             <strong>مدل تهدید</strong>
             <span>چه چیزی محافظت می‌شود، چه چیزی محافظت نمی‌شود و مرز اعتماد کجاست.</span>
+          </a>
+          <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/architecture/platform-stats-engine.md">
+            <strong>موتور آمار پلتفرم</strong>
+            <span>صف neko-stats، شمارنده‌های D1، record* helpers، و مرز حریم خصوصی صفحه آمار.</span>
           </a>
           <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/architecture/sealed-ticket-routing-and-inbox.md">
             <strong>Sealed Ticket و صندوق</strong>

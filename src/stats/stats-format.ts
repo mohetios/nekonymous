@@ -66,7 +66,10 @@ export const formatPublicBotStatsMessage = (stats: PublicBotStats): string => {
     "",
     section("🟢", "کاربران فعال", [periodInline(stats.activeUsers)]),
     "",
-    section("💬", "پیام‌های ناشناس", [periodInline(stats.messages)]),
+    section("💬", "پیام‌های ناشناس", [
+      `ساخته‌شده · ${periodInline(stats.messages)}`,
+      `منقضی‌شده · ${periodInline(stats.messagesExpired)}`,
+    ]),
     "",
     section("↩️", "پاسخ‌های ناشناس", [
       periodInline(stats.replies),
@@ -81,8 +84,9 @@ export const formatPublicBotStatsMessage = (stats: PublicBotStats): string => {
       `۳۰روز · ارزیابی <b>${formatStatCount(stats.assessmentsCompleted.days30)}</b> · جست‌وجو <b>${formatStatCount(stats.suggestionSearches.days30)}</b>`,
     ]),
     "",
-    section("🛡️", "گزارش‌ها", [
-      `۳۰روز · <b>${bucketSensitiveCount(stats.reports.days30)}</b>`,
+    section("🛡️", "ایمنی", [
+      `گزارش ۳۰روز · <b>${bucketSensitiveCount(stats.reports.days30)}</b>`,
+      `مسدودسازی ۳۰روز · <b>${bucketSensitiveCount(stats.blocks.days30)}</b>`,
     ]),
     "",
     "<i>به‌روزرسانی با کمی تأخیر (~۱ دقیقه)</i>",

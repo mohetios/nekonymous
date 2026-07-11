@@ -63,6 +63,9 @@ const [
   consumerSource,
   emitSource,
   productEventsSource,
+  profileHandlersSource,
+  messagingCommandsSource,
+  renderInboxSource,
 ] = await Promise.all([
   readSource("../src/stats/stats-format.ts"),
   readSource("../src/stats/stats-reader.ts"),
@@ -71,6 +74,9 @@ const [
   readSource("../src/stats/stats-consumer.ts"),
   readSource("../src/stats/emit-stat.ts"),
   readSource("../src/stats/product-events.ts"),
+  readSource("../src/features/conversation-profile/profile-handlers.ts"),
+  readSource("../src/features/messaging/messaging-commands.ts"),
+  readSource("../src/features/messaging/render-inbox.ts"),
 ]);
 
 // 4) empty stats state copy exists in formatter source
@@ -159,9 +165,21 @@ assert(
 const productEventChecks: Array<{ event: string; marker: string }> = [
   { event: STAT_EVENTS.USER_CREATED, marker: "recordUserCreated" },
   { event: STAT_EVENTS.LINK_CREATED, marker: "recordLinkCreated" },
+  { event: STAT_EVENTS.LINK_OPENED, marker: "recordLinkOpened" },
+  { event: STAT_EVENTS.MESSAGE_CREATED, marker: "recordMessageCreated" },
+  { event: STAT_EVENTS.MESSAGE_EXPIRED, marker: "recordMessageExpired" },
   { event: STAT_EVENTS.INBOX_OPENED, marker: "recordInboxOpened" },
   { event: STAT_EVENTS.MESSAGE_DELIVERED, marker: "recordMessageDelivered" },
   { event: STAT_EVENTS.REPLY_SENT, marker: "recordReplySent" },
+  { event: STAT_EVENTS.BLOCK_CREATED, marker: "recordBlockCreated" },
+  { event: STAT_EVENTS.REPORT_CREATED, marker: "recordReportCreated" },
+  { event: STAT_EVENTS.PROFILE_STARTED, marker: "recordProfileStarted" },
+  { event: STAT_EVENTS.PROFILE_COMPLETED, marker: "recordProfileCompleted" },
+  { event: STAT_EVENTS.PROFILE_INDEX_REQUESTED, marker: "recordProfileIndexRequested" },
+  { event: STAT_EVENTS.PROFILE_INDEXED, marker: "recordProfileIndexed" },
+  { event: STAT_EVENTS.PROFILE_INDEX_FAILED, marker: "recordProfileIndexFailed" },
+  { event: STAT_EVENTS.SUGGESTION_SEARCH, marker: "recordSuggestionSearch" },
+  { event: STAT_EVENTS.REQUEST_SENT, marker: "recordRequestSent" },
 ];
 
 for (const { event, marker } of productEventChecks) {
@@ -176,7 +194,7 @@ for (const eventName of [
   STAT_EVENTS.MESSAGE_CREATED,
   STAT_EVENTS.REPORT_CREATED,
   STAT_EVENTS.SUGGESTION_SEARCH,
-  STAT_EVENTS.ASSESSMENT_COMPLETED,
+  STAT_EVENTS.PROFILE_COMPLETED,
   STAT_EVENTS.REQUEST_SENT,
 ]) {
   assert(
@@ -184,6 +202,39 @@ for (const eventName of [
     `missing stat event ${eventName}`
   );
 }
+
+assert(
+  readerSource.includes("cache:public-bot-stats:v2:"),
+  "public stats cache key must use v2 schema"
+);
+assert(
+  readerSource.includes("STAT_EVENTS.MESSAGE_EXPIRED"),
+  "stats reader must count message_expired"
+);
+assert(
+  readerSource.includes("STAT_EVENTS.BLOCK_CREATED"),
+  "stats reader must count block_created"
+);
+
+// 12) profile completion must emit an event counted by the public stats reader
+assert(
+  profileHandlersSource.includes("recordProfileCompleted"),
+  "profile completion must emit profile_completed"
+);
+assert(
+  readerSource.includes("STAT_EVENTS.PROFILE_COMPLETED"),
+  "stats reader must count profile_completed for assessment totals"
+);
+
+// 13) deep link and inbox expiry stats must be wired
+assert(
+  messagingCommandsSource.includes("recordLinkOpened"),
+  "deep link opens must record link_opened"
+);
+assert(
+  renderInboxSource.includes("recordMessageExpired"),
+  "inbox expiry cleanup must record message_expired"
+);
 
 assert(
   readerSource.includes("platform_daily_stats") === true,

@@ -65,7 +65,7 @@ Telegram → Cloudflare Worker (grammY) → D1 / Durable Objects / KV / Queues /
 | KV | Routing cache only |
 | Vectorize | Coarse 8-d vectors for suggestion retrieval (no Workers AI) |
 
-Details: [docs/architecture/sealed-ticket-routing-and-inbox.md](./docs/architecture/sealed-ticket-routing-and-inbox.md), [docs/architecture/conversation-suggestions-v2.md](./docs/architecture/conversation-suggestions-v2.md).
+Details: [docs/architecture/sealed-ticket-routing-and-inbox.md](./docs/architecture/sealed-ticket-routing-and-inbox.md), [docs/architecture/conversation-suggestions-v2.md](./docs/architecture/conversation-suggestions-v2.md), [docs/architecture/platform-stats-engine.md](./docs/architecture/platform-stats-engine.md).
 
 ## Bot commands
 
@@ -146,6 +146,7 @@ pnpm bot:profile
 | [docs/architecture/bot-interaction-v1.md](./docs/architecture/bot-interaction-v1.md) | Commands, keyboards, callbacks |
 | [docs/architecture/sealed-ticket-routing-and-inbox.md](./docs/architecture/sealed-ticket-routing-and-inbox.md) | Sealed ticket + inbox |
 | [docs/architecture/conversation-suggestions-v2.md](./docs/architecture/conversation-suggestions-v2.md) | Conversation profile + suggestions V2 |
+| [docs/architecture/platform-stats-engine.md](./docs/architecture/platform-stats-engine.md) | Anonymous stats queue, D1 aggregates, public stats page |
 | [docs/brand/nekonymous-fa-voice-and-tone.md](./docs/brand/nekonymous-fa-voice-and-tone.md) | Persian product voice |
 | [docs/release/pre-release-conversation-v2-acca6b9.md](./docs/release/pre-release-conversation-v2-acca6b9.md) | Pre-release sign-off record |
 

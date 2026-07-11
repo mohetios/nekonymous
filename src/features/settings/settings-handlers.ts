@@ -64,8 +64,11 @@ import {
   setPaused,
 } from "../../storage/user-state-client";
 import { renderSettingsHome, renderStatsPage } from "./render-stats-page";
-import { emitStat } from "../../stats/emit-stat";
-import { STAT_EVENTS } from "../../stats/events";
+import {
+  recordPauseEnabled,
+  recordPauseDisabled,
+  recordHardReset,
+} from "../../stats/product-events";
 import { formatSettingsHome } from "./settings-home";
 
 export const handleSettingsCommand = async (
@@ -209,7 +212,7 @@ export const handleSettingsCallback = async (
 
     if (data === SETTINGS_CALLBACK.pause) {
       await setPaused(env, user.id, true);
-      await emitStat(env, STAT_EVENTS.PAUSE_ENABLED);
+      await recordPauseEnabled(env);
       const updated = await toBotUser(d1User, env);
       await ctx.answerCallbackQuery({ text: SETTINGS_PAUSE_DONE_CALLBACK });
       await ctx.editMessageText(
@@ -221,7 +224,7 @@ export const handleSettingsCallback = async (
 
     if (data === SETTINGS_CALLBACK.resume) {
       await setPaused(env, user.id, false);
-      await emitStat(env, STAT_EVENTS.PAUSE_DISABLED);
+      await recordPauseDisabled(env);
       const updated = await toBotUser(d1User, env);
       await ctx.answerCallbackQuery({ text: SETTINGS_RESUME_DONE_CALLBACK });
       await ctx.editMessageText(
@@ -359,7 +362,7 @@ export const handleSettingsCallback = async (
         return;
       }
       const freshD1 = await clearUserAccountAndRecreate(ctx, user.id, env);
-      await emitStat(env, STAT_EVENTS.HARD_RESET);
+      await recordHardReset(env);
       const freshUser = await toBotUser(freshD1, env);
       await clearDraft(env, freshUser.id);
       await ctx.answerCallbackQuery();

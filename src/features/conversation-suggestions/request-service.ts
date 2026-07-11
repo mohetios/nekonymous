@@ -36,8 +36,12 @@ import {
   upsertPairStateRecord,
 } from "../../storage/pair-ledger/pair-ledger.client";
 import type { D1User, Environment } from "../../types";
-import { emitStat } from "../../stats/emit-stat.ts";
-import { STAT_EVENTS } from "../../stats/events.ts";
+import {
+  recordRequestSent,
+  recordRequestCanceled,
+  recordRequestDeclined,
+  recordRequestAccepted,
+} from "../../stats/product-events";
 import {
   PAIR_ACCEPTED_COOLDOWN_MS,
   PAIR_DECLINED_COOLDOWN_MS,
@@ -165,7 +169,7 @@ export const createConversationRequest = async (
     return { ok: false, reason: "invalid" };
   }
 
-  await emitStat(env, STAT_EVENTS.REQUEST_SENT);
+  await recordRequestSent(env);
   await notifyIncomingConversationRequest(
     env,
     input.candidateProfileHash,
@@ -207,7 +211,7 @@ export const cancelConversationRequest = async (
       true
     );
     await releasePairPendingLock(env, resolved.route.pairTag);
-    await emitStat(env, STAT_EVENTS.REQUEST_CANCELED);
+    await recordRequestCanceled(env);
     return { ok: true };
   } catch (error) {
     return mapRequestError(error);
@@ -251,7 +255,7 @@ export const declineConversationRequest = async (
     if (requester) {
       await notifyRequesterDeclined(env, requester, resolved.requestHash);
     }
-    await emitStat(env, STAT_EVENTS.REQUEST_DECLINED);
+    await recordRequestDeclined(env);
     return { ok: true };
   } catch (error) {
     return mapRequestError(error);
@@ -322,7 +326,7 @@ export const acceptConversationRequest = async (
       expiresAt: Date.now() + PAIR_ACCEPTED_COOLDOWN_MS,
     });
     await notifyRequesterAccepted(env, requester, resolved.requestHash);
-    await emitStat(env, STAT_EVENTS.REQUEST_ACCEPTED);
+    await recordRequestAccepted(env);
     return { ok: true };
   } catch (error) {
     return mapRequestError(error);

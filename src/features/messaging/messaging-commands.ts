@@ -65,7 +65,7 @@ import { handleConversationIntroInput } from "../conversation-suggestions/sugges
 import { mainMenu } from "../../bot/keyboards";
 import { hmacTelegramUserId } from "../ticketing/ticketing-service";
 import type { UserDraft } from "../../types";
-import { recordReplySent } from "../../stats/product-events";
+import { recordLinkOpened, recordReplySent } from "../../stats/product-events";
 
 const isTextInputDraft = (draft: UserDraft | undefined): boolean => {
   if (!draft) {
@@ -148,6 +148,8 @@ export const handleStartCommand = async (
       );
       return;
     }
+
+    await recordLinkOpened(env);
 
     const prompt = await ctx.reply(
       StartConversationMessage.replace(
