@@ -1,5 +1,5 @@
 import type { Environment } from "../../types";
-import { createReportTag } from "../../ticketing/keys";
+import { createReportTag } from "../ticketing/keys";
 import type { RouteCapsule } from "../messaging/create-sealed-ticket";
 
 export type BlindAbuseTags = {

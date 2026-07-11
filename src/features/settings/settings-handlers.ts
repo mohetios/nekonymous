@@ -43,11 +43,11 @@ import {
   resolveOrCreateUser,
   toBotUser,
 } from "../identity/identity-service";
-import { encryptDisplayName } from "../../ticketing/ticketing-service";
+import { encryptDisplayName } from "../ticketing/ticketing-service";
 import {
   countUserMatchHistory,
   resetUserMatchHistory,
-} from "../matching/match-service";
+} from "../conversation-suggestions/pair-history";
 import { SETTINGS_CALLBACK } from "./constants";
 import {
   buildConfirmClearBlocksKeyboard,

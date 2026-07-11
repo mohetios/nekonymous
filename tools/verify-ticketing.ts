@@ -10,16 +10,16 @@ import {
   encryptTelegramChatId,
   generateOpaqueId,
   hmacTelegramUserId,
-} from "../src/ticketing/ticketing-service.ts";
+} from "../src/features/ticketing/ticketing-service.ts";
 import {
   createOwnerProofTag,
   createTicketHash,
   deriveTicketKey,
   randomTicketRef,
   routeAad,
-} from "../src/ticketing/keys.ts";
-import { encryptEnvelope, decryptEnvelope } from "../src/ticketing/envelope.ts";
-import { constantTimeEqual } from "../src/ticketing/hmac.ts";
+} from "../src/features/ticketing/keys.ts";
+import { encryptEnvelope, decryptEnvelope } from "../src/features/ticketing/envelope.ts";
+import { constantTimeEqual } from "../src/features/ticketing/hmac.ts";
 
 const appMasterKey = "test-app-master-key-local-32bytes!";
 const pepper = "test-hmac-pepper-local-32bytes!!";

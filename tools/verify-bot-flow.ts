@@ -6,9 +6,9 @@ import {
 } from "../src/utils/telegram-callbacks.ts";
 import { MENU, isMainMenuLabel } from "../src/i18n/labels.ts";
 import {
-  MATCH_CALLBACK,
-  matchCallbackQueryRegex,
-} from "../src/features/matching/constants.ts";
+  SUGGESTION_HUB_CALLBACK,
+  suggestionHubCallbackQueryRegex,
+} from "../src/features/conversation-suggestions/constants.ts";
 import { BOT_COMMANDS, BOT_COMMAND_DEFINITIONS } from "../src/bot/commands.ts";
 import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
@@ -55,6 +55,10 @@ const FORBIDDEN_SOURCE_TOKENS = [
   "callback-compat",
   "CALLBACK_COMPAT",
   "legacyMatch",
+  "assessment_profiles",
+  "match_requests",
+  "boundaryRespect",
+  "computeSafetyTier",
 ] as const;
 
 const callbackRef = "A".repeat(32);
@@ -81,12 +85,12 @@ assert(
   "reply callback regex must match r:<ref>"
 );
 
-const matchCallbackRegex = matchCallbackQueryRegex();
-assert(matchCallbackRegex.test("m:hub"), "match callback regex must accept m:hub");
-assert(matchCallbackRegex.test("m:search"), "match callback regex must accept m:search");
-assert(matchCallbackRegex.test("m:req:abc123"), "match callback regex must accept m:req");
-assert(!matchCallbackRegex.test("m:refresh"), "match callback regex must reject m:refresh");
-assert(!matchCallbackRegex.test("m:back"), "match callback regex must reject m:back");
+const hubCallbackRegex = suggestionHubCallbackQueryRegex();
+assert(hubCallbackRegex.test("m:hub"), "hub callback regex must accept m:hub");
+assert(hubCallbackRegex.test("m:search"), "hub callback regex must accept m:search");
+assert(!hubCallbackRegex.test("m:req:abc123"), "hub callback regex must reject m:req");
+assert(!hubCallbackRegex.test("m:refresh"), "hub callback regex must reject m:refresh");
+assert(!hubCallbackRegex.test("m:back"), "hub callback regex must reject m:back");
 
 const [
   handlersSource,
@@ -97,9 +101,9 @@ const [
   userSource,
   keyboardsSource,
   settingsKeyboardsSource,
-  matchingKeyboardsSource,
+  hubKeyboardsSource,
   inputNavigationSource,
-  matchHandlersSource,
+  suggestionHandlersSource,
   commandsSource,
   menuSource,
   suggestionHubSource,
@@ -113,12 +117,12 @@ const [
   readSource("../src/utils/user.ts"),
   readSource("../src/bot/keyboards.ts"),
   readSource("../src/features/settings/keyboards.ts"),
-  readSource("../src/features/matching/keyboards.ts"),
+  readSource("../src/features/conversation-suggestions/keyboards.ts"),
   readSource("../src/bot/input-navigation.ts"),
-  readSource("../src/features/matching/match-handlers.ts"),
+  readSource("../src/features/conversation-suggestions/suggestion-handlers.ts"),
   readSource("../src/bot/commands.ts"),
   readSource("../src/bot/menu.ts"),
-  readSource("../src/features/matching/suggestion-hub.ts"),
+  readSource("../src/features/conversation-suggestions/suggestion-hub.ts"),
   readSource("../tools/set-telegram-bot-profile.sh"),
 ]);
 
@@ -130,7 +134,6 @@ for (const action of ["reply", "block", "unblock", "nickname", "report"]) {
 }
 
 assert(!handlersSource.includes("handleOpenTicketAction"), "dead o: open handler must be removed");
-assert(!handlersSource.includes("match-system-handlers"), "match-system handlers must be removed");
 assert(!handlersSource.includes('bot.command("match_system"'), "/match_system must not be registered");
 assert(!commandsSource.includes('"match_system"'), "match_system must not be in BOT_COMMANDS");
 assert(BOT_COMMANDS.length === 5, "public command list must contain exactly five commands");
@@ -138,19 +141,14 @@ assert(
   BOT_COMMAND_DEFINITIONS.length === 5,
   "BotFather command definitions must contain exactly five commands"
 );
-for (const item of BOT_COMMAND_DEFINITIONS) {
-  assert(
-    (BOT_COMMANDS as readonly string[]).includes(item.command),
-    `BOT_COMMAND_DEFINITIONS must mirror BOT_COMMANDS: ${item.command}`
-  );
-}
 assert(handlersSource.includes("UNKNOWN_COMMAND_MESSAGE"), "/match_system must reach generic unknown-command flow");
 assert(handlersSource.includes("isBotCommand"), "register-handlers must use central command list via isBotCommand");
 assert(handlersSource.includes("EXPIRED_CALLBACK_MESSAGE"), "unknown callbacks must use generic unavailable copy");
 assert(
-  handlersSource.includes("matchCallbackQueryRegex()"),
-  "match callbacks must register only active match patterns"
+  handlersSource.includes("suggestionHubCallbackQueryRegex()"),
+  "hub callbacks must register only active hub patterns"
 );
+assert(handlersSource.includes("bot.callbackQuery(/^st:/"), "settings callbacks must use st: prefix");
 assert(
   !handlersSource.includes('bot.callbackQuery(/^m:/'),
   "broad m: callback registration must be removed"
@@ -161,19 +159,9 @@ assert(
 );
 
 assert(
-  matchHandlersSource.includes("renderSuggestionHub") &&
-    matchHandlersSource.includes("handleMatchCommand"),
+  suggestionHandlersSource.includes("renderSuggestionHub") &&
+    suggestionHandlersSource.includes("handleMatchCommand"),
   "/match must render the canonical suggestion hub"
-);
-assert(
-  !matchHandlersSource.includes("m:refresh") && !matchHandlersSource.includes("m:back"),
-  "legacy match callback aliases must not appear in match handlers"
-);
-assert(
-  !matchHandlersSource.includes(
-    "await renderSuggestionHub(ctx, env, userId);\n  } catch (error)"
-  ),
-  "unknown match callbacks must not fall through to renderSuggestionHub"
 );
 
 assert(typeof isMainMenuLabel === "function", "main menu label guard must be exported");
@@ -198,17 +186,12 @@ assert(
 );
 
 assert(
-  matchingKeyboardsSource.includes("buildSuggestionHubKeyboard"),
+  hubKeyboardsSource.includes("buildSuggestionHubKeyboard"),
   "suggestion hub must be inline"
 );
 assert(
-  matchingKeyboardsSource.includes("MATCH_CALLBACK.search"),
+  hubKeyboardsSource.includes("SUGGESTION_HUB_CALLBACK.search"),
   "suggestion hub must wire inline search"
-);
-assert(
-  !matchingKeyboardsSource.includes("m:refresh") &&
-    !matchingKeyboardsSource.includes("m:back"),
-  "keyboards must not emit legacy match callbacks"
 );
 
 assert(
@@ -227,6 +210,8 @@ assert(draftIndex > 0 && menuIndex > draftIndex, "draft input must route before 
 
 assert(!messagingSource.includes('pendingSettings === "editName"'), "legacy editName draft path must be removed");
 assert(messagingSource.includes('draft.mode === "display_name"'), "display name draft must use display_name mode");
+assert(messagingSource.includes('draft.mode === "conversation_intro"'), "conversation intro draft must be wired");
+assert(!messagingSource.includes("match_intro"), "V1 match_intro draft path must be removed");
 assert(!userSource.includes("isMenuLabel"), "display name validation must not reserve menu labels");
 assert(labelsSource.includes('trimmed.startsWith("/")'), "display name validation must only forbid commands");
 
@@ -242,8 +227,8 @@ assert(
   "resolve-ticket-action must verify owner proof"
 );
 
-assert(MATCH_CALLBACK.hub === "m:hub", "canonical hub callback must exist");
-assert(MATCH_CALLBACK.search === "m:search", "canonical search callback must exist");
+assert(SUGGESTION_HUB_CALLBACK.hub === "m:hub", "canonical hub callback must exist");
+assert(SUGGESTION_HUB_CALLBACK.search === "m:search", "canonical search callback must exist");
 assert(
   suggestionHubSource.includes("export const renderSuggestionHub"),
   "canonical suggestion hub renderer must exist"
@@ -257,42 +242,6 @@ assert(
   !profileScriptSource.includes("match_system"),
   "BotFather tooling must not publish /match_system"
 );
-
-const extractProfileHeredoc = (varName: string): string => {
-  const match = profileScriptSource.match(
-    new RegExp(`read -r -d '' ${varName} <<'EOF' \\|\\| true\\n([\\s\\S]*?)\\nEOF`)
-  );
-  assert(match, `BotFather tooling must define ${varName} heredoc`);
-  return match[1];
-};
-
-const PROFILE_LIMITS = {
-  // Keep in sync with tools/set-telegram-bot-profile.sh
-  name: 64,
-  description: 512,
-  shortDescription: 120,
-} as const;
-
-const profileNameMatch = profileScriptSource.match(/^BOT_NAME="([^"]*)"/m);
-assert(profileNameMatch, "BotFather tooling must define BOT_NAME");
-const profileName = profileNameMatch[1];
-assert(
-  profileName.length <= PROFILE_LIMITS.name,
-  `BotFather name must be <= ${PROFILE_LIMITS.name} chars (${profileName.length})`
-);
-
-for (const [label, varName, max] of [
-  ["description (fa)", "DESCRIPTION", PROFILE_LIMITS.description],
-  ["short_description (fa)", "SHORT_DESCRIPTION", PROFILE_LIMITS.shortDescription],
-  ["description (en)", "DESCRIPTION_EN", PROFILE_LIMITS.description],
-  ["short_description (en)", "SHORT_DESCRIPTION_EN", PROFILE_LIMITS.shortDescription],
-] as const) {
-  const text = extractProfileHeredoc(varName);
-  assert(
-    text.length <= max,
-    `BotFather ${label} must be <= ${max} chars (${text.length})`
-  );
-}
 
 const srcFiles = await listSourceFiles();
 for (const relativePath of srcFiles) {

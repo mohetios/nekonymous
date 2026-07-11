@@ -94,7 +94,7 @@ Callbacks expire when the underlying ticket/route expires.
 
 ## Crypto primitives
 
-All ticketing crypto lives under **`src/ticketing/`** (Web Crypto only). Secrets: `APP_MASTER_KEY`, `APP_HMAC_PEPPER`.
+All ticketing crypto lives under **`src/features/ticketing/`** (Web Crypto only). Secrets: `APP_MASTER_KEY`, `APP_HMAC_PEPPER`.
 
 | Module | Role |
 |--------|------|
@@ -134,5 +134,5 @@ Pointers and vault rows move through `active` → `viewed` / `replied` / `blocke
 ## Related docs
 
 - [threat-model.md](../security/threat-model.md) — privacy boundaries and D1 leak scenarios
-- [matching-v1.md](./matching-v1.md) — conversation suggestions integration
+- [conversation-suggestions-v2.md](./conversation-suggestions-v2.md) — conversation suggestions integration
 - [AGENTS.md](../../AGENTS.md) — maintainer bot architecture rules

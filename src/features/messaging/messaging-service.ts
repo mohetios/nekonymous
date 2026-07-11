@@ -4,8 +4,8 @@ import type {
   Environment,
   MessagePayload,
 } from "../../types";
-import { decryptEnvelope } from "../../ticketing/envelope";
-import { payloadAad } from "../../ticketing/keys";
+import { decryptEnvelope } from "../ticketing/envelope";
+import { payloadAad } from "../ticketing/keys";
 import { OPEN_INBOX_BUTTON } from "../../i18n/labels";
 import { UNREAD_INBOX_MESSAGE } from "../../i18n/messages";
 import { createSealedTicket, payloadCapsuleToMessagePayload } from "./create-sealed-ticket";

@@ -34,7 +34,7 @@ import {
   setContactLabel,
 } from "../../utils/contact";
 import { messageToPayload } from "./payload-service";
-import { createBlockHash } from "../../ticketing/ticketing-service";
+import { createBlockHash } from "../ticketing/ticketing-service";
 import {
   hasDeliverablePayload,
   notifyRecipientInbox,
@@ -60,9 +60,10 @@ import {
 import { escapeHtml, replyHtml, withHtml } from "../../utils/tools";
 import { buildUserDeepLink, isUserLinkId, publicDisplayName } from "../../utils/user";
 import { renderInbox } from "./render-inbox";
-import { handleMatchIntroInput } from "../matching/match-handlers";
 import { handleDisplayNameInput } from "../settings/settings-handlers";
+import { handleConversationIntroInput } from "../conversation-suggestions/suggestion-handlers";
 import { mainMenu } from "../../bot/keyboards";
+import { hmacTelegramUserId } from "../ticketing/ticketing-service";
 import type { UserDraft } from "../../types";
 import { recordReplySent } from "../../stats/product-events";
 
@@ -75,7 +76,7 @@ const isTextInputDraft = (draft: UserDraft | undefined): boolean => {
     draft.mode === "reply" ||
     draft.mode === "nickname" ||
     draft.mode === "display_name" ||
-    draft.mode === "match_intro"
+    draft.mode === "conversation_intro"
   );
 };
 
@@ -199,8 +200,42 @@ export const handleMessage = async (
         return;
       }
 
-      if (draft?.mode === "match_intro" && draft.replyRef) {
-        await handleMatchIntroInput(ctx, user.id, draft.replyRef, env);
+      if (draft?.mode === "conversation_intro") {
+        if (!message.text) {
+          const { MATCH_INTRO_TEXT_ONLY } = await import("../../i18n/matching");
+          await ctx.reply(
+            MATCH_INTRO_TEXT_ONLY,
+            withHtml({
+              reply_markup: buildDraftCancelKeyboard(
+                draftPlaceholder("conversation_intro")
+              ),
+            })
+          );
+          return;
+        }
+
+        const actorHash = await hmacTelegramUserId(
+          env.APP_HMAC_PEPPER,
+          from.id
+        );
+        const suggestionRef = draft.linkSlug;
+        if (!suggestionRef) {
+          await ctx.reply(HuhMessage, { reply_markup: mainMenu });
+          await clearDraft(env, user.id);
+          return;
+        }
+
+        const handled = await handleConversationIntroInput(
+          ctx,
+          env,
+          user.id,
+          actorHash,
+          suggestionRef,
+          message.text
+        );
+        if (handled) {
+          await clearDraft(env, user.id);
+        }
         return;
       }
 

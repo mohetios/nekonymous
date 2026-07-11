@@ -1,12 +1,11 @@
 import type { Environment, InboxPointer, UserDraft } from "../types";
-import type {
-  AssessmentSessionStatus,
-  InboxPointerTransitionStatus,
-} from "../status";
+import type { InboxPointerTransitionStatus } from "../status";
 
 type UserStateSnapshot = {
   paused: boolean;
   displayNameCiphertext: string | null;
+  discoverable: boolean;
+  profileCapabilityEnc: string | null;
   draft: UserDraft | null;
   blockedUserIds: string[];
   labels: Array<{
@@ -56,6 +55,8 @@ export const getUserState = async (
 const emptyUserState = (): UserStateSnapshot => ({
   paused: false,
   displayNameCiphertext: null,
+  discoverable: false,
+  profileCapabilityEnc: null,
   draft: null,
   blockedUserIds: [],
   labels: [],
@@ -349,87 +350,123 @@ export const purgeUserState = async (
   });
 };
 
-export type AssessmentSession = {
+export type ProfileSessionWire = {
   id: string;
   version: string;
-  status: AssessmentSessionStatus;
+  status: string;
   currentIndex: number;
   totalQuestions: number;
-  answers: Record<string, number>;
-  attemptId: string | null;
+  answersEnc: string;
   startedAt: number;
   updatedAt: number;
   expiresAt: number | null;
 };
 
-export const startAssessmentSession = async (
+export type ProfileMeta = {
+  discoverable: boolean;
+  profileCapabilityEnc: string | null;
+  hasActiveSession: boolean;
+  sessionStatus: string | null;
+};
+
+export const startProfileSessionWire = async (
+  env: Environment,
   userId: string,
-  version: string,
-  totalQuestions: number,
-  attemptId: string,
-  env: Environment
+  input: { version: string; totalQuestions: number; answersEnc: string }
 ): Promise<void> => {
-  await doFetch(env, userId, "/assessment/start", {
+  await doFetch(env, userId, "/profile-session/start", {
     method: "POST",
-    body: JSON.stringify({ version, totalQuestions, attemptId }),
+    body: JSON.stringify(input),
   });
 };
 
-export const getAssessmentSession = async (
-  userId: string,
-  env: Environment
-): Promise<AssessmentSession | null> => {
-  const body = await doFetch<{ session: AssessmentSession | null }>(
+export const getActiveProfileSessionWire = async (
+  env: Environment,
+  userId: string
+): Promise<ProfileSessionWire | null> => {
+  const body = await doFetch<{ session: ProfileSessionWire | null }>(
     env,
     userId,
-    "/assessment/session"
+    "/profile-session/active"
   );
   return body.session;
 };
 
-export const saveAssessmentAnswer = async (
-  userId: string,
-  questionId: string,
-  answerValue: number,
+export const updateProfileSessionWire = async (
   env: Environment,
-  currentIndex?: number
+  userId: string,
+  input: { answersEnc: string; currentIndex: number; status?: string }
 ): Promise<void> => {
-  await doFetch(env, userId, "/assessment/answer", {
+  await doFetch(env, userId, "/profile-session/update", {
     method: "POST",
-    body: JSON.stringify({ questionId, answerValue, currentIndex }),
+    body: JSON.stringify(input),
   });
 };
 
-export const setAssessmentCurrentIndex = async (
-  userId: string,
-  currentIndex: number,
-  env: Environment
+export const deleteProfileSessionWire = async (
+  env: Environment,
+  userId: string
 ): Promise<void> => {
-  await doFetch(env, userId, "/assessment/set-current-index", {
-    method: "POST",
-    body: JSON.stringify({ currentIndex }),
-  });
-};
-
-export const completeAssessmentSession = async (
-  userId: string,
-  env: Environment
-): Promise<void> => {
-  await doFetch(env, userId, "/assessment/complete", { method: "POST" });
-};
-
-export const cancelAssessmentSession = async (
-  userId: string,
-  env: Environment
-): Promise<void> => {
-  await doFetch(env, userId, "/assessment/cancel", { method: "POST" });
-};
-
-export const resetAssessmentSession = async (
-  userId: string,
-  env: Environment
-): Promise<void> => {
-  await stub(env, userId).fetch("https://user-state/assessment/reset", {
+  await stub(env, userId).fetch("https://user-state/profile-session/active", {
     method: "DELETE",
+  });
+};
+
+export const getProfileMeta = async (
+  env: Environment,
+  userId: string
+): Promise<ProfileMeta> => doFetch<ProfileMeta>(env, userId, "/profile/meta");
+
+export const setDiscoverable = async (
+  env: Environment,
+  userId: string,
+  discoverable: boolean
+): Promise<void> => {
+  await doFetch(env, userId, "/profile/set-discoverable", {
+    method: "POST",
+    body: JSON.stringify({ discoverable }),
+  });
+};
+
+export const setProfileCapabilityEnc = async (
+  env: Environment,
+  userId: string,
+  ciphertext: string | null
+): Promise<void> => {
+  await doFetch(env, userId, "/profile/set-capability-enc", {
+    method: "POST",
+    body: JSON.stringify({ ciphertext }),
+  });
+};
+
+export const getActiveExposureTokenHashes = async (
+  env: Environment,
+  userId: string
+): Promise<string[]> => {
+  const body = await doFetch<{ tokenHashes: string[] }>(
+    env,
+    userId,
+    "/exposure-tokens/active"
+  );
+  return body.tokenHashes;
+};
+
+export const recordExposureTokenHash = async (
+  env: Environment,
+  userId: string,
+  tokenHash: string
+): Promise<void> => {
+  await doFetch(env, userId, "/exposure-tokens/record", {
+    method: "POST",
+    body: JSON.stringify({ tokenHash }),
+  });
+};
+
+export const consumeSuggestionSearchBudget = async (
+  env: Environment,
+  userId: string
+): Promise<{ limited: boolean; remaining?: number }> => {
+  return doFetch(env, userId, "/consume-suggestion-search", {
+    method: "POST",
   });
 };

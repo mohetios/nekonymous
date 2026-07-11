@@ -6,11 +6,10 @@ Nekonymous is a Persian-first anonymous Telegram bot for personal anonymous link
 
 ## Current status
 
-- **V1 release candidate** (`0.1.0`)
-- **Code-frozen for V1**
+- **Conversation Suggestions V2** refactor complete in code (profile + suggestions + requests)
 - **Telegram-bot-only** product surface (no public web app/SPA in the Worker)
-- **Release polish / docs / QA** in progress
-- **No payment or top-up in V1**
+- **Cloudflare Workers** + D1 + Durable Objects + KV + Queues + Vectorize (no Workers AI in suggestion path)
+- Run `pnpm check` before deploy; use `tools/setup-conversation-v2-resources.sh` for Vectorize/DO setup
 
 ## What it does
 
@@ -21,10 +20,9 @@ Nekonymous is a Persian-first anonymous Telegram bot for personal anonymous link
 - Block / report / private nickname
 - Pause / resume incoming messages
 - Display name settings
-- Conversation-style assessment (56 questions, 14 dimensions, `v1`)
-- Optional conversation suggestions (opt-in discoverability, accept-gated intros)
-- Pending conversation requests (accept / decline / cancel)
-- Reset suggestion history
+- **Conversation profile** — 25 questions, 8 dimensions, schema `v2` (`/assessment`)
+- **Conversation suggestions** — dual Vectorize retrieval, reciprocal ranking, sealed capabilities (`/match`)
+- **Conversation requests** — intro message, accept → sealed inbox ticket (`q:` callbacks)
 - Hard account reset (new internal id + link)
 - Anonymous platform stats (`platform_daily_stats` via `neko-stats` queue)
 
@@ -53,19 +51,20 @@ Full model: [docs/security/threat-model.md](./docs/security/threat-model.md). Re
 ## Architecture
 
 ```text
-Telegram → Cloudflare Worker (grammY) → D1 / Durable Objects / KV / Queues / AI / Vectorize → Telegram outbox
+Telegram → Cloudflare Worker (grammY) → D1 / Durable Objects / KV / Queues / Vectorize → Telegram outbox
 ```
 
 | Layer | Role |
 |-------|------|
 | Worker | Webhook + queue consumers |
-| D1 | Users, assessment, match workflow, stats |
-| UserState DO | Inbox pointers, drafts, blocks, labels, assessment session |
-| TicketVault DO | Sealed encrypted tickets |
+| D1 | Users, public links, aggregate stats only |
+| UserState DO | Inbox pointers, drafts, blocks, profile session, exposure tokens |
+| ProfileVault / ConversationVault / PairLedger DO | Encrypted profiles, suggestions, requests, pair state |
+| TicketVault DO | Sealed encrypted message tickets |
 | KV | Routing cache only |
-| Vectorize + Workers AI | Embedding; candidate discovery (ranking in TypeScript) |
+| Vectorize | Coarse 8-d vectors for suggestion retrieval (no Workers AI) |
 
-Details: [docs/architecture/sealed-ticket-routing-and-inbox.md](./docs/architecture/sealed-ticket-routing-and-inbox.md), [docs/architecture/matching-v1.md](./docs/architecture/matching-v1.md).
+Details: [docs/architecture/sealed-ticket-routing-and-inbox.md](./docs/architecture/sealed-ticket-routing-and-inbox.md), [docs/architecture/conversation-suggestions-v2.md](./docs/architecture/conversation-suggestions-v2.md).
 
 ## Bot commands
 
@@ -109,7 +108,16 @@ Local secrets: `.dev.vars` from [`.env.example`](./.env.example).
 | `APP_HMAC_PEPPER` | Telegram hash HMAC |
 | `BOT_INFO`, `BOT_NAME`, `BOT_USERNAME` | Bot metadata |
 
-Wrangler bindings: `DB`, `NEKO_KV`, `USER_STATE_DO`, `TELEGRAM_OUTBOX_DO`, `TICKET_VAULT`, `REPORT_LEDGER`, `NEKO_OUTBOX_QUEUE`, `NEKO_STATS_QUEUE`, `AI`, `PROFILE_VECTORS`. Template: [`wrangler.jsonc.example`](./wrangler.jsonc.example).
+Wrangler bindings: `DB`, `NEKO_KV`, `USER_STATE_DO`, `PROFILE_VAULT_DO`, `CONVERSATION_VAULT_DO`, `PAIR_LEDGER_DO`, `TELEGRAM_OUTBOX_DO`, `TICKET_VAULT`, `REPORT_LEDGER`, `NEKO_OUTBOX_QUEUE`, `NEKO_STATS_QUEUE`, `NEKO_PROFILE_INDEX_QUEUE`, `CONVERSATION_VECTORS`. Template: [`wrangler.jsonc.example`](./wrangler.jsonc.example).
+
+### Local testing (conversation V2)
+
+1. Apply D1 migrations: `pnpm db:migrations:apply:local`
+2. Create Vectorize index + DO migrations: `./tools/setup-conversation-v2-resources.sh`
+3. Fill `.dev.vars` from `.env.example`
+4. Run `pnpm check` then `pnpm dev`
+5. Point Telegram webhook at your tunnel (`POST /bot`, secret `BOT_SECRET_KEY`)
+6. Test flow: `/assessment` → complete profile → enable discoverability in `/match` → search → send intro → accept on second account
 
 ## Development checks
 
@@ -135,7 +143,8 @@ pnpm bot:profile
 | [docs/security/threat-model.md](./docs/security/threat-model.md) | Threat model |
 | [docs/architecture/bot-interaction-v1.md](./docs/architecture/bot-interaction-v1.md) | Commands, keyboards, callbacks |
 | [docs/architecture/sealed-ticket-routing-and-inbox.md](./docs/architecture/sealed-ticket-routing-and-inbox.md) | Sealed ticket + inbox |
-| [docs/architecture/matching-v1.md](./docs/architecture/matching-v1.md) | Conversation suggestions V1 |
+| [docs/architecture/conversation-suggestions-v2.md](./docs/architecture/conversation-suggestions-v2.md) | Conversation profile + suggestions V2 |
+| [docs/refactor/conversation-v2-checklist.md](./docs/refactor/conversation-v2-checklist.md) | V2 refactor checklist |
 | [docs/release/](./docs/release/) | Release audit notes |
 
 ## Roadmap

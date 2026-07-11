@@ -9,7 +9,7 @@ import {
   getContactLabelForSender,
   lookupContactLabel,
 } from "../../utils/contact";
-import { createBlockHash } from "../../ticketing/ticketing-service";
+import { createBlockHash } from "../ticketing/ticketing-service";
 import {
   HuhMessage,
   EXPIRED_TICKET_MESSAGE,

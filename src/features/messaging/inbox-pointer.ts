@@ -1,9 +1,9 @@
 import type { Environment, InboxPointer } from "../../types";
-import { decryptEnvelope, encryptEnvelope } from "../../ticketing/envelope";
+import { decryptEnvelope, encryptEnvelope } from "../ticketing/envelope";
 import {
   deriveTicketKey,
   inboxPointerAad,
-} from "../../ticketing/keys";
+} from "../ticketing/keys";
 import { isCallbackRef } from "../../utils/telegram-callbacks";
 
 export const INBOX_RETENTION_DAYS = 30;

@@ -2,8 +2,21 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "project": ["src/**/*.ts", "tools/**/*.{js,mjs,ts}"],
   "ignoreDependencies": ["cloudflare"],
+  "ignoreFiles": ["tools/wrangler-config-without-migration.ts"],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {
-    "src/index.ts": ["unlisted"]
+    "src/index.ts": ["unlisted"],
+    "src/i18n/labels.ts": ["exports"],
+    "src/storage/report-ledger/report-ledger.client.ts": ["exports"],
+    "src/storage/profile-vault/**": ["files", "exports", "types"],
+    "src/storage/conversation-vault/**": ["files", "exports", "types"],
+    "src/storage/pair-ledger/**": ["files", "exports", "types"],
+    "src/features/ticketing/conversation-keys.ts": ["exports", "types"],
+    "src/features/conversation-profile/**": ["exports", "types"],
+    "src/features/conversation-suggestions/**": ["files", "exports", "types"],
+    "src/features/conversation-ranking/**": ["files", "exports", "types"],
+    "src/storage/user-state-client.ts": ["exports"],
+    "src/features/ticketing/ticketing-service.ts": ["exports"],
+    "src/utils/telegram-limits.ts": ["exports"]
   }
 }

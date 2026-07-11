@@ -1,14 +1,14 @@
 import type { Context } from "grammy";
 import type { Environment } from "../../types";
-import { decryptEnvelope } from "../../ticketing/envelope";
+import { decryptEnvelope } from "../ticketing/envelope";
 import {
   createOwnerProofTag,
   createTicketHash,
   deriveTicketKey,
   routeAad,
-} from "../../ticketing/keys";
-import { constantTimeEqual } from "../../ticketing/hmac";
-import { hmacTelegramUserId } from "../../ticketing/ticketing-service";
+} from "../ticketing/keys";
+import { constantTimeEqual } from "../ticketing/hmac";
+import { hmacTelegramUserId } from "../ticketing/ticketing-service";
 import {
   getTicketRecord,
   TicketExpiredError,

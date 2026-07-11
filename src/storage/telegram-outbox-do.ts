@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import type { Environment } from "../types";
 import type { TelegramOutboxSendStatus } from "../status";
 import type { TelegramOutboxJob } from "../queues/telegram-outbox.types";
-import { decryptTelegramChatId } from "../ticketing/ticketing-service";
+import { decryptTelegramChatId } from "../features/ticketing/ticketing-service";
 
 type SentRow = {
   idempotency_key: string;

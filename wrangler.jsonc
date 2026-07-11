@@ -34,6 +34,14 @@
       {
         "binding": "NEKO_DLQ",
         "queue": "neko-dlq"
+      },
+      {
+        "binding": "NEKO_PROFILE_INDEX_QUEUE",
+        "queue": "neko-profile-index"
+      },
+      {
+        "binding": "NEKO_PROFILE_INDEX_DLQ",
+        "queue": "neko-profile-index-dlq"
       }
     ],
     "consumers": [
@@ -50,6 +58,13 @@
         "max_batch_timeout": 5,
         "max_retries": 5,
         "dead_letter_queue": "neko-dlq"
+      },
+      {
+        "queue": "neko-profile-index",
+        "max_batch_size": 5,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "neko-profile-index-dlq"
       }
     ]
   },
@@ -57,19 +72,31 @@
     "bindings": [
       {
         "name": "USER_STATE_DO",
-        "class_name": "UserStateDurableObjectV3"
+        "class_name": "UserStateDurableObjectV4"
       },
       {
         "name": "TELEGRAM_OUTBOX_DO",
-        "class_name": "TelegramOutboxDurableObjectV3"
+        "class_name": "TelegramOutboxDurableObjectV4"
       },
       {
         "name": "TICKET_VAULT",
-        "class_name": "TicketVaultDurableObjectV3"
+        "class_name": "TicketVaultDurableObjectV4"
       },
       {
         "name": "REPORT_LEDGER",
-        "class_name": "ReportLedgerDurableObjectV3"
+        "class_name": "ReportLedgerDurableObjectV4"
+      },
+      {
+        "name": "PROFILE_VAULT_DO",
+        "class_name": "ProfileVaultShardDurableObjectV2"
+      },
+      {
+        "name": "CONVERSATION_VAULT_DO",
+        "class_name": "ConversationVaultShardDurableObjectV2"
+      },
+      {
+        "name": "PAIR_LEDGER_DO",
+        "class_name": "PairLedgerShardDurableObjectV2"
       }
     ]
   },
@@ -134,15 +161,47 @@
         "TicketVaultDurableObjectV2",
         "ReportLedgerDurableObjectV2"
       ]
+    },
+    {
+      // Conversation V2 vault shard durable objects.
+      "tag": "v8-conversation-v2-vault-shards",
+      "new_sqlite_classes": [
+        "ProfileVaultShardDurableObject",
+        "ConversationVaultShardDurableObject",
+        "PairLedgerShardDurableObject"
+      ]
+    },
+    {
+      // Destructive reset phase 5: fresh V4 core + V2 vault shard classes (remote flush).
+      "tag": "v9-create-reset-durable-objects-v4",
+      "new_sqlite_classes": [
+        "UserStateDurableObjectV4",
+        "TelegramOutboxDurableObjectV4",
+        "TicketVaultDurableObjectV4",
+        "ReportLedgerDurableObjectV4",
+        "ProfileVaultShardDurableObjectV2",
+        "ConversationVaultShardDurableObjectV2",
+        "PairLedgerShardDurableObjectV2"
+      ]
+    },
+    {
+      // Destructive reset phase 6: delete V3 core + V1 vault storage after V4/V2 is live.
+      "tag": "v10-delete-durable-objects-v3-and-vault-v1",
+      "deleted_classes": [
+        "UserStateDurableObjectV3",
+        "TelegramOutboxDurableObjectV3",
+        "TicketVaultDurableObjectV3",
+        "ReportLedgerDurableObjectV3",
+        "ProfileVaultShardDurableObject",
+        "ConversationVaultShardDurableObject",
+        "PairLedgerShardDurableObject"
+      ]
     }
   ],
-  "ai": {
-    "binding": "AI"
-  },
   "vectorize": [
     {
-      "binding": "PROFILE_VECTORS",
-      "index_name": "nekonymous-profile-vectors"
+      "binding": "CONVERSATION_VECTORS",
+      "index_name": "nekonymous-conversation-v2"
     }
   ]
 }

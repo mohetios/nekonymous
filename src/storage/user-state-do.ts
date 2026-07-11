@@ -1,7 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Environment, UserDraft } from "../types";
 import type {
-  AssessmentSessionStatus,
   InboxPointerStatus,
   UserDraftMode,
 } from "../status";
@@ -14,11 +13,15 @@ const INBOX_CLEANUP_LIMIT = 10;
 /** Minimum gap between user actions (messages, commands, inline buttons). */
 const RATE_LIMIT_MS = 1000;
 const RATE_LIMIT_SCOPE = "user_action";
-const ASSESSMENT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const ASSESSMENT_SESSION_ID = "current";
 const PROCESSED_EVENT_LEASE_MS = 30 * 1000;
 const PROCESSED_EVENT_DONE_TTL_MS = 24 * 60 * 60 * 1000;
 const PROCESSED_EVENT_CLEANUP_LIMIT = 100;
+const PROFILE_SESSION_ID = "active";
+const PROFILE_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SUGGESTION_SEARCH_SCOPE = "suggestion_search";
+const SUGGESTION_SEARCH_LIMIT = 50;
+const SUGGESTION_SEARCH_WINDOW_MS = 60 * 60 * 1000;
+const EXPOSURE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type UserStateRow = {
   user_id: string;
@@ -27,6 +30,8 @@ type UserStateRow = {
   onboarding_completed: number;
   paused: number;
   display_name_ciphertext: string | null;
+  discoverable: number;
+  profile_capability_enc: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -42,19 +47,6 @@ type DraftRow = {
   pending_nickname_alias: string | null;
   pending_settings: string | null;
   created_at: number;
-  updated_at: number;
-  expires_at: number | null;
-};
-
-type AssessmentSessionRow = {
-  id: string;
-  version: string;
-  status: AssessmentSessionStatus;
-  current_index: number;
-  total_questions: number;
-  answers_json: string;
-  attempt_id: string | null;
-  started_at: number;
   updated_at: number;
   expires_at: number | null;
 };
@@ -79,6 +71,19 @@ type ProcessedEventRow = {
   created_at: number;
   updated_at: number;
   expires_at: number;
+};
+
+type ProfileSessionRow = {
+  id: string;
+  version: string;
+  status: string;
+  current_index: number;
+  total_questions: number;
+  answers_enc: string;
+  profile_capability_enc: string | null;
+  started_at: number;
+  updated_at: number;
+  expires_at: number | null;
 };
 
 const rowToDraft = (row: DraftRow): UserDraft => ({
@@ -205,19 +210,6 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       CREATE INDEX IF NOT EXISTS idx_processed_events_expires
         ON processed_events(expires_at);
 
-      CREATE TABLE IF NOT EXISTS assessment_sessions (
-        id TEXT PRIMARY KEY,
-        version TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'active',
-        current_index INTEGER NOT NULL DEFAULT 0,
-        total_questions INTEGER NOT NULL,
-        answers_json TEXT NOT NULL DEFAULT '{}',
-        attempt_id TEXT,
-        started_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        expires_at INTEGER
-      );
-
       INSERT OR IGNORE INTO _sql_schema_migrations (id) VALUES (1);
     `);
 
@@ -225,6 +217,51 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       `CREATE INDEX IF NOT EXISTS idx_processed_events_lease
        ON processed_events(status, lease_until)`
     );
+
+    this.ensureConversationV2UserStateSchema();
+  }
+
+  private ensureConversationV2UserStateSchema(): void {
+    const applied = this.ctx.storage.sql
+      .exec<{ id: number }>(
+        "SELECT id FROM _sql_schema_migrations WHERE id = 2 LIMIT 1"
+      )
+      .toArray();
+    if (applied.length > 0) {
+      return;
+    }
+
+    this.ctx.storage.sql.exec(`
+      ALTER TABLE user_state ADD COLUMN discoverable INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE user_state ADD COLUMN profile_capability_enc TEXT;
+
+      CREATE TABLE IF NOT EXISTS profile_sessions (
+        id TEXT PRIMARY KEY,
+        version TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        current_index INTEGER NOT NULL DEFAULT 0,
+        total_questions INTEGER NOT NULL,
+        answers_enc TEXT NOT NULL DEFAULT '',
+        profile_capability_enc TEXT,
+        started_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        expires_at INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_profile_sessions_status
+        ON profile_sessions(status, updated_at);
+
+      CREATE TABLE IF NOT EXISTS exposure_tokens (
+        token_hash TEXT PRIMARY KEY,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_exposure_tokens_expires
+        ON exposure_tokens(expires_at);
+
+      INSERT OR IGNORE INTO _sql_schema_migrations (id) VALUES (2);
+    `);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -293,26 +330,35 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     if (request.method === "DELETE" && pathname === "/purge") {
       return this.purge();
     }
-    if (request.method === "POST" && pathname === "/assessment/start") {
-      return this.startAssessmentSession(request);
+    if (request.method === "POST" && pathname === "/profile-session/start") {
+      return this.startProfileSession(request);
     }
-    if (request.method === "GET" && pathname === "/assessment/session") {
-      return this.getAssessmentSession();
+    if (request.method === "GET" && pathname === "/profile-session/active") {
+      return this.getActiveProfileSession();
     }
-    if (request.method === "POST" && pathname === "/assessment/answer") {
-      return this.saveAssessmentAnswer(request);
+    if (request.method === "POST" && pathname === "/profile-session/update") {
+      return this.updateProfileSession(request);
     }
-    if (request.method === "POST" && pathname === "/assessment/set-current-index") {
-      return this.setAssessmentCurrentIndex(request);
+    if (request.method === "DELETE" && pathname === "/profile-session/active") {
+      return this.deleteProfileSession();
     }
-    if (request.method === "POST" && pathname === "/assessment/complete") {
-      return this.completeAssessmentSession();
+    if (request.method === "GET" && pathname === "/profile/meta") {
+      return this.getProfileMeta();
     }
-    if (request.method === "POST" && pathname === "/assessment/cancel") {
-      return this.cancelAssessmentSession();
+    if (request.method === "POST" && pathname === "/profile/set-discoverable") {
+      return this.setDiscoverable(request);
     }
-    if (request.method === "DELETE" && pathname === "/assessment/reset") {
-      return this.resetAssessmentSession();
+    if (request.method === "POST" && pathname === "/profile/set-capability-enc") {
+      return this.setProfileCapabilityEnc(request);
+    }
+    if (request.method === "GET" && pathname === "/exposure-tokens/active") {
+      return this.getActiveExposureTokens();
+    }
+    if (request.method === "POST" && pathname === "/exposure-tokens/record") {
+      return this.recordExposureToken(request);
+    }
+    if (request.method === "POST" && pathname === "/consume-suggestion-search") {
+      return this.consumeSuggestionSearch();
     }
 
     return new Response("Not Found", { status: 404 });
@@ -394,6 +440,8 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return Response.json({
       paused: !!state.paused,
       displayNameCiphertext: state.display_name_ciphertext,
+      discoverable: !!state.discoverable,
+      profileCapabilityEnc: state.profile_capability_enc,
       draft: draftRows[0] ? rowToDraft(draftRows[0]) : null,
       blockedUserIds: blocks,
       labels,
@@ -902,36 +950,25 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return Response.json({ ok: true });
   }
 
-  private parseAnswersJson(json: string): Record<string, number> {
-    try {
-      return JSON.parse(json) as Record<string, number>;
-    } catch {
-      return {};
-    }
-  }
-
-  private parseAssessmentSession(row: AssessmentSessionRow) {
-    const answers = this.parseAnswersJson(row.answers_json);
-
+  private parseProfileSession(row: ProfileSessionRow) {
     return {
       id: row.id,
       version: row.version,
       status: row.status,
       currentIndex: row.current_index,
       totalQuestions: row.total_questions,
-      answers,
-      attemptId: row.attempt_id,
+      answersEnc: row.answers_enc,
       startedAt: row.started_at,
       updatedAt: row.updated_at,
       expiresAt: row.expires_at,
     };
   }
 
-  private getActiveAssessmentSessionRow(): AssessmentSessionRow | null {
+  private getActiveProfileSessionRow(): ProfileSessionRow | null {
     const rows = this.ctx.storage.sql
-      .exec<AssessmentSessionRow>(
-        `SELECT * FROM assessment_sessions
-         WHERE status = 'active'
+      .exec<ProfileSessionRow>(
+        `SELECT * FROM profile_sessions
+         WHERE status IN ('active', 'ready_to_submit')
          ORDER BY updated_at DESC
          LIMIT 1`
       )
@@ -943,148 +980,215 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     }
 
     if (row.expires_at !== null && Date.now() > row.expires_at) {
-      this.ctx.storage.sql.exec("DELETE FROM assessment_sessions WHERE id = ?", row.id);
+      this.ctx.storage.sql.exec("DELETE FROM profile_sessions WHERE id = ?", row.id);
       return null;
     }
 
     return row;
   }
 
-  private async startAssessmentSession(request: Request): Promise<Response> {
+  private async startProfileSession(request: Request): Promise<Response> {
     const body = await request.json<{
       version: string;
       totalQuestions: number;
-      attemptId: string;
+      answersEnc: string;
     }>();
 
-    if (!body.version || !body.totalQuestions || !body.attemptId) {
+    if (!body.version || !body.totalQuestions || !body.answersEnc) {
       return new Response("Missing fields", { status: 400 });
     }
 
     const now = Date.now();
-    this.ctx.storage.sql.exec("DELETE FROM assessment_sessions");
+    this.ctx.storage.sql.exec("DELETE FROM profile_sessions");
 
     this.ctx.storage.sql.exec(
-      `INSERT INTO assessment_sessions (
-        id, version, status, current_index, total_questions, answers_json,
-        attempt_id, started_at, updated_at, expires_at
-      ) VALUES (?, ?, 'active', 0, ?, '{}', ?, ?, ?, ?)`,
-      ASSESSMENT_SESSION_ID,
+      `INSERT INTO profile_sessions (
+        id, version, status, current_index, total_questions, answers_enc,
+        profile_capability_enc, started_at, updated_at, expires_at
+      ) VALUES (?, ?, 'active', 0, ?, ?, NULL, ?, ?, ?)`,
+      PROFILE_SESSION_ID,
       body.version,
       body.totalQuestions,
-      body.attemptId,
+      body.answersEnc,
       now,
       now,
-      now + ASSESSMENT_SESSION_TTL_MS
+      now + PROFILE_SESSION_TTL_MS
     );
 
     return Response.json({ ok: true });
   }
 
-  private getAssessmentSession(): Response {
-    const row = this.getActiveAssessmentSessionRow();
+  private getActiveProfileSession(): Response {
+    const row = this.getActiveProfileSessionRow();
     if (!row) {
       return Response.json({ session: null });
     }
 
-    return Response.json({ session: this.parseAssessmentSession(row) });
+    return Response.json({ session: this.parseProfileSession(row) });
   }
 
-  private async saveAssessmentAnswer(request: Request): Promise<Response> {
+  private async updateProfileSession(request: Request): Promise<Response> {
     const body = await request.json<{
-      questionId: string;
-      answerValue: number;
-      currentIndex?: number;
+      answersEnc: string;
+      currentIndex: number;
+      status?: string;
     }>();
 
-    const row = this.getActiveAssessmentSessionRow();
+    const row = this.getActiveProfileSessionRow();
     if (!row) {
       return new Response("No active session", { status: 404 });
     }
 
-    if (
-      !body.questionId ||
-      body.answerValue < 1 ||
-      body.answerValue > 5
-    ) {
-      return new Response("Invalid answer", { status: 400 });
+    if (!body.answersEnc || !Number.isInteger(body.currentIndex)) {
+      return new Response("Invalid update", { status: 400 });
     }
 
-    const answers = this.parseAnswersJson(row.answers_json);
-    answers[body.questionId] = body.answerValue;
-
-    const nextIndex =
-      body.currentIndex !== undefined
-        ? body.currentIndex + 1
-        : row.current_index + 1;
     const now = Date.now();
-
+    const status = body.status ?? row.status;
     this.ctx.storage.sql.exec(
-      `UPDATE assessment_sessions
-       SET answers_json = ?, current_index = ?, updated_at = ?
+      `UPDATE profile_sessions
+       SET answers_enc = ?, current_index = ?, status = ?, updated_at = ?
        WHERE id = ?`,
-      JSON.stringify(answers),
-      Math.min(nextIndex, row.total_questions),
+      body.answersEnc,
+      Math.max(0, Math.min(body.currentIndex, row.total_questions)),
+      status,
       now,
       row.id
     );
 
-    return Response.json({ ok: true, answers, currentIndex: nextIndex });
+    return Response.json({ ok: true });
   }
 
-  private async setAssessmentCurrentIndex(request: Request): Promise<Response> {
-    const { currentIndex } = await request.json<{ currentIndex: number }>();
-    const row = this.getActiveAssessmentSessionRow();
-    if (!row) {
-      return new Response("No active session", { status: 404 });
+  private deleteProfileSession(): Response {
+    this.ctx.storage.sql.exec("DELETE FROM profile_sessions");
+    return Response.json({ ok: true });
+  }
+
+  private getProfileMeta(): Response {
+    const rows = this.ctx.storage.sql
+      .exec<{
+        discoverable: number;
+        profile_capability_enc: string | null;
+      }>(
+        `SELECT discoverable, profile_capability_enc FROM user_state LIMIT 1`
+      )
+      .toArray();
+
+    const state = rows[0];
+    if (!state) {
+      return new Response("Not initialized", { status: 404 });
+    }
+
+    const session = this.getActiveProfileSessionRow();
+
+    return Response.json({
+      discoverable: !!state.discoverable,
+      profileCapabilityEnc: state.profile_capability_enc,
+      hasActiveSession: !!session,
+      sessionStatus: session?.status ?? null,
+    });
+  }
+
+  private async setDiscoverable(request: Request): Promise<Response> {
+    const { discoverable } = await request.json<{ discoverable: boolean }>();
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      "UPDATE user_state SET discoverable = ?, updated_at = ?",
+      discoverable ? 1 : 0,
+      now
+    );
+    return Response.json({ ok: true });
+  }
+
+  private async setProfileCapabilityEnc(request: Request): Promise<Response> {
+    const { ciphertext } = await request.json<{ ciphertext: string | null }>();
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      "UPDATE user_state SET profile_capability_enc = ?, updated_at = ?",
+      ciphertext,
+      now
+    );
+    return Response.json({ ok: true });
+  }
+
+  private getActiveExposureTokens(): Response {
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      "DELETE FROM exposure_tokens WHERE expires_at <= ?",
+      now
+    );
+    const rows = this.ctx.storage.sql
+      .exec<{ token_hash: string }>(
+        "SELECT token_hash FROM exposure_tokens WHERE expires_at > ?",
+        now
+      )
+      .toArray();
+
+    return Response.json({
+      tokenHashes: rows.map((row) => row.token_hash),
+    });
+  }
+
+  private async recordExposureToken(request: Request): Promise<Response> {
+    const body = await request.json<{ tokenHash?: string }>();
+    if (!body.tokenHash || body.tokenHash.length > 86) {
+      return new Response("Invalid exposure token", { status: 400 });
     }
 
     const now = Date.now();
     this.ctx.storage.sql.exec(
-      "UPDATE assessment_sessions SET current_index = ?, updated_at = ? WHERE id = ?",
-      Math.max(0, currentIndex),
+      `INSERT INTO exposure_tokens (token_hash, created_at, expires_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(token_hash) DO UPDATE SET expires_at = excluded.expires_at`,
+      body.tokenHash,
       now,
-      row.id
+      now + EXPOSURE_TOKEN_TTL_MS
     );
 
     return Response.json({ ok: true });
   }
 
-  private completeAssessmentSession(): Response {
-    const row = this.getActiveAssessmentSessionRow();
-    if (!row) {
-      return new Response("No active session", { status: 404 });
+  private consumeSuggestionSearch(): Response {
+    const now = Date.now();
+    const row = this.ctx.storage.sql
+      .exec<{ tokens: number; updated_at: number }>(
+        "SELECT tokens, updated_at FROM rate_limits WHERE scope = ?",
+        SUGGESTION_SEARCH_SCOPE
+      )
+      .toArray()[0];
+
+    if (!row || now - row.updated_at > SUGGESTION_SEARCH_WINDOW_MS) {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO rate_limits (scope, tokens, last_at, updated_at)
+         VALUES (?, 1, ?, ?)
+         ON CONFLICT(scope) DO UPDATE SET
+           tokens = 1,
+           last_at = excluded.last_at,
+           updated_at = excluded.updated_at`,
+        SUGGESTION_SEARCH_SCOPE,
+        now,
+        now
+      );
+      return Response.json({
+        limited: false,
+        remaining: SUGGESTION_SEARCH_LIMIT - 1,
+      });
     }
 
-    const now = Date.now();
-    this.ctx.storage.sql.exec(
-      "UPDATE assessment_sessions SET status = 'completed', updated_at = ? WHERE id = ?",
-      now,
-      row.id
-    );
-
-    return Response.json({ ok: true });
-  }
-
-  private cancelAssessmentSession(): Response {
-    const row = this.getActiveAssessmentSessionRow();
-    if (!row) {
-      return Response.json({ ok: true });
+    if (row.tokens >= SUGGESTION_SEARCH_LIMIT) {
+      return Response.json({ limited: true });
     }
 
-    const now = Date.now();
     this.ctx.storage.sql.exec(
-      "UPDATE assessment_sessions SET updated_at = ? WHERE id = ?",
+      "UPDATE rate_limits SET tokens = tokens + 1, updated_at = ? WHERE scope = ?",
       now,
-      row.id
+      SUGGESTION_SEARCH_SCOPE
     );
 
-    return Response.json({ ok: true });
-  }
-
-  private resetAssessmentSession(): Response {
-    this.ctx.storage.sql.exec("DELETE FROM assessment_sessions");
-    return Response.json({ ok: true });
+    return Response.json({
+      limited: false,
+      remaining: SUGGESTION_SEARCH_LIMIT - row.tokens - 1,
+    });
   }
 
   private async purge(): Promise<Response> {
@@ -1095,7 +1199,8 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       DELETE FROM blocks;
       DELETE FROM inbox_pointers;
       DELETE FROM drafts;
-      DELETE FROM assessment_sessions;
+      DELETE FROM profile_sessions;
+      DELETE FROM exposure_tokens;
       DELETE FROM user_state;
     `);
     await this.ctx.storage.deleteAll();

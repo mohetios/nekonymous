@@ -1,5 +1,5 @@
 import type { Environment } from "../types";
-import { hmacBase64Url } from "../ticketing/hmac";
+import { hmacBase64Url } from "../features/ticketing/hmac";
 import { STAT_EVENTS } from "./events";
 import { emitStat } from "./emit-stat";
 

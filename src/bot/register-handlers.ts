@@ -20,12 +20,18 @@ import { handleSettingsCommand, handleSettingsCallback } from "../features/setti
 import {
   handleAssessmentCallback,
   handleAssessmentCommand,
-} from "../features/assessment/assessment-handlers";
+} from "../features/conversation-profile/profile-handlers";
 import {
   handleMatchCallback,
   handleMatchCommand,
-} from "../features/matching/match-handlers";
-import { matchCallbackQueryRegex } from "../features/matching/constants";
+  handleSuggestionCallback,
+} from "../features/conversation-suggestions/suggestion-handlers";
+import { handleRequestCallback } from "../features/conversation-suggestions/request-handlers";
+import {
+  requestCallbackQueryRegex,
+  suggestionCallbackQueryRegex,
+  suggestionHubCallbackQueryRegex,
+} from "../features/conversation-suggestions/constants";
 import { isBotCommand } from "./commands";
 import {
   INBOX_MENU_CALLBACK,
@@ -115,9 +121,17 @@ export const registerHandlers = (bot: Bot, env: Environment): void => {
 
   bot.callbackQuery(/^t:/, (ctx) => handleAssessmentCallback(ctx, env));
 
-  bot.callbackQuery(matchCallbackQueryRegex(), (ctx) => handleMatchCallback(ctx, env));
+  bot.callbackQuery(suggestionHubCallbackQueryRegex(), (ctx) => handleMatchCallback(ctx, env));
 
-  bot.callbackQuery(/^s:/, (ctx) =>
+  bot.callbackQuery(suggestionCallbackQueryRegex(), (ctx) =>
+    handleSuggestionCallback(ctx, env)
+  );
+
+  bot.callbackQuery(requestCallbackQueryRegex(), (ctx) =>
+    handleRequestCallback(ctx, env)
+  );
+
+  bot.callbackQuery(/^st:/, (ctx) =>
     handleSettingsCallback(ctx, env, BOT_USERNAME)
   );
 

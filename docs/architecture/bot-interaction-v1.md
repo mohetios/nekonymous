@@ -1,8 +1,8 @@
 # Bot Interaction V1
 
-**Status:** current Telegram UX reference — implemented in V1 release candidate.
+**Status:** current Telegram UX reference — V2 conversation callbacks updated below.
 
-How commands, reply keyboards, inline keyboards, drafts, and callback routing work. For sealed-ticket actions see [sealed-ticket-routing-and-inbox.md](./sealed-ticket-routing-and-inbox.md). For conversation suggestions see [matching-v1.md](./matching-v1.md).
+How commands, reply keyboards, inline keyboards, drafts, and callback routing work. For sealed-ticket actions see [sealed-ticket-routing-and-inbox.md](./sealed-ticket-routing-and-inbox.md). For conversation suggestions see [conversation-suggestions-v2.md](./conversation-suggestions-v2.md).
 
 ## Canonical commands
 
@@ -13,8 +13,8 @@ Source of truth: `src/bot/commands.ts` (`BOT_COMMANDS`, `BOT_COMMAND_DEFINITIONS
 | `/start` | Create or resume user; show personal deep link |
 | `/inbox` | Deliver pending inbox pointers |
 | `/settings` | Settings home (inline) |
-| `/assessment` | Assessment dashboard (inline) |
-| `/match` | Suggestion hub (inline) |
+| `/assessment` | Conversation profile dashboard (inline, `t:`) |
+| `/match` | Suggestion hub (inline, `m:`) |
 
 BotFather tooling (`tools/set-telegram-bot-profile.sh`) reads `BOT_COMMAND_DEFINITIONS` and verifies `getMyCommands`.
 
@@ -40,7 +40,7 @@ Routing: `src/bot/menu.ts` → `handleMainMenuCommand`.
 
 ## Draft input mode
 
-When the user is composing text (message, reply, nickname, display name, match intro), the reply keyboard shows **only**:
+When the user is composing text (message, reply, nickname, display name, conversation intro), the reply keyboard shows **only**:
 
 ```text
 ↩️ لغو
@@ -54,41 +54,53 @@ Implemented in `src/bot/input-navigation.ts`. Cancel clears the draft and restor
 
 | Surface | Renderer | Callback prefix |
 |---------|----------|-----------------|
-| Settings home + confirmations | `renderSettingsHome`, `renderScreen` | `s:` |
-| Suggestion hub + search results | `renderSuggestionHub`, match handlers | `m:` (active set only) |
-| Assessment flow | `sendAssessmentDashboard`, question UI | `t:` |
+| Settings home + confirmations | `renderSettingsHome`, `renderScreen` | `st:` |
+| Suggestion hub + search results | `renderSuggestionHub`, suggestion handlers | `m:` (hub), `s:` (tickets) |
+| Conversation profile flow | `sendProfileDashboard`, question UI | `t:` |
+| Incoming request actions | request handlers | `q:` |
 | Inbox message actions | `createMessageKeyboard` | `r:`, `b:`, `u:`, `n:`, `rp:` |
 | Inbox pagination | `buildInboxPaginationKeyboard` | `ib:m:{offset}` |
 | Open inbox from inline | `INBOX_MENU_CALLBACK.open` | `ib:open` |
 
-Settings, suggestion hub, and assessment use **inline keyboards only** — not reply keyboards.
+Settings, suggestion hub, and profile use **inline keyboards only** — not reply keyboards.
 
 ## Suggestion hub entry points
 
-All three render `renderSuggestionHub` in `src/features/matching/suggestion-hub.ts`:
+All three render `renderSuggestionHub` in `src/features/conversation-suggestions/suggestion-hub.ts`:
 
 - `/match`
 - Main menu `🧭 پیشنهاد گفت‌وگو`
 - Inline callback `m:hub`
 
-Search is triggered by `m:search` only.
+## Active hub callbacks (`m:`)
 
-## Active match callbacks
-
-Registered via `matchCallbackQueryRegex()` in `src/features/matching/constants.ts`:
+Registered via `suggestionHubCallbackQueryRegex()`:
 
 | Callback | Action |
 |----------|--------|
 | `m:hub` | Suggestion hub |
-| `m:search` | Run candidate search |
-| `m:pending` | List pending requests |
-| `m:profile` | Match profile screen |
+| `m:search` | Run candidate search + issue suggestion tickets |
+| `m:pending` | Pending requests placeholder (incoming via bot notification) |
+| `m:profile` | Conversation profile summary |
 | `m:disc:on` / `m:disc:off` | Discoverability toggle |
-| `m:assess` | Open assessment dashboard |
-| `m:req:{id}` | Start intro draft for suggestion |
-| `m:acc:{id}` | Accept incoming request |
-| `m:dec:{id}` | Decline incoming request |
-| `m:can:{id}` | Cancel outgoing request |
+| `m:assess` | Open profile dashboard (`/assessment` flow) |
+
+## Suggestion ticket callbacks (`s:`)
+
+| Callback | Action |
+|----------|--------|
+| `s:{ref}` | Mark suggestion viewed (optional) |
+| `s:r:{ref}` | Start conversation intro draft |
+| `s:d:{ref}` | Dismiss suggestion |
+
+## Request ticket callbacks (`q:`)
+
+| Callback | Action |
+|----------|--------|
+| `q:a:{ref}` | Accept request → sealed inbox ticket |
+| `q:d:{ref}` | Decline request |
+| `q:c:{ref}` | Cancel outgoing request |
+| `q:{ref}` | Open/view (reserved) |
 
 ## Active inbox ticket callbacks
 
@@ -100,7 +112,7 @@ Registered via `matchCallbackQueryRegex()` in `src/features/matching/constants.t
 | `n:{ref}` | Private nickname draft |
 | `rp:{ref}` | Report flow |
 
-`{ref}` is a 32-character base64url ticket ref. Length and format enforced in `src/utils/telegram-callbacks.ts`.
+`{ref}` is a base64url capability ref (16–43 chars for conversation tickets; 32 chars for inbox tickets). Format enforced in handlers and `src/utils/telegram-callbacks.ts`.
 
 ## Unknown callbacks
 
@@ -109,9 +121,6 @@ Registered via `matchCallbackQueryRegex()` in `src/features/matching/constants.t
 - Answers every unmatched `callback_query`
 - Replies with `EXPIRED_CALLBACK_MESSAGE` (`این دکمه دیگر در دسترس نیست.`)
 - Does **not** translate legacy callback values or branch on removed payloads
-- Does **not** log raw callback data
-
-Ticket-specific expiry messages inside active handlers are unchanged.
 
 ## Handler wiring
 
@@ -123,14 +132,19 @@ Ticket-specific expiry messages inside active handlers are unchanged.
 | Inline screen edits | `src/bot/render-screen.ts` |
 | Flow verification | `tools/verify-bot-flow.ts` |
 
-## Manual QA (current model only)
+## Manual QA
 
 Test commands: `/start`, `/inbox`, `/settings`, `/assessment`, `/match`.
 
-Test main menu labels and suggestion hub callbacks: `m:hub`, `m:search`, request accept/decline/cancel, discoverability, profile, assessment entry.
+**Conversation V2 happy path:**
+
+1. User A: `/assessment` → complete 25 questions
+2. Wait for profile index (queue consumer); hub shows search ready
+3. User A + B: enable **نمایش در پیشنهادها** in `/match`
+4. User A: `m:search` → pick suggestion → write intro → send request
+5. User B: receives notification with accept/decline → accept
+6. User B: `/inbox` → reply; conversation continues as normal anonymous messaging
 
 Test inbox actions: reply, block, unblock, nickname, report.
 
-Deliberately tap an unsupported old inline button (if any remain in chat history) and confirm loading stops, generic unavailable message appears, and no current action runs.
-
-Do **not** QA removed commands (`/match_system`) or removed callbacks (`m:refresh`, `m:back`) as supported behavior.
+Deliberately tap an unsupported old inline button and confirm generic unavailable message.

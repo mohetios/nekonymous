@@ -1,8 +1,8 @@
 # Threat Model
 
-**Scope:** Nekonymous V1 — Persian-first Telegram-bot-only hosted anonymous relay on Cloudflare.
+**Scope:** Nekonymous — Persian-first Telegram-bot-only hosted anonymous relay on Cloudflare.
 
-**Status:** release candidate. This document describes the **current** implementation.
+**Status:** V2 conversation profile + suggestions refactor (canonical architecture in [conversation-suggestions-v2.md](../architecture/conversation-suggestions-v2.md)). Legacy V1 assessment/matching tables and code are being removed; this document describes the **target** V2 system.
 
 See also [README](../../README.md) and [SECURITY.md](../../SECURITY.md).
 
@@ -13,7 +13,7 @@ This model covers:
 - Anonymous deep-link messaging and replies
 - Inbox sealed-ticket storage and delivery
 - Block, report, private nickname, pause/resume
-- Assessment v1 and optional conversation suggestions
+- Conversation profile questionnaire and optional conversation suggestions (V2)
 - Account hard reset
 - Storage in D1, Durable Objects, KV, Queues, Vectorize
 
@@ -21,7 +21,7 @@ This model does **not** cover Telegram client security, user device compromise, 
 
 ## Non-goals
 
-V1 intentionally does **not** provide:
+Nekonymous intentionally does **not** provide:
 
 - E2EE or zero-knowledge delivery
 - Perfect anonymity or untraceability
@@ -29,7 +29,7 @@ V1 intentionally does **not** provide:
 - Hiding plaintext from the Worker during processing
 - Clinical, personality, or psychological inference products
 - Dating compatibility or exact relationship matching
-- Payment or subscription security (not in V1)
+- Payment or subscription security
 
 ## Actors
 
@@ -39,7 +39,7 @@ V1 intentionally does **not** provide:
 | Recipient | Reads inbox, replies, blocks, reports, sets nicknames |
 | Telegram | Delivers updates and messages; sees plaintext in transit |
 | Worker / runtime operator | Processes webhooks; sees plaintext during handling |
-| Database / storage attacker | Exports D1, DO SQLite, KV, or Vectorize metadata |
+| Database / storage attacker | Exports D1, DO SQLite, KV, Vectorize, or queue payloads |
 | Abusive user | Floods, harasses, retries after blocks |
 | External attacker | Webhook forgery, secret theft, binding misuse |
 
@@ -49,129 +49,156 @@ V1 intentionally does **not** provide:
 |----------|------------------|
 | **Telegram** | Sees messages and metadata for accounts using Telegram |
 | **Worker** | Sees plaintext while validating, encrypting, decrypting, and relaying |
-| **D1** | Structural and workflow data; no anonymous message bodies |
-| **Durable Objects** | Authoritative per-user hot state and sealed tickets |
-| **KV** | Eventually consistent routing cache only — not inbox authority |
-| **Queues** | At-least-once delivery for outbox/stats jobs |
-| **Workers AI / Vectorize** | Receives sanitized summary text for embedding; not raw answers in metadata |
+| **D1** | Identity + anonymous aggregate stats only — **no** profile or pair graph |
+| **UserStateDO** | Per-user session, exposure tokens, rate limits — not finalized profile bodies |
+| **ProfileVaultShardDO** | Encrypted profiles and blind vector routes |
+| **ConversationVaultShardDO** | Sealed suggestion/request capabilities |
+| **PairLedgerShardDO** | Blind pair locks and cooldowns |
+| **TicketVaultDO** | Sealed message route + payload capsules |
+| **ReportLedgerDO** | Blind abuse tags |
+| **KV** | Eventually consistent routing cache only |
+| **Queues** | At-least-once delivery; profile index jobs carry capability refs only |
+| **Vectorize** | Anonymous coarse 8-d vectors; no user linkage in IDs or metadata |
 | **User device** | Recipient or sender may screenshot, forward, or leak content |
 
-## Data classes
+## Data classes (V2)
 
 | Class | Where it lives | Notes |
 |-------|----------------|-------|
 | Telegram user id | HMAC → `telegram_user_hash` in D1 | Raw id not stored |
 | Telegram chat id | AES ciphertext in D1 | Decrypted only in Worker |
 | Public link slug | D1 `public_links` | Shareable by design |
-| Anonymous message payload | TicketVault DO `payload_enc` | Cleared after inbox delivery |
-| Route metadata | TicketVault DO `route_enc` | Encrypted; kept until expiry for actions |
-| `ticketRef` | Telegram callback buttons only | Not stored raw; hash or sealed pointer in storage |
-| `ticketHash` | Vault + inbox pointers | Lookup key |
-| Display name | UserState DO ciphertext | Shown to link visitors |
-| Private nickname | UserState DO ciphertext | Recipient-only |
-| Assessment answers | D1 + UserState session | Session in DO; answers in D1 until hard delete |
-| Assessment profile | D1 `assessment_profiles` | Dimension scores + controlled summary |
-| Suggestion request | D1 `match_requests` + encrypted intro | Workflow state |
-| Report signal | ReportLedger DO blind tags | No D1 sender–recipient report graph |
-| Aggregate stats | D1 `platform_daily_stats` (+ unique daily actives) | No user ids |
+| Anonymous message payload | TicketVault `payload_enc` | Cleared after inbox delivery |
+| Route metadata | TicketVault `route_enc` | Encrypted; kept until expiry for actions |
+| Inbox callback ref | Telegram buttons only | Not stored raw |
+| Display name / nickname | UserStateDO ciphertext | Recipient or visitor context |
+| Profile session answers | UserStateDO encrypted session | **Deleted** after successful finalization |
+| Finalized profile | ProfileVaultShard `profile_enc` | No `user_id` column; blind lookup hash |
+| Vector routes | ProfileVaultShard | Independent random Vectorize IDs per self/desired |
+| Suggestion ticket | ConversationVaultShard | Blind hashes; encrypted explanation |
+| Request intro | ConversationVaultShard `intro_enc` | Cleared on terminal request state |
+| Pair state | PairLedgerShard | Blind `pair_tag` only |
+| Exposure token | UserStateDO | Short-lived blind token for rerank |
+| Aggregate stats | D1 `platform_daily_*` | No user ids |
 
-## Storage model (current)
+## Storage model (V2)
 
 ```text
-D1          → users, links, assessment, match workflow, platform_daily_stats
-UserStateDO → inbox pointers, drafts, blocks, labels, rate limits, assessment session
-TicketVaultDO → sealed route + payload capsules per ticket hash
-ReportLedgerDO → blind abuse tags
-TelegramOutboxDO → idempotent outbound send log
-KV          → tg:{hash}, link:{slug} cache only
-Vectorize   → profile embeddings + filter metadata
+D1                    → users, public_links, platform_daily_stats (aggregate only)
+UserStateDO           → inbox pointers, drafts, blocks, labels, profile session,
+                        exposure tokens, rate limits
+ProfileVaultShardDO   → encrypted profiles, vector routes, index-job capabilities
+ConversationVaultShardDO → suggestion + request capabilities
+PairLedgerShardDO     → blind pair locks, cooldowns, pair blocks
+TicketVaultDO         → sealed message tickets
+ReportLedgerDO        → blind report tags
+TelegramOutboxDO      → idempotent outbound send log
+KV                    → tg:{hash}, link:{slug} cache only
+Vectorize             → 8-d coarse vectors in role/locale namespaces
+Profile index queue   → indexJobRef + action only
 ```
 
-D1 does **not** store anonymous message bodies or a plaintext sender–recipient graph for relay messages.
+D1 must **not** contain: assessment answers, conversation profiles, profile vectors, `requester_user_id` / `candidate_user_id`, intro text, suggestion history, or per-user exposure history.
+
+## Capability chain
+
+```text
+Profile Capability → Suggestion Capability → Request Capability → Message Ticket
+```
+
+Raw capability strings are request-only (Telegram callbacks). Storage uses blind lookup hashes and encrypted capsules. Actor-bound owner proofs required for mutating operations.
+
+## Key separation
+
+HKDF domain-separated keys (see V2 architecture doc): profile lookup/encryption, vector lookup, suggestion/request lookup, pair tags, owner proofs, exposure tokens, outcome bucketing. Do not reuse the same stable actor tag across messaging, profile, suggestion, request, and exposure planes.
 
 ## What is encrypted at rest
 
-Where implemented in V1:
-
 - Telegram chat ids (AES-256-GCM, `APP_MASTER_KEY`)
 - Message payloads and route capsules (per-ticket HKDF-derived keys)
-- Inbox pointer sealed refs
+- Profile, suggestion, and request capsules in vault shards
 - Display names and private nicknames
-- Match intro text in D1 (`intro_ciphertext`)
+- Request intro text until terminal state
 - Telegram chat routing in outbox jobs (`chatCiphertext`)
 
 Encryption at rest does **not** mean Telegram or the Worker never see plaintext during delivery.
 
 ## What is visible while processing
 
-Explicitly visible to **Telegram** during normal use:
+**Telegram:** message text/media, chat and user identifiers on Telegram's side.
 
-- Message text and supported media traveling through Bot API
-- Chat and user identifiers on Telegram’s side
+**Worker:** plaintext during encrypt/decrypt/relay; decrypted profile only during ranking after vault authorization; questionnaire answers only during active session until finalization.
 
-Explicitly visible to the **Worker** during processing:
+## Leak-resistance target (without Worker secrets)
 
-- Plaintext message content while encrypting, decrypting, or relaying
-- Decrypted route metadata for authorized actions
-- Assessment answers during the assessment flow
+Independent storage leaks should expose at most:
 
-## Abuse controls (V1)
+```text
+opaque hashes, encrypted capsules, anonymous coarse vectors,
+blind pair tags, aggregate counters
+```
+
+Must **not** expose: Telegram IDs, internal user IDs, display names, raw answers, profile-to-user relationships, requester/candidate relationships, message intros, or reconstructable social graphs.
+
+### D1-only leak
+
+**Cannot directly read:** message bodies, raw Telegram ids, profiles, pair edges, intros.
+
+**Can read:** internal user ids, public slugs, anonymous aggregate stats.
+
+### Vectorize-only leak
+
+**Cannot directly read:** which self and desired vectors belong to the same person (independent random IDs).
+
+**Can read:** coarse 8-dimensional vectors in namespace buckets.
+
+### DO vault leak (without keys)
+
+Ciphertext and blind hashes only — no plaintext profile JSON or user linkage columns.
+
+**With application secrets:** vault ciphertext becomes decryptable in Worker context. This model does not claim protection against runtime or key compromise.
+
+## Abuse controls
 
 | Control | Implementation |
 |---------|----------------|
-| Global action throttle | 1 s per user (`UserStateDO.rate_limits`) |
-| Inbox cap | 50 unread pointers per user |
-| Private nicknames cap | 200 per user |
+| Global action throttle | 1 s per user (`UserStateDO`) |
+| Inbox cap | Bounded active pointers per user |
 | Block before send/reply | UserState `blocks` |
 | Blind reports | ReportLedger DO |
-| Match search limit | 50 / hour |
-| Match request limit | 300 / day |
-| Pair cooldown | 30 days after accept/decline |
+| Pair pending lock | PairLedgerShard DO |
+| Dismiss / accept / decline cooldowns | PairLedgerShard DO |
+| Search and request rate budgets | UserStateDO + configurable limits |
 | Webhook auth | `BOT_SECRET_KEY` secret token |
 | Webhook idempotency | `processed_events` in UserState DO |
 
-## Protected (design intent)
+**Safety** derives from blocks, reports, spam, rate limits, and moderation — **never** from questionnaire answers (no `safety_tier`, `restricted` from profile scores).
 
-- Casual D1 inspection does not reveal message bodies or raw Telegram ids
-- Delivered payloads cleared from vault after successful inbox render
-- Raw callback ticket refs not persisted in D1/KV
-- Matching embeddings use sanitized summaries, not raw answers in Vectorize metadata
+## Matching / suggestions (V2)
 
-## Known limitations
+- Vectorize: **retrieval only** — dual-channel topK in self/desired namespaces
+- Ranking: **deterministic reciprocal TypeScript** on decrypted profiles — Vectorize similarity not in final score
+- No D1 candidate fallback
+- No compatibility percentages in UI
+- Accepted request → existing sealed inbox ticket path
 
-- Telegram and Worker plaintext visibility by design
-- Recipient screenshots and off-platform leaks
-- Secret or platform compromise exposes ciphertext that keys can decrypt
-- Matching is approximate — not a safety or identity guarantee
-- KV eventual consistency — not used for inbox ordering
-- Aggregate stats survive account hard delete (by design)
+## Retention (V2)
 
-## D1-only leak scenario
+| Data | Policy |
+|------|--------|
+| Raw session answers | Delete after successful profile finalization |
+| Suggestion tickets | 2 h TTL |
+| Request intros | Clear on accept/decline/cancel/expiry |
+| Request capabilities | 72 h max |
+| Profile vectors | Delete on discoverability off (Vectorize propagation delay) |
+| Exposure tokens | Short TTL in UserStateDO |
 
-If an attacker exports **D1 only** (no `APP_MASTER_KEY`, `APP_HMAC_PEPPER`, DO storage, KV, Vectorize, Telegram):
+## Future learning (disabled at V2 launch)
 
-**Cannot directly read:** raw Telegram ids, chat ids, message bodies, match intro plaintext, Telegram usernames.
-
-**Can read:** internal user ids, public slugs, assessment scores/answers, match workflow edges by internal id, controlled summaries, anonymous aggregate stats.
-
-With **application secrets**, additional D1/DO ciphertext becomes decryptable. Normal **delivered** message bodies are still not in D1.
-
-Run `pnpm audit:d1` for a repeatable read-only check.
-
-## D1 vs Vectorize (matching)
-
-- **D1** — source of truth for profiles, workflow, deterministic scoring inputs, hard deletes
-- **Vectorize** — candidate discovery only (`topK`); final ranking in TypeScript
-
-Intentional overlap: sanitized `profile_summary_text` in D1 and its embedding in Vectorize. Embedding is not reversible to exact text.
-
-## Future improvements (not V1)
-
-- Shorter retention for `assessment_answers` after profile completion
-- Tighter expiry on resolved `match_requests` / `match_suggestions`
-- Stronger moderation tooling
-- Deployment provenance documentation
+Internal event contract prepared for coarse pair buckets and outcomes — **not** written to D1 until separate review of sample size, retention, aggregation threshold, and re-identification risk.
 
 ## Forbidden public claims
 
 Do not claim: perfect anonymity, E2EE, zero-knowledge, exact compatibility, clinical/personality diagnosis, dating compatibility, or «secure messenger» positioning.
+
+Run `pnpm audit:d1` for repeatable D1 checks (identity + stats only in V2).

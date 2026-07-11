@@ -186,8 +186,8 @@ for (const eventName of [
 }
 
 assert(
-  readerSource.includes("assessment_profiles") === false,
-  "stats reader must use event aggregates for assessment completions"
+  readerSource.includes("platform_daily_stats") === true,
+  "stats reader must read from platform_daily_stats aggregates"
 );
 
 console.log("verify-stats: ok");

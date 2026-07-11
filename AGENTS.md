@@ -2,7 +2,7 @@
 
 ## Prime Directive
 
-Nekonymous runs as a **single Cloudflare Worker** with a **Telegram webhook only** (no public HTML site in V1). Server code must be small, edge-safe, low-CPU, and predictable.
+Nekonymous runs as a **single Cloudflare Worker** with a **Telegram webhook only** (no public HTML site). Server code must be small, edge-safe, low-CPU, and predictable.
 
 When changing bot logic, crypto, D1, KV cache, Durable Objects, queues, or Worker routes, optimize for:
 
@@ -28,13 +28,14 @@ Capability-based anonymous routing is the current model. Do not reintroduce olde
 - Reports, labels, blocks, and pending actions use hashes/tags/encrypted context — not plaintext anonymous peer edges.
 - Do not claim E2EE, zero-knowledge delivery, perfect anonymity, or clinical/dating compatibility in code or copy.
 
-## V1 release mode
+## V2 refactor mode
 
-- V1 is **code-frozen** for public release — no feature expansion or product-scope growth before release.
+- **Conversation Suggestions V2** is a clean-slate refactor — delete V1 assessment/matching; no migration, dual-read, or compatibility adapters.
 - Read `README.md` and `docs/security/threat-model.md` before editing any user-facing or public copy.
-- Read `docs/architecture/matching-v1.md` before touching conversation suggestions (`/match`).
+- Read `docs/architecture/conversation-suggestions-v2.md` before touching profile, indexing, retrieval, ranking, suggestions, or requests.
 - Read `docs/architecture/sealed-ticket-routing-and-inbox.md` before touching inbox, ticketing, or sealed-ticket storage.
-- Read `docs/architecture/bot-interaction-v1.md` before touching commands, keyboards, menus, drafts, or callback routing.
+- Read `docs/architecture/bot-interaction-v1.md` before touching commands, keyboards, menus, drafts, or callback routing (V2 callback prefixes in V2 architecture doc).
+- Track progress in `docs/refactor/conversation-v2-checklist.md`.
 
 ### Docs source of truth
 
@@ -44,7 +45,9 @@ Capability-based anonymous routing is the current model. Do not reintroduce olde
 | Security limits | `SECURITY.md`, `docs/security/threat-model.md` |
 | Bot commands / keyboards / callbacks | `docs/architecture/bot-interaction-v1.md` |
 | Inbox / sealed tickets | `docs/architecture/sealed-ticket-routing-and-inbox.md` |
-| Conversation suggestions | `docs/architecture/matching-v1.md` |
+| Conversation profile + suggestions (V2) | `docs/architecture/conversation-suggestions-v2.md` |
+| V2 refactor checklist | `docs/refactor/conversation-v2-checklist.md` |
+| V1 source audit (historical) | `docs/refactor/conversation-v2-source-audit.md` |
 | Release audits | `docs/release/` |
 
 ### Persian product terminology (user-facing)
@@ -100,23 +103,25 @@ The product should feel:
 
 Public brand: **Nekonymous** / **نِکونیموس** (`package.json` name: `nekonymous`).
 
-**V1 rules:**
+**V2 rules:**
 
 - No KV inbox/conversation storage. Do not add dual-read, dual-write, or migration fallbacks.
 - No soft-deleted user rows for account reset — use hard delete (`hardDeleteUserAccount`).
-- Assessment schema version is **`v1`** only (`ASSESSMENT_VERSION` in `question-bank.ts`).
+- Profile schema version is **`v2`** only (`CONVERSATION_PROFILE_VERSION` in `conversation-profile/constants.ts`).
 - User-facing copy says **ارزیابی**, not تست. Command is `/assessment` only (no `/test`).
+- No D1 profile, answer, or pair-graph rows. No Workers AI in suggestion path.
+- Raw questionnaire answers deleted after successful profile finalization.
 
 ## Current Stack
 
 - **Cloudflare Workers** — single Worker entry (`src/index.ts`) + queue consumer
 - **Grammy** — Telegram bot framework (`grammy`)
-- **Cloudflare D1** — users, links, reports, assessment, match records, aggregate stats tables
+- **Cloudflare D1** — users, links, aggregate stats tables only (no profile or pair graph)
 - **Cloudflare KV** — routing/cache only (`tg:{hash}`, `link:{slug}`)
-- **Cloudflare Durable Objects (SQLite)** — `UserStateDurableObject`, `TicketVaultDurableObject`, `ReportLedgerDurableObject`, `TelegramOutboxDurableObject`
-- **Cloudflare Queues** — `neko-outbox` (Telegram sends), `neko-stats` (aggregate counters)
-- **Web Crypto API** — HMAC, HKDF-SHA-256, AES-256-GCM (`src/ticketing/ticketing-service.ts`)
-- **Workers AI + Vectorize** — profile embeddings for assessment/matching (`env.AI`, `env.PROFILE_VECTORS`)
+- **Cloudflare Durable Objects (SQLite)** — `UserStateDurableObject`, `ProfileVaultShardDurableObject`, `ConversationVaultShardDurableObject`, `PairLedgerShardDurableObject`, `TicketVaultDurableObject`, `ReportLedgerDurableObject`, `TelegramOutboxDurableObject`
+- **Cloudflare Queues** — `neko-outbox`, `neko-stats`, `neko-profile-index` (+ DLQ)
+- **Web Crypto API** — HMAC, HKDF-SHA-256, AES-256-GCM (`src/features/ticketing/ticketing-service.ts`)
+- **Vectorize** — 8-d coarse vectors for retrieval only (`env.CONVERSATION_VECTORS`); no Workers AI
 - **Wrangler 4** — dev and deploy (`wrangler.jsonc`)
 - **pnpm** — package manager
 
@@ -149,25 +154,25 @@ src/
 │   ├── settings/
 │   │   ├── settings-handlers.ts
 │   │   └── settings-home.ts
-│   ├── assessment/                  # 56-question / 14-dimension flow (v1)
-│   │   ├── assessment-handlers.ts
-│   │   ├── assessment-flow-service.ts
-│   │   ├── assessment-profile-service.ts
-│   │   ├── assessment-scores.ts
-│   │   ├── profile-vector-service.ts
-│   │   ├── question-bank.ts, scoring.ts, keyboards.ts, …
-│   ├── matching/
-│   │   ├── match-handlers.ts, match-request-service.ts
-│   │   ├── match-service.ts, match-request-service.ts
-│   │   ├── match-vector-service.ts, match-selection.ts, match-scoring.ts, …
+│   ├── conversation-profile/        # 25-question / 8-dimension flow (v2)
+│   │   ├── profile-handlers.ts
+│   │   ├── profile-session-service.ts, profile-service.ts
+│   │   ├── question-bank.ts, profile-builder.ts, normalization.ts, …
+│   ├── conversation-suggestions/    # dual retrieval, eligibility
+│   │   ├── candidate-retrieval.ts, candidate-resolution.ts, …
+│   ├── conversation-ranking/      # reciprocal deterministic ranker
+│   │   ├── rank-candidates.ts, reciprocal-fit.ts, explanations.ts, …
+│   ├── ticketing/                 # sealed-ticket + conversation capability crypto
+│   │   ├── base64url.ts, hkdf.ts, hmac.ts, aes-gcm.ts, envelope.ts, keys.ts
+│   │   ├── ticketing-service.ts, conversation-keys.ts, conversation-resolvers.ts
 │   └── platform/
 │       └── platform-stats-service.ts  # anonymous lifetime counters
-├── ticketing/
-│   ├── base64url.ts, hkdf.ts, hmac.ts, aes-gcm.ts, envelope.ts, keys.ts
-│   └── ticketing-service.ts
 ├── storage/
 │   ├── user-state-do.ts
 │   ├── user-state-client.ts         # only place for UserStateDO fetch calls
+│   ├── profile-vault/               # ProfileVaultShardDO + RPC client
+│   ├── conversation-vault/          # ConversationVaultShardDO + RPC client
+│   ├── pair-ledger/                 # PairLedgerShardDO + RPC client
 │   ├── ticket-vault/                # sealed ticket vault DO + client
 │   ├── report-ledger/               # blind report ledger DO + client
 │   ├── telegram-outbox-do.ts
@@ -177,29 +182,35 @@ src/
 │   ├── telegram-outbox.types.ts
 │   └── outbox-consumer.ts
 ├── i18n/
-│   ├── messages.ts, labels.ts, settings.ts, matching.ts, assessment-ui.ts
+│   ├── messages.ts, labels.ts, settings.ts, matching.ts, conversation-profile-ui.ts
 └── utils/
     ├── router.ts, sender.ts, tools.ts, user.ts, contact.ts, …
     └── logs.ts                        # logBotError only
 
 migrations/
-└── 0001_init.sql                      # squashed V1 schema
+└── 0001_init.sql                      # squashed core schema (V2: identity + stats only)
 
 tools/
 ├── verify-ticketing.ts                # pnpm test:ticketing
-├── verify-assessment.ts               # pnpm test:assessment
-├── verify-matching.ts                 # pnpm test:matching
+├── verify-conversation-profile.ts     # pnpm test:conversation-profile (V2)
+├── verify-conversation-ranking.ts     # pnpm test:conversation-ranking (V2)
+├── verify-conversation-capabilities.ts
+├── verify-conversation-storage-leak.ts
+├── verify-conversation-e2e.ts
 ├── audit-d1.sh / audit-d1.sql         # pnpm audit:d1
+├── setup-conversation-v2-resources.sh
 ├── set-telegram-bot-profile.sh        # pnpm bot:profile
 ├── flush-remote-d1.sql
-├── flush-remote.sh
-└── reset-assessment-data.sql
+└── flush-remote.sh
 
 docs/
 ├── architecture/
 │   ├── bot-interaction-v1.md
-│   ├── matching-v1.md
+│   ├── conversation-suggestions-v2.md
 │   └── sealed-ticket-routing-and-inbox.md
+├── refactor/
+│   ├── conversation-v2-checklist.md
+│   └── conversation-v2-source-audit.md
 ├── security/threat-model.md
 └── release/
 
@@ -223,8 +234,9 @@ GitHub Actions (`.github/workflows/`) are **manual only** (`workflow_dispatch`).
 | POST   | `/bot` | Telegram webhook (`webhookCallback` + secret) |
 | queue  | `neko-outbox` | Outbound Telegram job consumer        |
 | queue  | `neko-stats` | Aggregate stats events into D1        |
+| queue  | `neko-profile-index` | Profile vector upsert/delete/verify |
 
-Export `UserStateDurableObjectV3`, `TicketVaultDurableObjectV3`, `ReportLedgerDurableObjectV3`, and `TelegramOutboxDurableObjectV3` from `src/index.ts` for Wrangler DO bindings.
+Export `UserStateDurableObjectV3`, `ProfileVaultShardDurableObjectV3`, `ConversationVaultShardDurableObjectV3`, `PairLedgerShardDurableObjectV3`, `TicketVaultDurableObjectV3`, `ReportLedgerDurableObjectV3`, and `TelegramOutboxDurableObjectV3` from `src/index.ts` for Wrangler DO bindings.
 
 Route registration lives in `src/bot/router.ts`. Use `src/utils/router.ts` (`Router` class) for new HTTP routes. Do not add a second router or framework.
 
@@ -248,16 +260,18 @@ Route registration lives in `src/bot/router.ts`. Use `src/utils/router.ts` (`Rou
 | reply/block/unblock/nickname/report | `features/messaging/messaging-actions.ts` |
 | reply keyboard menu  | `bot/menu.ts`, `bot/keyboards.ts`         |
 | `/settings`          | `features/settings/settings-handlers.ts`  |
-| `/assessment`        | `features/assessment/assessment-handlers.ts` |
-| `/match`             | `features/matching/match-handlers.ts`     |
+| `/assessment`        | `features/conversation-profile/profile-handlers.ts` |
+| `/match`             | `features/conversation-suggestions/*` (hub handlers) |
 
 Callback prefixes (keep short; capability suffix is base64url, under Telegram 64-byte limit):
 
 - `r:`, `b:`, `u:`, `n:`, `rp:` — inbox ticket actions
 - `ib:` — inbox menu / pagination
-- `t:` — assessment flow
-- `m:` — active suggestion-hub callbacks only (`matchCallbackQueryRegex`)
-- `s:` — settings inline actions
+- `t:` — conversation profile questionnaire flow
+- `m:` — suggestion hub navigation (search, pending, profile, discoverability)
+- `s:` — suggestion ticket actions (`s:{suggestionRef}`)
+- `q:` — request ticket actions (`q:{requestRef}`)
+- `st:` — settings inline actions (migrated from V1 `s:`)
 
 Unknown callbacks are answered by one generic catch-all (`EXPIRED_CALLBACK_MESSAGE`). Do not add legacy alias handlers.
 
@@ -286,7 +300,7 @@ Anonymous aggregate counters are **not** decremented on delete.
 - Shared bot strings: `src/i18n/messages.ts`, `src/i18n/labels.ts`.
 - Settings copy: `src/i18n/settings.ts`.
 - Matching copy: `src/i18n/matching.ts`.
-- Assessment UI copy: `src/i18n/assessment-ui.ts`.
+- Conversation profile UI copy: `src/i18n/conversation-profile-ui.ts`.
 - Keep Persian tone consistent with existing messages.
 - Use `escapeMarkdownV2` when `parse_mode: "MarkdownV2"` is set.
 - Use `convertToPersianNumbers` for counts shown to users.
@@ -330,11 +344,9 @@ Rules:
 D1 (`env.DB`, database `nekonymous_core`) is source of truth for:
 
 - `users`, `public_links`
-- `reports`
-- `assessment_profiles`, `assessment_attempts`, `assessment_answers`
-- `profile_vector_index_events`
-- `match_suggestions`, `match_requests`, `match_blocks`, `match_events`
 - `platform_daily_stats`, `platform_daily_stats_by_key`, `platform_daily_unique_stats` (event-driven via `neko-stats`)
+
+**Forbidden in D1:** `assessment_profiles`, `assessment_answers`, `match_requests`, `requester_user_id`, `candidate_user_id`, `profile_summary_text`, `dimension_scores_json`, or any pair/profile graph.
 
 Apply migrations:
 
@@ -347,7 +359,6 @@ Prefer:
 
 - bounded queries with indexes
 - `features/identity/identity-service.ts` for users/links/delete
-- `features/assessment/assessment-profile-service.ts` for assessment D1
 - `features/platform/platform-stats-service.ts` for public aggregate stats
 - increment anonymous stats via `emitStat` / `incrementPlatformStat` on accepted sends — no message body or sender-recipient edge in D1
 
@@ -390,11 +401,12 @@ One DO per internal user id (`idFromName(userId)`). Authority for:
 
 - pause, display name ciphertext, drafts, inbox **pointers**
 - blocks, contact labels, rate limits
-- assessment session state (`assessment_sessions` table in DO)
+- profile questionnaire session (encrypted answers until finalization)
+- discoverability preference, exposure tokens, search/request rate budgets
 
-All DO calls go through `src/storage/user-state-client.ts`.
+All UserStateDO calls go through `src/storage/user-state-client.ts`. Vault shard calls go through `src/storage/profile-vault/`, `conversation-vault/`, `pair-ledger/` RPC clients only.
 
-Key endpoints include: `/init`, `/state`, `/set-draft`, `/add-pointer`, `/pending-inbox`, `/mark-delivered`, `/pointer/:hash`, `/add-block`, `/remove-block`, `/set-label`, `/check-can-receive`, `/consume-rate-limit`, `/purge`, `/assessment/*`.
+Key UserState endpoints include: `/init`, `/state`, `/set-draft`, `/add-pointer`, `/pending-inbox`, `/mark-delivered`, `/pointer/:hash`, `/add-block`, `/remove-block`, `/set-label`, `/check-can-receive`, `/consume-rate-limit`, `/purge`, profile session routes under `/profile/*`.
 
 Inbox cap: bounded active pointers per user DO (see `user-state-do.ts`).
 
@@ -415,24 +427,26 @@ Avoid:
 - storing plaintext secrets in outbox DO logs
 - unbounded inbox or outbox table growth without caps/eviction
 
-## Assessment and Matching (V1)
+## Conversation profile and suggestions (V2)
 
-### Assessment
+Read `docs/architecture/conversation-suggestions-v2.md` — canonical contracts.
 
-- **56 questions**, **14 dimensions**, version **`v1`**
-- Active progress in `UserStateDO.assessment_sessions`
-- Completed profile in D1 `assessment_profiles` (`dimension_scores_json`, controlled `profile_summary_text`)
-- Vector id: `profile:{userId}:v1`
-- Discoverability off by default; user opts in for matching
+### Conversation profile
 
-### Conversation suggestions (matching)
+- **25 questions**, **8 dimensions**, version **`v2`**
+- Active session in `UserStateDO` (encrypted); finalized profile in `ProfileVaultShardDO`
+- Dual independent Vectorize IDs (self + desired); index via `neko-profile-index` queue
+- Discoverability off by default; active only after both vectors verified
+- Raw answers **deleted** after successful finalization
 
-1. Vectorize `topK` with metadata filters (`discoverable`, `matchEligible`, `locale`, `profileVersion`)
-2. Merge with bounded recent discoverable D1 profiles when index is sparse (`fetchD1FallbackProfiles`)
-3. Deterministic scoring in `match-scoring.ts` (Vectorize narrows; code decides)
-4. Conversation request → candidate accept → normal sealed inbox ticket
+### Conversation suggestions
 
-Do not add version-specific ranking hacks beyond `ASSESSMENT_VERSION === "v1"`. User-facing copy says **پیشنهاد گفت‌وگو**, not مچ‌یابی.
+1. Dual Vectorize retrieval (self ↔ desired namespaces), topK bounded
+2. Batch vault resolve → reciprocal deterministic ranking (no Vectorize score in final rank)
+3. Hard filters (PairLedger, blocks, cooldowns, rate limits) override rank
+4. Suggestion capability → request capability → accept creates normal sealed inbox ticket
+
+No D1 candidate fallback. No Workers AI. User-facing copy says **پیشنهاد گفت‌وگو**, not مچ‌یابی. No compatibility percentages.
 
 ## Cloudflare Worker Performance Rules
 
@@ -510,15 +524,18 @@ NEKO_KV
 DB
 
 USER_STATE_DO
+PROFILE_VAULT_DO
+CONVERSATION_VAULT_DO
+PAIR_LEDGER_DO
 TICKET_VAULT
 REPORT_LEDGER
 TELEGRAM_OUTBOX_DO
 
 NEKO_OUTBOX_QUEUE
 NEKO_STATS_QUEUE
+NEKO_PROFILE_INDEX_QUEUE
 
-AI
-PROFILE_VECTORS
+CONVERSATION_VECTORS
 
 BOT_INFO
 BOT_NAME

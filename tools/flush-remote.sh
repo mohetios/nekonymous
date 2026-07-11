@@ -5,7 +5,8 @@
 #   ./tools/flush-remote.sh          # remote only
 #   ./tools/flush-remote.sh --local  # also flush local D1/KV (vectorize is remote-only)
 #
-# Requires: wrangler auth and V3/V2 reset migrations (v6 + v7) in wrangler.jsonc.
+# Requires: wrangler auth and V4/V2 reset migrations (v9 + v10) in wrangler.jsonc.
+# D1 schema is a single squashed migration: migrations/0001_init.sql
 
 set -euo pipefail
 
@@ -20,24 +21,33 @@ fi
 WRANGLER=(pnpm exec wrangler)
 DB_BINDING="DB"
 KV_BINDING="NEKO_KV"
-VECTOR_INDEX="nekonymous-profile-vectors"
-VECTOR_DIM=1024
+VECTOR_INDEX="nekonymous-conversation-v2"
+VECTOR_DIM=32
 
 require_do_reset_migrations() {
-  if ! rg -q '"tag": "v6-create-reset-durable-objects-v3"' wrangler.jsonc; then
-    echo "Missing v6 migration tag in wrangler.jsonc" >&2
+  if ! rg -q '"tag": "v9-create-reset-durable-objects-v4"' wrangler.jsonc; then
+    echo "Missing v9 migration tag in wrangler.jsonc" >&2
     exit 1
   fi
-  if ! rg -q '"tag": "v7-delete-durable-objects-v2"' wrangler.jsonc; then
-    echo "Missing v7 migration tag in wrangler.jsonc" >&2
+  if ! rg -q '"tag": "v10-delete-durable-objects-v3-and-vault-v1"' wrangler.jsonc; then
+    echo "Missing v10 migration tag in wrangler.jsonc" >&2
     exit 1
   fi
 }
 
 run_worker_deploy() {
   local label="$1"
+  local config="${2:-wrangler.jsonc}"
   echo "==> Worker deploy (${label})"
-  "${WRANGLER[@]}" deploy --minify
+  "${WRANGLER[@]}" deploy --minify --config "$config"
+}
+
+run_phase1_deploy() {
+  local config="${ROOT}/.wrangler-flush-phase1.json"
+  node --experimental-strip-types tools/wrangler-config-without-migration.ts \
+    "v10-delete-durable-objects-v3-and-vault-v1" "$config"
+  run_worker_deploy "phase 1 — bind V4 core + V2 vault durable objects" "$config"
+  rm -f "$config"
 }
 
 run_d1_flush() {
@@ -83,30 +93,23 @@ run_vectorize_recreate() {
   echo "==> Vectorize create ${VECTOR_INDEX}"
   "${WRANGLER[@]}" vectorize create "$VECTOR_INDEX" \
     --dimensions="$VECTOR_DIM" \
-    --metric=cosine \
-    --description="Nekonymous profile embeddings (bge-m3)"
-
-  echo "==> Vectorize metadata indexes"
-  "${WRANGLER[@]}" vectorize create-metadata-index "$VECTOR_INDEX" --propertyName=locale --type=string
-  "${WRANGLER[@]}" vectorize create-metadata-index "$VECTOR_INDEX" --propertyName=discoverable --type=boolean
-  "${WRANGLER[@]}" vectorize create-metadata-index "$VECTOR_INDEX" --propertyName=matchEligible --type=boolean
-  "${WRANGLER[@]}" vectorize create-metadata-index "$VECTOR_INDEX" --propertyName=profileVersion --type=string
-  "${WRANGLER[@]}" vectorize create-metadata-index "$VECTOR_INDEX" --propertyName=updatedAtEpoch --type=number
+    --metric=euclidean \
+    --description="Nekonymous conversation profile retrieval (8-d coarse vectors)"
 }
 
 echo "!!! DESTRUCTIVE REMOTE RESET for Nekonymous !!!"
-echo "    Durable Objects: two deploys (V3 create, then V2 delete)"
-echo "    D1: all tables dropped + squashed migration reapplied"
+echo "    Durable Objects: two deploys (V4/V2 vault create, then V3/V1 delete)"
+echo "    D1: all tables dropped + single migration (0001_init.sql) reapplied"
 echo "    KV: all keys deleted"
 echo "    Vectorize: index recreated empty"
 echo
 
 require_do_reset_migrations
-run_worker_deploy "phase 1 — bind V3 durable objects"
+run_vectorize_recreate
+run_phase1_deploy
 run_d1_flush --remote
 run_kv_flush --remote
-run_vectorize_recreate
-run_worker_deploy "phase 2 — delete V2 durable object storage"
+run_worker_deploy "phase 2 — delete V3 core + V1 vault durable object storage"
 
 if $LOCAL_TOO; then
   run_d1_flush --local

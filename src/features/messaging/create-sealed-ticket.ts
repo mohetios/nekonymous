@@ -1,5 +1,5 @@
 import type { D1User, Environment, MessagePayload } from "../../types";
-import { encryptEnvelope } from "../../ticketing/envelope";
+import { encryptEnvelope } from "../ticketing/envelope";
 import {
   createOwnerProofTag,
   createPairTag,
@@ -8,8 +8,8 @@ import {
   payloadAad,
   randomTicketRef,
   routeAad,
-} from "../../ticketing/keys";
-import { createMessageDedupeKey, getSenderAlias } from "../../ticketing/ticketing-service";
+} from "../ticketing/keys";
+import { createMessageDedupeKey, getSenderAlias } from "../ticketing/ticketing-service";
 import { ensureUserStateInitialized } from "../identity/identity-service";
 import { incrementPlatformStat } from "../platform/platform-stats-service";
 import { STAT_EVENTS } from "../../stats/events";

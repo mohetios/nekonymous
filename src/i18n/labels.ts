@@ -29,7 +29,7 @@ export const INPUT_PLACEHOLDERS = {
   reply: "جوابت رو بنویس...",
   nickname: "نام خصوصی رو بنویس...",
   display_name: "نام نمایشی رو بنویس...",
-  match_intro: "پیام شروع گفت‌وگو رو بنویس...",
+  conversation_intro: "پیام شروع گفت‌وگو رو بنویس...",
 } as const;
 
 export const BOT_COMMAND_DESCRIPTIONS = {

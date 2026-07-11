@@ -27,22 +27,7 @@ export type UserDraftMode =
   | "nickname"
   | "display_name"
   | "settings"
-  | "match_intro";
-
-/** UserState DO assessment_sessions.status */
-export type AssessmentSessionStatus = "active" | "completed";
-
-/** D1 assessment_profiles.status */
-export type AssessmentProfileStatus =
-  | "started"
-  | "completed"
-  | "abandoned";
-
-/** D1 assessment_profiles.vector_status */
-export type ProfileVectorStatus = "indexed" | "failed" | "not_indexed";
-
-/** D1 match_suggestions.status */
-export type MatchSuggestionStatus = "shown" | "requested" | "expired";
+  | "conversation_intro";
 
 /** TelegramOutbox DO sent_events.status */
 export type TelegramOutboxSendStatus = "pending" | "sent" | "failed";

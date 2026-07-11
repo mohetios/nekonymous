@@ -1,6 +1,6 @@
 import type { Environment } from "../../types";
-import { createReportTag } from "../../ticketing/keys";
-import { randomBase64Url } from "../../ticketing/base64url";
+import { createReportTag } from "../ticketing/keys";
+import { randomBase64Url } from "../ticketing/base64url";
 import { recordReportEvent } from "../../storage/report-ledger/report-ledger.client";
 import type { RouteCapsule } from "../messaging/create-sealed-ticket";
 import { deriveBlindAbuseTags } from "./abuse-tags";

@@ -8,7 +8,7 @@ import {
   encryptTelegramChatId,
   generateOpaqueId,
   hmacTelegramUserId,
-} from "../../ticketing/ticketing-service";
+} from "../ticketing/ticketing-service";
 import { getUserState, initUserState, purgeUserState } from "../../storage/user-state-client";
 import {
   recordLinkCreated,
@@ -172,12 +172,12 @@ const getUserByTelegramHashAnyStatus = async (
   return row ? rowToD1User(row) : null;
 };
 
-/** Permanently remove a user and all D1 rows tied to them. KV + Vectorize best-effort. */
+/** Permanently remove a user and all D1 rows tied to them. KV best-effort. */
 export const hardDeleteUserAccount = async (
   userId: string,
   env: Environment
 ): Promise<void> => {
-  const [user, links, vectorRow] = await Promise.all([
+  const [user, links] = await Promise.all([
     env.DB.prepare(
       "SELECT telegram_user_hash FROM users WHERE id = ?"
     )
@@ -188,55 +188,14 @@ export const hardDeleteUserAccount = async (
     )
       .bind(userId)
       .all<{ slug: string }>(),
-    env.DB.prepare(
-      "SELECT vector_id FROM assessment_profiles WHERE user_id = ?"
-    )
-      .bind(userId)
-      .first<{ vector_id: string | null }>(),
   ]);
 
   await env.DB.batch([
-    env.DB.prepare("DELETE FROM assessment_answers WHERE user_id = ?").bind(
-      userId
-    ),
-    env.DB.prepare("DELETE FROM assessment_attempts WHERE user_id = ?").bind(
-      userId
-    ),
-    env.DB.prepare("DELETE FROM assessment_profiles WHERE user_id = ?").bind(
-      userId
-    ),
-    env.DB.prepare(
-      "DELETE FROM profile_vector_index_events WHERE user_id = ?"
-    ).bind(userId),
-    env.DB.prepare(
-      `DELETE FROM match_requests
-       WHERE requester_user_id = ? OR candidate_user_id = ?`
-    ).bind(userId, userId),
-    env.DB.prepare(
-      `DELETE FROM match_suggestions
-       WHERE user_id = ? OR candidate_user_id = ?`
-    ).bind(userId, userId),
-    env.DB.prepare(
-      `DELETE FROM match_blocks
-       WHERE user_id = ? OR blocked_user_id = ?`
-    ).bind(userId, userId),
-    env.DB.prepare(
-      "DELETE FROM match_events WHERE user_id = ? OR target_user_id = ?"
-    ).bind(userId, userId),
     env.DB.prepare("DELETE FROM public_links WHERE owner_user_id = ?").bind(
       userId
     ),
     env.DB.prepare("DELETE FROM users WHERE id = ?").bind(userId),
   ]);
-
-  const vectorId = vectorRow?.vector_id;
-  if (vectorId) {
-    try {
-      await env.PROFILE_VECTORS.deleteByIds([vectorId]);
-    } catch {
-      // Vector may already be gone.
-    }
-  }
 
   if (user) {
     await env.NEKO_KV.delete(tgCacheKey(user.telegram_user_hash));

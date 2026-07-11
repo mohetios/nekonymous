@@ -6,7 +6,7 @@ import {
   HuhMessage,
   INBOX_HAS_MORE_MESSAGE,
 } from "../../i18n/messages";
-import { createBlockHash } from "../../ticketing/ticketing-service";
+import { createBlockHash } from "../ticketing/ticketing-service";
 import { replyHtml, withHtml } from "../../utils/tools";
 import { logBotError } from "../../utils/logs";
 import { sendDecryptedMessage } from "../../utils/sender";

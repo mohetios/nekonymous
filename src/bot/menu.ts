@@ -11,7 +11,7 @@ import { mainMenu } from "./keyboards";
 import { isMainMenuLabel, MENU } from "./menu-labels";
 import { handleInboxCommand } from "../features/messaging/messaging-commands";
 import { renderSettingsHome } from "../features/settings/render-stats-page";
-import { renderSuggestionHub } from "../features/matching/suggestion-hub";
+import { renderSuggestionHub } from "../features/conversation-suggestions/suggestion-hub";
 
 export { MENU, isMainMenuLabel, isReservedDisplayName } from "./menu-labels";
 
