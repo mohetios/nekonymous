@@ -4,9 +4,9 @@
 
 | Version | Status |
 |---------|--------|
-| V1 (`main`, `0.1.0`) | Release candidate — security reports accepted |
+| `master` (Conversation Suggestions V2, pre-release `pre-release-conversation-v2-acca6b9`) | Supported — security reports accepted |
 
-Older experimental branches and pre-V1 drafts are not supported.
+Older experimental branches and pre-V2 assessment/matching code paths are not supported.
 
 ## Reporting a vulnerability
 
@@ -23,7 +23,7 @@ Include:
 
 ## Privacy and security boundaries
 
-Nekonymous V1 is a **hosted anonymous Telegram relay**. It is:
+Nekonymous is a **hosted anonymous Telegram relay**. It is:
 
 - **Not** end-to-end encrypted (E2EE)
 - **Not** zero-knowledge
@@ -33,7 +33,7 @@ Nekonymous V1 is a **hosted anonymous Telegram relay**. It is:
 
 - Telegram sees messages while users send and receive through Telegram.
 - The Worker sees plaintext while processing delivery, encryption, and decryption.
-- Stored sensitive data is encrypted at rest **where implemented** (payloads, chat ids, route capsules, nicknames, match intros).
+- Stored sensitive data is encrypted at rest **where implemented** (payloads, chat ids, route capsules, profiles, request intros).
 - Raw Telegram user ids are not stored in D1, KV, or Vectorize metadata.
 
 For the full threat model, see [docs/security/threat-model.md](./docs/security/threat-model.md).
@@ -53,12 +53,14 @@ The following are **documented product boundaries**, not defects:
 
 | Data | Storage |
 |------|---------|
-| Anonymous message bodies | TicketVault DO encrypted; cleared from payload after inbox delivery |
+| Anonymous message bodies | TicketVault DO encrypted; payload cleared after inbox delivery |
 | Sender–recipient graph (relay) | Not stored in D1 as plaintext edges |
 | Telegram user id | HMAC hash in D1 |
 | Telegram chat id | AES ciphertext in D1 |
-| Callback ticket refs | Short refs in Telegram only; hashes/sealed pointers in storage |
-| Assessment answers | D1 + in-progress session in UserState DO |
+| Callback ticket refs | Short refs in Telegram only; blind hashes / sealed pointers in storage |
+| Profile questionnaire session | Encrypted session in UserState DO; raw answers deleted after finalization |
+| Finalized conversation profile | ProfileVaultShard DO encrypted; not in D1 |
+| Request intro text | ConversationVaultShard DO encrypted |
 | Reports | Blind tags in ReportLedger DO |
 
 Details: [docs/security/threat-model.md](./docs/security/threat-model.md) and [docs/architecture/sealed-ticket-routing-and-inbox.md](./docs/architecture/sealed-ticket-routing-and-inbox.md).
@@ -66,8 +68,8 @@ Details: [docs/security/threat-model.md](./docs/security/threat-model.md) and [d
 ## Known limitations
 
 - Endpoint, secret, or Cloudflare/Telegram platform compromise is out of scope for application-layer guarantees.
-- Matching suggestions are product-level signals, not safety or identity guarantees.
-- V1 has no payment flow; Telegram Stars are not implemented.
+- Conversation suggestions are product-level signals, not safety or identity guarantees.
+- No payment flow; Telegram Stars are not implemented.
 
 ## Response expectations
 

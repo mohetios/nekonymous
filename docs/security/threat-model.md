@@ -2,7 +2,7 @@
 
 **Scope:** Nekonymous — Persian-first Telegram-bot-only hosted anonymous relay on Cloudflare.
 
-**Status:** V2 conversation profile + suggestions refactor (canonical architecture in [conversation-suggestions-v2.md](../architecture/conversation-suggestions-v2.md)). Legacy V1 assessment/matching tables and code are being removed; this document describes the **target** V2 system.
+**Status:** V2 conversation profile + suggestions — implemented. Canonical architecture: [conversation-suggestions-v2.md](../architecture/conversation-suggestions-v2.md).
 
 See also [README](../../README.md) and [SECURITY.md](../../SECURITY.md).
 

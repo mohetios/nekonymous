@@ -1,6 +1,6 @@
 # Bot Interaction V1
 
-**Status:** current Telegram UX reference — V2 conversation callbacks updated below.
+**Status:** current Telegram UX reference (filename retains V1; callbacks are V2).
 
 How commands, reply keyboards, inline keyboards, drafts, and callback routing work. For sealed-ticket actions see [sealed-ticket-routing-and-inbox.md](./sealed-ticket-routing-and-inbox.md). For conversation suggestions see [conversation-suggestions-v2.md](./conversation-suggestions-v2.md).
 

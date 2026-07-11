@@ -4,7 +4,7 @@ Track refactor progress phase by phase. **Do not start the next phase while the 
 
 | Phase | Title | Status | Gate |
 |-------|-------|--------|------|
-| 0 | Repository audit and baseline | ✅ Done | Audit doc + baseline commands recorded |
+| 0 | Repository audit and baseline (removed after V2 sign-off; see git history) | ✅ Done | Audit doc + baseline commands recorded |
 | 1 | Canonical V2 contracts | ✅ Done | `conversation-suggestions-v2.md` + threat model + AGENTS.md |
 | 2 | Remove V1 persistence and contracts | ✅ Done | No V1 table/symbol hits in source (except obsolete docs) |
 | 3 | Cloudflare resource foundation | ✅ Done | `pnpm typecheck`; new DOs + bindings verified |
@@ -61,7 +61,7 @@ After pre-release sign-off, avoid new delete migrations. Recovery = current comm
 
 | Phase | Primary deliverables |
 |-------|---------------------|
-| 0 | `docs/refactor/conversation-v2-source-audit.md` |
+| 0 | Phase 0 baseline recorded in git history | |
 | 1 | `docs/architecture/conversation-suggestions-v2.md`, `threat-model.md`, `AGENTS.md` |
 | 2 | `migrations/0001_init.sql` rewrite; delete V1 feature dirs |
 | 3 | New DO classes, wrangler bindings, `tools/setup-conversation-v2-resources.sh` |

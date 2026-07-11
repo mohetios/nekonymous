@@ -1,7 +1,7 @@
 # Conversation Suggestions V2
 
-**Status:** canonical architecture (implementation in progress).  
-**Replaces:** `docs/architecture/matching-v1.md` and all V1 assessment/matching implementation.
+**Status:** canonical architecture — implemented (pre-release `pre-release-conversation-v2-acca6b9`).  
+**Replaces:** removed V1 assessment/matching implementation and D1 profile graph.
 
 See also [threat-model.md](../security/threat-model.md), [sealed-ticket-routing-and-inbox.md](./sealed-ticket-routing-and-inbox.md), [bot-interaction-v1.md](./bot-interaction-v1.md) (UX routing; callback prefixes updated below).
 

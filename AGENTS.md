@@ -47,8 +47,8 @@ Capability-based anonymous routing is the current model. Do not reintroduce olde
 | Inbox / sealed tickets | `docs/architecture/sealed-ticket-routing-and-inbox.md` |
 | Conversation profile + suggestions (V2) | `docs/architecture/conversation-suggestions-v2.md` |
 | V2 refactor checklist | `docs/refactor/conversation-v2-checklist.md` |
-| V1 source audit (historical) | `docs/refactor/conversation-v2-source-audit.md` |
-| Release audits | `docs/release/` |
+| Release sign-off | `docs/release/pre-release-conversation-v2-acca6b9.md` |
+| Persian voice | `docs/brand/nekonymous-fa-voice-and-tone.md` |
 
 ### Persian product terminology (user-facing)
 
@@ -209,10 +209,12 @@ docs/
 │   ├── conversation-suggestions-v2.md
 │   └── sealed-ticket-routing-and-inbox.md
 ├── refactor/
-│   ├── conversation-v2-checklist.md
-│   └── conversation-v2-source-audit.md
+│   └── conversation-v2-checklist.md
+├── brand/
+│   └── nekonymous-fa-voice-and-tone.md
 ├── security/threat-model.md
 └── release/
+    └── pre-release-conversation-v2-acca6b9.md
 
 LICENSE
 SECURITY.md

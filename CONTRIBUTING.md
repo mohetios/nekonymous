@@ -11,8 +11,8 @@ Before a large pull request, open an issue or discussion first.
 - Persian-first UX; callback data must stay language-independent and under 64 bytes.
 - Prefer small focused changes.
 - Do not store plaintext message bodies, raw Telegram ids, or raw callback capabilities in D1 or KV.
-- Do not use KV as source of truth for inbox, profiles, assessment, or matching.
-- Add or update verify scripts when touching ticketing, crypto, matching, assessment, storage, or i18n.
+- Do not use KV as source of truth for inbox, profiles, or conversation suggestions.
+- Add or update verify scripts when touching ticketing, crypto, conversation profile/suggestions, storage, or i18n.
 
 ## Where to start (code)
 
@@ -34,7 +34,7 @@ pnpm install
 pnpm check
 ```
 
-`pnpm check` runs: `typecheck`, `lint`, `knip`, `test:ticketing`, `test:idempotency`, `test:stats`, `test:bot-flow`, and `audit:ticket-storage`.
+`pnpm check` runs `typecheck`, `lint`, `knip`, all conversation V2 verify scripts, ticketing/idempotency/stats checks, and `audit:ticket-storage`.
 
 Individual scripts: `pnpm typecheck`, `pnpm lint`, `pnpm knip`, `pnpm test`, `pnpm audit:d1`, `pnpm db:migrations:apply:local`.
 

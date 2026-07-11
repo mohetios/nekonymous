@@ -1,11 +1,11 @@
-# Release Notes (V1)
+# Release notes
 
-This folder contains release-audit records for the V1 launch.
+Release audit records for Nekonymous.
 
-## Current source of truth
+## Current
 
-- `public-surface-verification-v1.md` — final public-surface verification and manual launch checklist.
+- [`pre-release-conversation-v2-acca6b9.md`](./pre-release-conversation-v2-acca6b9.md) — Conversation Suggestions V2 pre-release sign-off (2026-07-11).
 
-## Scope note
+## Historical
 
-Older intermediate audit drafts were removed during repository cleanup once their decisions were reflected in current docs and code.
+V1 public-surface and copy audit drafts were removed after V2 pre-release; their decisions live in current bot copy, architecture docs, and git history.
