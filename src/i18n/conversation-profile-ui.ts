@@ -1,13 +1,13 @@
 import { convertToPersianNumbers } from "../utils/tools";
-
-const PROFILE_QUESTION_COUNT = 25;
+import { PROFILE_QUESTION_COUNT } from "../features/conversation-profile/constants";
 
 export const PROFILE_ANSWER_SCALE =
-  "۱ = اصلاً به من نزدیک نیست\n" +
-  "۲ = کمی به من نزدیکه\n" +
-  "۳ = تا حدی به من نزدیکه\n" +
-  "۴ = زیاد به من نزدیکه\n" +
-  "۵ = کاملاً به من نزدیکه";
+  "این جمله چقدر شبیه توئه؟\n\n" +
+  "۱ — اصلاً شبیه من نیست\n" +
+  "۲ — کمی\n" +
+  "۳ — تا حدی\n" +
+  "۴ — خیلی\n" +
+  "۵ — کاملاً شبیه منه";
 
 export const PROFILE_DESIRED_SCALE =
   "۱ = خیلی کم\n" +
@@ -30,36 +30,41 @@ export const formatProfileSessionStatus = (options: {
   answeredCount: number;
 }): string => {
   if (options.hasSession) {
-    return `در حال انجام — ${convertToPersianNumbers(options.answeredCount)} از ${convertToPersianNumbers(PROFILE_QUESTION_COUNT)} سؤال جواب داده شده`;
+    return `در حال انجام — ${convertToPersianNumbers(options.answeredCount)} از ${convertToPersianNumbers(PROFILE_QUESTION_COUNT)} سؤال`;
   }
   if (options.hasProfile) {
-    return "تکمیل‌شده — پروفایل گفت‌وگو ذخیره شده است";
+    return "آماده — پروفایل گفت‌وگو ذخیره شده";
   }
   return "هنوز شروع نشده";
 };
 
 export const PROFILE_DASHBOARD_INTRO =
-  "📝 <b>ارزیابی سبک گفت‌وگو</b>\n\n" +
-  "این ارزیابی کمک می‌کنه سبک گفت‌وگوی خودت رو بهتر بشناسی.\n\n" +
-  "برچسب شخصیتی یا تشخیص روان‌شناختی نیست. جواب‌ها برای ساخت پروفایل گفت‌وگو و پیشنهادهای بهتر استفاده می‌شن.";
+  "<b>ارزیابی سبک گفت‌وگو</b>\n\n" +
+  "میو، بیا ببینیم معمولاً چطور گفت‌وگو می‌کنی 🐾\n\n" +
+  "چند جمله‌ی کوتاه می‌بینی.\n" +
+  "برای هرکدوم بگو چقدر شبیه توئه.\n\n" +
+  "اینجا جواب درست یا غلطی وجود نداره.\n\n" +
+  "این ارزیابی تست شخصیت یا تشخیص روان‌شناختی نیست؛\n" +
+  "فقط برای ساخت پروفایل گفت‌وگو و پیشنهادهای بهتر استفاده می‌شه.";
 
 export const PROFILE_STATUS_HEADER = "وضعیت:";
 
 export const PROFILE_COMPLETION_NOTE =
-  "\n\nارزیابی کامل شد.\n" +
-  "پروفایل گفت‌وگوی تو ذخیره شد و در حال آماده‌سازی برای پیشنهادهاست.";
+  "\n\nتموم شد 🐾\n\n" +
+  "پروفایل گفت‌وگوت آماده‌ست.\n\n" +
+  "اگه خواستی، حالا می‌تونی نمایش در پیشنهادها رو فعال کنی.";
 
 export const PROFILE_RESET_CONFIRM =
   "می‌خوای ارزیابی رو از نو شروع کنی؟\n\n" +
-  "پیشرفت فعلی پاک می‌شه. اگر پروفایل قبلی داشتی، نمایش در پیشنهادها تا تکمیل ارزیابی تازه غیرفعال می‌شه.";
+  "پیشرفت فعلی پاک می‌شه. اگه پروفایل قبلی داشتی، نمایش در پیشنهادها تا تکمیل ارزیابی تازه غیرفعال می‌شه.";
 
 export const PROFILE_EXIT_SAVED =
-  "پیشرفتت ذخیره شد.\n\nهر وقت خواستی از منوی ارزیابی ادامه بده.";
+  "پیشرفتت ذخیره شد.\n\nهر وقت خواستی از همین‌جا ادامه بده.";
 
-export const PROFILE_RESULT_READY_TITLE = "✅ <b>ارزیابی کامل شد.</b>";
+export const PROFILE_RESULT_READY_TITLE = "<b>پروفایل گفت‌وگوت</b>";
 
 export const PROFILE_INTENT_OPTIONS = {
-  light: "گفت‌وگوی سبک و کم‌فشار",
+  light: "گفت‌وگوی سبک و ساده",
   deep: "گفت‌وگوی عمیق‌تر",
   support: "شنیده‌شدن و همراهی",
   exploration: "کشف موضوع‌های تازه",
@@ -67,6 +72,6 @@ export const PROFILE_INTENT_OPTIONS = {
 } as const;
 
 export const PROFILE_SUBMIT_READY =
-  "همه‌ی سؤال‌ها جواب داده شد.\n\nبرای ذخیره‌ی پروفایل گفت‌وگو، دکمه‌ی «ثبت پروفایل» را بزن.";
+  "همه‌ی سؤال‌ها جواب داده شد.\n\nبرای ذخیره‌ی پروفایل گفت‌وگو، دکمه‌ی «ثبت پروفایل» رو بزن.";
 
 export const PROFILE_SUBMIT_BUTTON = "✅ ثبت پروفایل";

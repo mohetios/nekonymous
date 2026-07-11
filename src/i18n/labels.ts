@@ -6,9 +6,9 @@ export const MENU = {
   matchSystem: "🧭 پیشنهاد گفت‌وگو",
   settings: "⚙️ تنظیمات",
   matchProfile: "👤 پروفایل گفت‌وگو",
-  matchFind: "🔎 پیدا کردن گزینه‌ها",
+  matchFind: "🔎 دیدن پیشنهادها",
   matchPending: "📥 درخواست‌های گفت‌وگو",
-  matchEnable: "✅ فعال‌سازی نمایش",
+  matchEnable: "✅ نمایش در پیشنهادها",
   matchDisable: "⏸ توقف نمایش",
   matchAssessment: "📝 شروع ارزیابی",
   matchAssessmentRetry: "📝 ارزیابی دوباره",
@@ -47,7 +47,7 @@ export const BACK_BUTTON = {
 
 /** Inline-only confirmation labels (never on reply keyboard). */
 export const CONFIRM_BUTTON = {
-  yesDelete: "بله، حسابم را پاک کن",
+  yesDelete: "بله، حسابم رو پاک کن",
   confirmClearBlocks: "رفع همه‌ی مسدودی‌ها",
   confirmResetMatch: "بازنشانی پیشنهادها",
   cancel: "↩️ لغو",
@@ -79,7 +79,7 @@ export const isMainMenuLabel = (text: string): boolean =>
   MAIN_MENU_LABELS.has(text);
 
 export const MATCH_BUTTON = {
-  search: "🔎 پیدا کردن گزینه‌ها",
+  search: "🔎 دیدن پیشنهادها",
   pending: "📥 درخواست‌های گفت‌وگو",
   profile: "👤 پروفایل گفت‌وگو",
   accept: "✅ پذیرفتن",
