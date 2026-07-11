@@ -1,5 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { BACK_BUTTON, CONFIRM_BUTTON, MENU } from "../../i18n/labels";
+import { PROJECT_INTRO_URL } from "../../i18n/messages";
 import { SETTINGS_CALLBACK } from "./constants";
 
 export const buildSettingsHomeKeyboard = (paused: boolean): InlineKeyboard =>
@@ -24,6 +25,12 @@ export const buildSettingsBackKeyboard = (): InlineKeyboard =>
     BACK_BUTTON.toSettings,
     SETTINGS_CALLBACK.home
   );
+
+export const buildSettingsAboutKeyboard = (): InlineKeyboard =>
+  new InlineKeyboard()
+    .url(MENU.projectIntro, PROJECT_INTRO_URL)
+    .row()
+    .text(BACK_BUTTON.toSettings, SETTINGS_CALLBACK.home);
 
 export const buildConfirmClearDataKeyboard = (): InlineKeyboard =>
   new InlineKeyboard()

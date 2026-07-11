@@ -19,6 +19,7 @@ export const MENU = {
   resetMatchHistory: "♻️ بازنشانی پیشنهادها",
   clearData: "🗑️ پاک کردن حساب",
   about: "ℹ️ درباره و حریم خصوصی",
+  projectIntro: "📖 معرفی و مستندات",
   stats: "📊 آمار",
 } as const;
 

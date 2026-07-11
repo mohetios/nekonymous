@@ -53,7 +53,7 @@ import {
   buildConfirmClearBlocksKeyboard,
   buildConfirmClearDataKeyboard,
   buildConfirmResetMatchKeyboard,
-  buildSettingsBackKeyboard,
+  buildSettingsAboutKeyboard,
   buildSettingsHomeKeyboard,
 } from "./keyboards";
 import {
@@ -234,7 +234,7 @@ export const handleSettingsCallback = async (
     if (data === SETTINGS_CALLBACK.about) {
       await renderScreen(ctx, {
         text: ABOUT_PRIVACY_COMMAND_MESSAGE,
-        replyMarkup: buildSettingsBackKeyboard(),
+        replyMarkup: buildSettingsAboutKeyboard(),
       });
       return;
     }
