@@ -3,30 +3,30 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>نِکونیموس — پیام ناشناس روی تلگرام، با مرزهای روشن</title>
+    <title>نِکونیموس — گربه‌ی نارنجی پیام‌های ناشناس</title>
     <meta
       name="description"
-      content="نِکونیموس یک ربات تلگرام فارسی‌محور برای لینک شخصی، پیام ناشناس، پاسخ ناشناس، ارزیابی سبک گفت‌وگو و پیشنهاد گفت‌وگوی اختیاری است؛ با معماری Cloudflare-native و مرزهای حریم خصوصی روشن."
+      content="نِکونیموس، گربه‌ی نارنجی پیام‌های ناشناس؛ یک ربات تلگرام فارسی‌محور و متن‌باز برای لینک شخصی، پاسخ ناشناس، پروفایل گفت‌وگو و پیشنهادهای اختیاری، ساخته‌شده روی Cloudflare."
     />
     <meta name="theme-color" content="#07111f" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     <meta name="author" content="Mohetios" />
-    <meta property="og:title" content="نِکونیموس — پیام ناشناس روی تلگرام، با مرزهای روشن" />
+    <meta property="og:title" content="نِکونیموس — گربه‌ی نارنجی پیام‌های ناشناس" />
     <meta
       property="og:description"
-      content="ربات پیام ناشناس فارسی‌محور با مدل sealed ticket، آمار تجمیعی و مستندات فنی روشن."
+      content="ربات پیام ناشناس فارسی‌محور و متن‌باز با تیکت‌های مهروموم‌شده، داده‌ی ذخیره‌شده‌ی محدود و زیرساخت Cloudflare-native."
     />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Nekonymous" />
     <meta property="og:locale" content="fa_IR" />
     <meta property="og:url" content="https://mohetios.github.io/Nekonymous/" />
     <meta property="og:image" content="https://mohetios.github.io/Nekonymous/nekonymous-hero.webp" />
-    <meta property="og:image:alt" content="نماد نِکونیموس؛ گربه با ماسک ناشناس و پاکت نامه" />
+    <meta property="og:image:alt" content="چهره نِکونیموس؛ گربه‌ی نارنجی با ماسک ناشناس و نامه" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="نِکونیموس — پیام ناشناس روی تلگرام، با مرزهای روشن" />
+    <meta name="twitter:title" content="نِکونیموس — گربه‌ی نارنجی پیام‌های ناشناس" />
     <meta
       name="twitter:description"
-      content="ربات پیام ناشناس فارسی‌محور با مرزهای فنی روشن و مستندات متن‌باز."
+      content="گربه‌ی نارنجی پیام‌های ناشناس؛ فارسی‌محور، متن‌باز و ساخته‌شده روی Cloudflare."
     />
     <meta name="twitter:image" content="https://mohetios.github.io/Nekonymous/nekonymous-hero.webp" />
     <meta name="twitter:url" content="https://mohetios.github.io/Nekonymous/" />
@@ -718,9 +718,9 @@
         <div class="links">
           <a class="is-active" href="#intro">معرفی</a>
           <a href="#product">محصول</a>
+          <a href="#privacy">حریم خصوصی</a>
           <a href="#infra">زیرساخت</a>
-          <a href="#stats">آمار</a>
-          <a href="#docs">مستندات</a>
+          <a href="#docs">مطالعه بیشتر</a>
         </div>
 
         <div class="nav-actions" aria-label="لینک‌های اصلی">
@@ -762,32 +762,36 @@
       <section class="hero wrap" id="intro">
         <div class="hero-grid">
           <div class="hero-copy">
-            <p class="eyebrow">ربات تلگرام فارسی‌محور، متن‌باز و Cloudflare-native</p>
-            <h1>نِکونیموس؛ پیام ناشناس روی تلگرام، با مرزهای روشن</h1>
+            <p class="eyebrow">گربه‌ی نارنجی پیام‌های ناشناس · فارسی‌محور · متن‌باز</p>
+            <h1>نِکونیموس؛ پیام ناشناس، بدون ساختن یک تاریخچه‌ی دائمی از آدم‌ها</h1>
             <p class="lead">
-              نِکونیموس یک ربات تلگرام برای لینک شخصی، دریافت پیام ناشناس، پاسخ ناشناس،
-              ارزیابی سبک گفت‌وگو و پیشنهاد گفت‌وگوی اختیاری است. این صفحه فقط سطح معرفی
-              و مستندات پروژه را نشان می‌دهد؛ تجربه‌ی اصلی داخل Telegram اجرا می‌شود.
+              یک لینک شخصی می‌گیری، برای بقیه می‌فرستی و پیام‌های ناشناس را داخل تلگرام
+              می‌خوانی. می‌توانی ناشناس جواب بدهی، فرستنده را مسدود یا گزارش کنی، برایش
+              نام خصوصی بگذاری و هر وقت خواستی دریافت پیام را متوقف کنی.
             </p>
             <p class="note">
-              نِکونیموس پیام‌رسان رمزنگاری سرتاسری نیست. Telegram و Worker هنگام پردازش
-              متن پیام را می‌بینند. تمرکز پروژه روی کم‌کردن داده‌ی ذخیره‌شده،
-              رمزنگاری داده‌های حساس در حالت سکون، و توضیح صادقانه‌ی محدودیت‌هاست.
+              نکو هر پیام را مثل یک گفت‌وگوی دائمی در دیتابیس نگه نمی‌دارد. هر پیام به یک
+              <strong>تیکت مستقل و مهروموم‌شده</strong> تبدیل می‌شود؛ متن آن تا اولین نمایش
+              موفق رمزنگاری‌شده می‌ماند و بعد از فضای ذخیره‌سازی بات پاک می‌شود.
             </p>
             <div class="actions">
-              <a class="button primary" href="https://t.me/nekonymous_bot">باز کردن ربات تلگرام</a>
+              <a class="button primary" href="https://t.me/nekonymous_bot">شروع با نِکو</a>
+              <a
+                class="button"
+                href="https://mohetios.dev/fa/blog/building-nekonymous-anonymous-telegram-bot"
+              >داستان ساخت</a>
               <a
                 class="button"
                 href="https://mohetios.dev/fa/lab/nekonymous-anonymous-messaging-technical-lab"
-              >دفترچه فنی Lab</a>
-              <a class="button" href="https://github.com/mohetios/Nekonymous">مشاهده سورس</a>
+              >آزمایشگاه فنی</a>
+              <a class="button" href="https://github.com/mohetios/Nekonymous">کد منبع</a>
             </div>
           </div>
 
           <figure class="hero-visual">
             <img
               src="nekonymous-hero.webp"
-              alt="نماد نِکونیموس؛ گربه با ماسک ناشناس و پاکت نامه"
+              alt="چهره نِکونیموس؛ گربه‌ی نارنجی با ماسک ناشناس و نامه"
               width="640"
               height="960"
               loading="eager"
@@ -799,63 +803,103 @@
 
       <section class="wrap" id="product">
         <div class="section-head">
-          <p class="eyebrow">محصول</p>
-          <h2>نِکونیموس چه کاری انجام می‌دهد؟</h2>
+          <p class="eyebrow">داخل ربات</p>
+          <h2>یه لینک می‌گیری؛ بقیه‌ش با نِکو</h2>
           <p class="section-copy">
-            تمرکز محصول روی یک مسیر کوچک و قابل توضیح است: ساخت لینک،
-            دریافت پیام، پاسخ ناشناس، کنترل‌های safety، ارزیابی سبک گفت‌وگو
-            و پیشنهاد گفت‌وگوی اختیاری.
+            نِکونیموس برای یک مسیر ساده ساخته شده: دریافت پیام ناشناس، ادامه دادن گفت‌وگو
+            با انتخاب خودت و داشتن کنترل کافی وقتی یک پیام یا فرستنده را نمی‌خواهی.
           </p>
         </div>
 
         <div class="grid">
-          <article class="card"><p class="num">۰۱</p><h3>لینک شخصی ناشناس</h3><p>هر کاربر یک لینک تلگرامی می‌گیرد تا دیگران بتوانند بدون نمایش نام کاربری، پیام بفرستند.</p></article>
-          <article class="card"><p class="num">۰۲</p><h3>صندوق پیام‌ها</h3><p>پیام‌های خوانده‌نشده از مسیر sealed ticket نمایش داده می‌شوند و payload پس از نمایش موفق پاک می‌شود.</p></article>
-          <article class="card"><p class="num">۰۳</p><h3>پاسخ ناشناس</h3><p>پاسخ از همان مدل relay برمی‌گردد؛ بدون اینکه transcript پیام ناشناس در D1 ذخیره شود.</p></article>
-          <article class="card"><p class="num">۰۴</p><h3>مسدودسازی و گزارش</h3><p>کنترل‌های safety با blind tagها طراحی شده‌اند تا graph قابل اتصال بین فرستنده و گیرنده ساخته نشود.</p></article>
-          <article class="card"><p class="num">۰۵</p><h3>ارزیابی سبک گفت‌وگو</h3><p>۲۵ پرسش در ۸ بُعد برای ساخت پروفایل گفت‌وگویی نسخه <code>v2</code>؛ نه تشخیص شخصیت.</p></article>
-          <article class="card"><p class="num">۰۶</p><h3>پیشنهاد گفت‌وگوی اختیاری</h3><p>بعد از ارزیابی می‌توانی گزینه‌های ناشناس را جست‌وجو کنی؛ «نمایش در پیشنهادها» برای دیده‌شدن توسط دیگران اختیاری است.</p></article>
+          <article class="card">
+            <p class="num">۰۱</p>
+            <h3>لینک پیام ناشناس</h3>
+            <p>هر کاربر یک لینک شخصی دارد. هرکس آن را باز کند، بدون نمایش مشخصات تلگرامی‌اش برای طرف مقابل پیام می‌فرستد.</p>
+          </article>
+          <article class="card">
+            <p class="num">۰۲</p>
+            <h3>صندوق و پاسخ ناشناس</h3>
+            <p>پیام‌ها داخل صندوق نمایش داده می‌شوند و پاسخ هم از همان مسیر ناشناس برمی‌گردد.</p>
+          </article>
+          <article class="card">
+            <p class="num">۰۳</p>
+            <h3>کنترل دست خودته</h3>
+            <p>می‌توانی دریافت پیام را متوقف کنی، فرستنده را مسدود یا گزارش کنی و برای شناختنش یک نام خصوصی بگذاری.</p>
+          </article>
+          <article class="card">
+            <p class="num">۰۴</p>
+            <h3>یک تیکت برای هر پیام</h3>
+            <p>پیام‌ها به‌صورت ردیف‌های معمولیِ فرستنده به گیرنده ذخیره نمی‌شوند؛ هر پیام مسیر و دسترسی محدود خودش را دارد.</p>
+          </article>
+          <article class="card">
+            <p class="num">۰۵</p>
+            <h3>پروفایل گفت‌وگو</h3>
+            <p>۲۵ پرسش در ۸ بُعد، ترجیحات گفت‌وگویی را خلاصه می‌کند؛ نه تست شخصیت است و نه تشخیص روان‌شناختی.</p>
+          </article>
+          <article class="card">
+            <p class="num">۰۶</p>
+            <h3>پیشنهاد گفت‌وگوی دوطرفه</h3>
+            <p>نمایش در پیشنهادها اختیاری است و هیچ گفت‌وگویی تا وقتی طرف مقابل درخواست را نپذیرد شروع نمی‌شود.</p>
+          </article>
         </div>
       </section>
 
-      <section class="wrap">
+      <section class="wrap" id="privacy">
+        <div class="section-head">
+          <p class="eyebrow">حریم خصوصی</p>
+          <h2>کمتر نگه‌داشتن، روشن‌تر توضیح دادن</h2>
+          <p class="section-copy">
+            نِکونیموس قرار نیست ادعای «ناشناسی کامل» داشته باشد. طراحی آن تلاش می‌کند اطلاعات
+            ذخیره‌شده کم، محدود و جدا از هم بمانند و مرزهای واقعی محصول هم پنهان نشوند.
+          </p>
+        </div>
+
         <div class="split">
           <div class="panel good">
-            <h2>چه هست</h2>
+            <h2>چیزی که نکو عمداً نگه نمی‌دارد</h2>
             <ul>
-              <li>یک anonymous relay hosted روی تلگرام</li>
-              <li>یک پروژه متن‌باز با README، threat model و مستندات معماری</li>
-              <li>یک تجربه فارسی‌محور برای پیام ناشناس و پیشنهاد گفت‌وگو</li>
-              <li>یک سیستم Cloudflare-native روی Edge با state محدود و آمار aggregate</li>
+              <li>متن پیام ناشناس داخل D1 ذخیره نمی‌شود.</li>
+              <li>برای پیام‌رسانی، ردیف دائمی <code>sender → recipient</code> در D1 ساخته نمی‌شود.</li>
+              <li>شناسه خام تیکت در D1 یا KV ذخیره نمی‌شود.</li>
+              <li>پاسخ‌های خام ارزیابی بعد از ساخت موفق پروفایل حذف می‌شوند.</li>
+              <li>آمار عمومی از شمارنده‌های تجمیعی می‌آید، نه پرونده و رتبه‌بندی کاربران.</li>
             </ul>
           </div>
 
           <div class="panel warn">
-            <h2>چه نیست</h2>
+            <h2>مرزهایی که باید بدانی</h2>
             <ul>
-              <li>پیام‌رسان رمزنگاری سرتاسری نیست</li>
-              <li>zero-knowledge نیست و ناشناسی کامل ادعا نمی‌کند</li>
-              <li>اپلیکیشن dating یا شبکه اجتماعی کامل نیست</li>
-              <li>تست شخصیت، تشخیص روان‌شناختی یا درصد سازگاری نیست</li>
+              <li>نِکونیموس مشخصات تلگرامی دو طرف را در جریان معمول بات به هم نمایش نمی‌دهد.</li>
+              <li>پیام هنگام ارسال از تلگرام و هسته نکو عبور می‌کند تا تحویل داده شود.</li>
+              <li>این سیستم پیام‌رسان رمزنگاری سرتاسری یا zero-knowledge نیست.</li>
+              <li>اسکرین‌شات، لو رفتن لینک، دستگاه آلوده یا در اختیار گرفتن حساب تلگرام خارج از این مرز است.</li>
+              <li>هیچ سیستم آنلاینی نمی‌تواند ناشناسی کامل را در همه شرایط تضمین کند.</li>
             </ul>
           </div>
         </div>
+
+        <p class="note">
+          تفاوت اصلی اینجاست: هسته نکو پیام را برای تحویل پردازش می‌کند، اما آن عبور را به یک
+          تاریخچه‌ی دائمیِ قابل جست‌وجو از ارتباط آدم‌ها تبدیل نمی‌کند.
+        </p>
       </section>
 
       <section class="wrap" id="infra">
         <div class="section-head">
           <p class="eyebrow">زیرساخت</p>
-          <h2>زیرساخت Cloudflare-native</h2>
+          <h2>برای یک بات کوچک، معماری جدی</h2>
           <p class="section-copy">
-            webhook سبک می‌ماند، state حساس داخل Durable Objectها کنترل می‌شود،
-            کارهای retryable وارد Queue می‌شوند، و آمار فقط از جدول‌های aggregate خوانده می‌شود.
+            نِکونیموس روی Cloudflare Workers اجرا می‌شود. Worker ورودی‌های تلگرام را می‌گیرد،
+            Durable Objectها وضعیت حساس را هماهنگ می‌کنند، Queueها ارسال‌های قابل تکرار را
+            مدیریت می‌کنند و D1 فقط داده‌های ساختاری و آمار تجمیعی را نگه می‌دارد.
           </p>
         </div>
 
         <div class="flow" aria-label="جریان زیرساخت">
-          <span>Telegram Update</span>
+          <span>Telegram</span>
           <span>→</span>
-          <span>Webhook Worker</span>
+          <span>Cloudflare Worker</span>
           <span>→</span>
           <span>Durable Objects / D1</span>
           <span>→</span>
@@ -867,28 +911,28 @@
         <table class="info-table">
           <tbody>
             <tr>
-              <th>Webhook Worker</th>
-              <td>درخواست را validate و route می‌کند، state transitionهای حساس را انجام می‌دهد و کارهای retryable را به queue می‌سپارد.</td>
+              <th>Worker</th>
+              <td>وب‌هوک تلگرام، اعتبارسنجی، مسیریابی و اجرای منطق اصلی بات را انجام می‌دهد.</td>
             </tr>
             <tr>
               <th>Durable Objects</th>
-              <td><code>UserStateDO</code>، <code>TicketVaultDO</code>، <code>ProfileVaultShardDO</code>، <code>ConversationVaultShardDO</code>، <code>PairLedgerShardDO</code>، <code>ReportLedgerDO</code> و <code>TelegramOutboxDO</code>.</td>
+              <td>وضعیت‌های حساس و هماهنگ مثل صندوق، تیکت‌ها، پروفایل‌ها، درخواست‌ها و جلوگیری از اجرای تکراری را مدیریت می‌کنند.</td>
             </tr>
             <tr>
               <th>D1</th>
-              <td>منبع ساختاری برای users، public links و جدول‌های آماری aggregate؛ بدون پروفایل، پاسخ ارزیابی یا graph جفت‌ها.</td>
+              <td>کاربران، لینک‌های عمومی و آمار تجمیعی را نگه می‌دارد؛ نه متن پیام ناشناس، پروفایل کامل یا گراف ارتباط کاربران.</td>
             </tr>
             <tr>
               <th>KV</th>
-              <td>فقط routing cache؛ مثل <code>tg:{hash}</code> و <code>link:{slug}</code>. نه inbox، نه ticket، نه منبع اصلی stats.</td>
+              <td>فقط برای مسیریابی و cache سبک استفاده می‌شود و منبع اصلی پیام، صندوق یا پروفایل نیست.</td>
             </tr>
             <tr>
               <th>Queues</th>
-              <td><code>neko-outbox</code>، <code>neko-stats</code> و <code>neko-profile-index</code> برای ارسال، aggregation و index پروفایل.</td>
+              <td>ارسال اعلان‌ها، ثبت آمار و به‌روزرسانی ایندکس پروفایل را با retry و مسیر شکست کنترل‌شده انجام می‌دهند.</td>
             </tr>
             <tr>
               <th>Vectorize</th>
-              <td>فقط برای discovery اولیه. تصمیم نهایی پیشنهاد گفت‌وگو با ranking قطعی در TypeScript انجام می‌شود.</td>
+              <td>فقط مجموعه‌ی اولیه‌ی گزینه‌ها را پیدا می‌کند؛ رتبه‌بندی نهایی به‌صورت قطعی و دوطرفه در TypeScript انجام می‌شود.</td>
             </tr>
           </tbody>
         </table>
@@ -896,11 +940,12 @@
 
       <section class="wrap" id="tickets">
         <div class="section-head">
-          <p class="eyebrow">Storage Boundary</p>
-          <h2>مدل sealed ticket</h2>
+          <p class="eyebrow">Sealed Ticket</p>
+          <h2>هر پیام، یک تیکت مهروموم‌شده</h2>
           <p class="section-copy">
-            در نِکونیموس، پیام ناشناس به شکل ردیف معمولی <code>sender_id → recipient_id</code>
-            ذخیره نمی‌شود. هر پیام به یک ticket capability محدود تبدیل می‌شود.
+            به‌جای ساختن یک جدول ساده از «چه کسی به چه کسی پیام داده»، نکو برای هر پیام یک
+            قابلیت کوتاه‌عمر و مستقل می‌سازد. این تیکت فقط همان دسترسی‌هایی را نگه می‌دارد
+            که برای نمایش، پاسخ، مسدودسازی، نام خصوصی و گزارش لازم است.
           </p>
         </div>
 
@@ -913,57 +958,74 @@
         </div>
 
         <p class="note">
-          <code>route_enc</code> مسیر رمزنگاری‌شده را تا زمان expiry نگه می‌دارد تا reply، block، report و nickname ممکن بمانند.
-          <code>payload_enc</code> فقط تا اولین نمایش موفق در صندوق باقی می‌ماند و پس از آن پاک می‌شود.
+          <code>ticketRef</code> خام در D1 و KV ذخیره نمی‌شود. <code>route_enc</code> مسیر لازم را
+          به‌شکل رمزنگاری‌شده تا زمان انقضا نگه می‌دارد. <code>payload_enc</code> متن یا شناسه رسانه
+          را فقط تا اولین نمایش موفق نگه می‌دارد و بعد پاک می‌شود. عمر صندوق حداکثر ۳۰ روز است.
         </p>
       </section>
 
       <section class="wrap" id="stats">
         <div class="section-head">
           <p class="eyebrow">آمار</p>
-          <h2>آمار کلی، بدون داده‌ی قابل اتصال به کاربران</h2>
+          <h2>آمار کلی، نه پرونده‌ی کاربر</h2>
           <p class="section-copy">
-            آمار نِکونیموس event-driven است: bot event وارد Queue می‌شود، consumer آن را در D1 aggregate می‌کند،
-            و صفحه آمار فقط همان counterهای تجمیعی را می‌خواند.
+            رویدادهای مهم به Queue فرستاده و به شمارنده‌های روزانه تبدیل می‌شوند. داشبورد و
+            صفحه آمار فقط همین شمارنده‌های تجمیعی را می‌خوانند؛ نه متن پیام، مسیر تیکت یا
+            فهرست ارتباط کاربران را.
           </p>
         </div>
 
         <p class="note">
-          این صفحه عدد زنده نمایش نمی‌دهد. ساختار زیر فقط نشان می‌دهد چه نوع آمارهایی برای نمایش عمومی مناسب‌اند.
-          متن پیام، مسیر پیام، فرستنده، گیرنده، ticketRef یا داده‌ی قابل اتصال به کاربران نمایش داده نمی‌شود.
+          این صفحه عدد زنده نمایش نمی‌دهد. کارت‌های زیر فقط نوع آمار عمومی قابل نمایش را نشان می‌دهند.
         </p>
 
         <div class="stats-grid">
-          <div class="stat-card"><strong>کاربران کل</strong><span>از D1، بدون نمایش فهرست کاربر</span></div>
-          <div class="stat-card"><strong>کاربران فعال</strong><span>امروز / ۷ روز / ۳۰ روز</span></div>
-          <div class="stat-card"><strong>پیام‌ها</strong><span>از <code>platform_daily_stats</code></span></div>
-          <div class="stat-card"><strong>پاسخ‌ها</strong><span>نسبت پاسخ به پیام تحویل‌شده</span></div>
-          <div class="stat-card"><strong>گزارش‌ها</strong><span>bucket شده: کمتر از ۵، ۵ تا ۲۰، ۲۰ تا ۱۰۰، ۱۰۰+</span></div>
-          <div class="stat-card"><strong>ارزیابی</strong><span>شروع و تکمیل ارزیابی</span></div>
-          <div class="stat-card"><strong>پیشنهاد گفت‌وگو</strong><span>جست‌وجو و درخواست‌ها</span></div>
-          <div class="stat-card"><strong>حریم خصوصی</strong><span>بدون scan روی TicketVault یا ReportLedger</span></div>
+          <div class="stat-card"><strong>کاربران</strong><span>تعداد کل و کاربران فعال در بازه‌های زمانی</span></div>
+          <div class="stat-card"><strong>پیام‌ها</strong><span>پیام‌های ساخته‌شده، تحویل‌شده و منقضی‌شده</span></div>
+          <div class="stat-card"><strong>پاسخ‌ها</strong><span>تعداد پاسخ و نرخ کلی ادامه گفت‌وگو</span></div>
+          <div class="stat-card"><strong>ایمنی</strong><span>تعداد تجمیعی گزارش‌ها و مسدودسازی‌ها</span></div>
+          <div class="stat-card"><strong>پروفایل گفت‌وگو</strong><span>شروع و تکمیل ارزیابی، بدون نمایش پاسخ خام</span></div>
+          <div class="stat-card"><strong>پیشنهادها</strong><span>جست‌وجو، نمایش و رد یا پذیرش درخواست‌ها</span></div>
+          <div class="stat-card"><strong>عملکرد</strong><span>رویدادهای ارسال و خطاهای عملیاتی به‌صورت کلی</span></div>
+          <div class="stat-card"><strong>حریم خصوصی</strong><span>بدون رتبه‌بندی عمومی یا آمار مخصوص یک کاربر</span></div>
         </div>
       </section>
 
       <section class="wrap" id="docs">
         <div class="section-head">
-          <p class="eyebrow">مستندات</p>
-          <h2>برای بررسی فنی از اینجا شروع کن</h2>
+          <p class="eyebrow">داستان و مستندات</p>
+          <h2>از کجا بیشتر بخوانم؟</h2>
           <p class="section-copy">
-            GitHub منبع کد و مستندات فنی است. یادداشت فنی کامل‌تر روی مُهتیوس منتشر شده است.
+            برای آشنایی ساده با ایده و دلیل ساخت، از نوشته‌ی وبلاگ شروع کن. برای معماری،
+            تیکتینگ و مرزهای ذخیره‌سازی سراغ یادداشت فنی برو. کد و اسناد مرجع هم در GitHub هستند.
           </p>
         </div>
 
         <div class="doc-list">
-          <a href="https://mohetios.dev/fa/lab/nekonymous-anonymous-messaging-technical-lab"><strong>یادداشت فنی Lab (مُهتیوس)</strong><span>مقاله‌ی فارسی درباره‌ی معماری، sealed ticket، ارزیابی، پیشنهاد گفت‌وگو و مرزهای حریم خصوصی.</span></a>
-          <a href="https://github.com/mohetios/Nekonymous#readme"><strong>README</strong><span>نمای کلی پروژه، وضعیت V2، اجرای محلی و مرزهای محصول.</span></a>
-          <a href="https://github.com/mohetios/Nekonymous/blob/master/SECURITY.md"><strong>SECURITY.md</strong><span>گزارش مسئولانه‌ی آسیب‌پذیری و توضیح محدودیت‌های امنیتی.</span></a>
-          <a href="https://github.com/mohetios/Nekonymous/blob/master/CONTRIBUTING.md"><strong>CONTRIBUTING.md</strong><span>قواعد مشارکت، نصب و اجرای پروژه.</span></a>
-          <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/security/threat-model.md"><strong>Threat model</strong><span>چه چیزی محافظت می‌شود، چه چیزی محافظت نمی‌شود و چرا.</span></a>
-          <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/architecture/bot-interaction-v1.md"><strong>Bot interaction</strong><span>دستورها، منوی اصلی، inline keyboards، draft لغو، و callbackهای فعال (`st:` / `m:` / `t:` / `q:` / `s:`).</span></a>
-          <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/architecture/conversation-suggestions-v2.md"><strong>پیشنهاد گفت‌وگو V2</strong><span>ارزیابی ۲۵ سوالی، Vectorize دوکاناله، ranking متقابل و درخواست accept-gated.</span></a>
-          <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/architecture/sealed-ticket-routing-and-inbox.md"><strong>Sealed ticket routing</strong><span>ticketRef، route_enc، payload_enc و پاک‌سازی payload بعد از نمایش.</span></a>
-          <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/release/pre-release-conversation-v2-acca6b9.md"><strong>Pre-release V2</strong><span>ثبت sign-off، audit D1، و سطح‌های عمومی هم‌تراز با محصول فعلی.</span></a>
+          <a href="https://mohetios.dev/fa/blog/building-nekonymous-anonymous-telegram-bot">
+            <strong>داستان ساخت نِکونیموس</strong>
+            <span>روایت محصول، پیام ناشناس، کمینه‌سازی داده و تصمیم‌هایی که پشت ساخت نکو بوده‌اند.</span>
+          </a>
+          <a href="https://mohetios.dev/fa/lab/nekonymous-anonymous-messaging-technical-lab">
+            <strong>آزمایشگاه فنی نِکونیموس</strong>
+            <span>معماری Cloudflare-native، جریان پیام، sealed ticket، صندوق و مرزهای حریم خصوصی.</span>
+          </a>
+          <a href="https://github.com/mohetios/Nekonymous#readme">
+            <strong>README و وضعیت فعلی</strong>
+            <span>قابلیت‌های نسخه جاری، اجرای محلی، استقرار و نقشه مستندات پروژه.</span>
+          </a>
+          <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/security/threat-model.md">
+            <strong>مدل تهدید</strong>
+            <span>چه چیزی محافظت می‌شود، چه چیزی محافظت نمی‌شود و مرز اعتماد کجاست.</span>
+          </a>
+          <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/architecture/sealed-ticket-routing-and-inbox.md">
+            <strong>Sealed Ticket و صندوق</strong>
+            <span>جزئیات تیکت، route و payload رمزنگاری‌شده، انقضا و actionهای پیام.</span>
+          </a>
+          <a href="https://github.com/mohetios/Nekonymous/blob/master/docs/architecture/conversation-suggestions-v2.md">
+            <strong>پیشنهاد گفت‌وگو V2</strong>
+            <span>پروفایل ۲۵ سؤالی، Vectorize دوکاناله، رتبه‌بندی متقابل و درخواست با پذیرش دوطرفه.</span>
+          </a>
         </div>
       </section>
     </main>

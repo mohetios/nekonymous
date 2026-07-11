@@ -206,8 +206,6 @@ docs/
 │   ├── bot-interaction-v1.md
 │   ├── conversation-suggestions-v2.md
 │   └── sealed-ticket-routing-and-inbox.md
-├── refactor/
-│   └── conversation-v2-checklist.md
 ├── brand/
 │   └── nekonymous-fa-voice-and-tone.md
 ├── security/threat-model.md
