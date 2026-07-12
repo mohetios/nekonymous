@@ -1,9 +1,9 @@
-# Nekonymous
+# nekonymous
 
-Nekonymous is a Persian-first anonymous Telegram bot for personal anonymous links, anonymous messaging, anonymous replies, conversation-style assessment, and optional conversation suggestions. It runs as a single Cloudflare Worker with a Telegram webhook only — the bot is the product surface.
+nekonymous is a Persian-first anonymous Telegram bot for personal anonymous links, anonymous messaging, anonymous replies, conversation-style assessment, and optional conversation suggestions. It runs as a single Cloudflare Worker with a Telegram webhook only — the bot is the product surface.
 
-- **Intro page:** [mohetios.github.io/Nekonymous](https://mohetios.github.io/Nekonymous/)
-- **Source:** [github.com/mohetios/Nekonymous](https://github.com/mohetios/Nekonymous)
+- **Intro page:** [mohetios.github.io/nekonymous](https://mohetios.github.io/nekonymous/)
+- **Source:** [github.com/mohetios/nekonymous](https://github.com/mohetios/nekonymous)
 
 ## Current status
 
@@ -41,7 +41,7 @@ Telegram and the Worker see message plaintext while messages are processed. Encr
 
 ## Privacy boundaries
 
-Nekonymous hides users from each other in normal product flows, minimizes stored data where possible, and encrypts sensitive stored data at rest where implemented.
+nekonymous hides users from each other in normal product flows, minimizes stored data where possible, and encrypts sensitive stored data at rest where implemented.
 
 **In storage (where implemented):** HMACed Telegram hashes, encrypted chat ids and payloads, sealed ticket routing, profile and suggestion data in vault Durable Objects — not anonymous message bodies in D1.
 
