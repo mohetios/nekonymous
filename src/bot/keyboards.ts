@@ -3,7 +3,7 @@ import {
   encodeInboxCallbackData,
   INBOX_MENU_CALLBACK,
   type InboxCallbackAction,
-} from "../utils/telegram-callbacks";
+} from "../bot/callback-data";
 import { INBOX_BUTTON, MENU } from "./menu-labels";
 
 const inboxCallback = (action: InboxCallbackAction, ticketRef: string): string =>

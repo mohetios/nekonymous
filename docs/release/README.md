@@ -4,6 +4,7 @@ Release audit records for Nekonymous.
 
 ## Current
 
+- [`release-hardening-2026-07-12.md`](./release-hardening-2026-07-12.md) — Release hardening sign-off (2026-07-12).
 - [`pre-release-conversation-v2-acca6b9.md`](./pre-release-conversation-v2-acca6b9.md) — Conversation Suggestions V2 pre-release sign-off (2026-07-11).
 
 ## Historical

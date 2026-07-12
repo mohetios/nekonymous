@@ -2,7 +2,7 @@ import type { Context } from "grammy";
 import type { BotUser, Environment } from "../../types";
 import { renderScreen } from "../../bot/render-screen";
 import { logBotError } from "../../utils/logs";
-import { withHtml } from "../../utils/tools";
+import { withHtml } from "../../utils/text";
 import { getPublicBotStats } from "../../stats/stats-reader";
 import {
   formatPublicBotStatsMessage,

@@ -8,8 +8,8 @@ import {
   effectiveSuggestionStatus,
   isTerminalSuggestionStatus,
 } from "../src/storage/conversation-vault/suggestion-transitions.ts";
-import { parseSuggestionCallback } from "../src/features/conversation-suggestions/suggestion-callbacks.ts";
-import { SUGGESTION_CALLBACK } from "../src/features/conversation-suggestions/constants.ts";
+import { parseSuggestionCallback } from "../src/features/conversation/suggestions/suggestion-callbacks.ts";
+import { SUGGESTION_CALLBACK } from "../src/features/conversation/suggestions/constants.ts";
 import { randomSuggestionRef } from "../src/features/ticketing/conversation-keys.ts";
 
 const fail = (message: string): never => {

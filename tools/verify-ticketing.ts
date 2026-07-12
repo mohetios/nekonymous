@@ -13,6 +13,7 @@ import {
 } from "../src/features/ticketing/ticketing-service.ts";
 import {
   createOwnerProofTag,
+  createReportEvidenceTag,
   createTicketHash,
   deriveTicketKey,
   randomTicketRef,
@@ -114,6 +115,15 @@ if (ticketRef.length > 40) {
   process.exit(1);
 }
 
+const evidenceTag = await createReportEvidenceTag(pepper, sealedTicketHash);
+if (
+  evidenceTag.includes(sealedTicketHash.slice(0, 16)) ||
+  evidenceTag === sealedTicketHash
+) {
+  console.error("Report evidence tag must not reveal ticket hash material");
+  process.exit(1);
+}
+
 const ticketKey = await deriveTicketKey(appMasterKey, sealedTicketHash);
 const route = {
   senderRouteTag: "sender",
@@ -149,5 +159,6 @@ console.log("Scoped payload envelope roundtrip OK");
 console.log("Chat id roundtrip OK");
 console.log("HMAC hash OK");
 console.log("Sealed ticket route roundtrip OK");
+console.log("Report evidence tag separation OK");
 console.log(`scopedPayloadId length: ${scopedPayloadId.length}`);
 console.log(`ticketRef length: ${ticketRef.length}`);

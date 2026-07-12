@@ -17,6 +17,8 @@ export type ProfileRouteCapsule = {
   revision: number;
   /** Internal user id for request delivery; only inside encrypted route capsule. */
   deliveryUserId?: string;
+  selfVectorizeId?: string;
+  desiredVectorizeId?: string;
 };
 
 export type VectorRouteCapsule = {

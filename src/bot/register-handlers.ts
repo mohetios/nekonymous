@@ -9,34 +9,34 @@ import {
   handleReportAction,
   handleReplyAction,
   handleUnblockAction,
-} from "../features/messaging/messaging-actions";
+} from "../features/ticketing/actions";
 import {
   handleInboxCommand,
   handleInboxMoreCallback,
   handleMessage,
   handleStartCommand,
-} from "../features/messaging/messaging-commands";
+} from "../features/ticketing/handlers";
 import { handleSettingsCommand, handleSettingsCallback } from "../features/settings/settings-handlers";
 import {
   handleAssessmentCallback,
   handleAssessmentCommand,
-} from "../features/conversation-profile/profile-handlers";
+} from "../features/conversation/profile/profile-handlers";
 import {
   handleMatchCallback,
   handleMatchCommand,
   handleSuggestionCallback,
-} from "../features/conversation-suggestions/suggestion-handlers";
-import { handleRequestCallback } from "../features/conversation-suggestions/request-handlers";
+} from "../features/conversation/suggestions/suggestion-handlers";
+import { handleRequestCallback } from "../features/conversation/suggestions/request-handlers";
 import {
   requestCallbackQueryRegex,
   suggestionCallbackQueryRegex,
   suggestionHubCallbackQueryRegex,
-} from "../features/conversation-suggestions/constants";
+} from "../features/conversation/suggestions/constants";
 import { isBotCommand } from "./commands";
 import {
   INBOX_MENU_CALLBACK,
   inboxCallbackQueryRegex,
-} from "../utils/telegram-callbacks";
+} from "../bot/callback-data";
 
 const isCommandMessage = (message: Message): boolean =>
   message.text?.startsWith("/") === true ||

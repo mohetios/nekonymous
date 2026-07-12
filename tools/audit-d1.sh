@@ -47,15 +47,16 @@ print_json_table() {
   node -e "
     const fs = require('fs');
     const raw = fs.readFileSync(0, 'utf8');
-    const marker = raw.indexOf('[');
-    if (marker < 0) {
-      process.stdout.write(raw);
-      process.exit(0);
-    }
     let data;
-    try {
-      data = JSON.parse(raw.slice(marker));
-    } catch {
+    for (let index = raw.indexOf('['); index >= 0; index = raw.indexOf('[', index + 1)) {
+      try {
+        data = JSON.parse(raw.slice(index));
+        break;
+      } catch {
+        // Wrangler may print ANSI warnings before JSON.
+      }
+    }
+    if (!data) {
       process.stdout.write(raw);
       process.exit(0);
     }
@@ -81,8 +82,14 @@ count_failures() {
   "${WRANGLER[@]}" d1 execute "$DB_BINDING" "$TARGET" --command "$sql" 2>&1 | node -e "
     const fs = require('fs');
     const raw = fs.readFileSync(0, 'utf8');
-    const marker = raw.indexOf('[');
-    const data = JSON.parse(raw.slice(marker));
+    let data;
+    for (let index = raw.indexOf('['); index >= 0; index = raw.indexOf('[', index + 1)) {
+      try {
+        data = JSON.parse(raw.slice(index));
+        break;
+      } catch {}
+    }
+    if (!data) throw new Error('No Wrangler JSON payload found');
     const rows = data[0]?.results ?? [];
     const n = rows[0]?.fail_count ?? 0;
     process.stdout.write(String(n));
@@ -96,8 +103,14 @@ table_exists() {
     "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = '${table}';" 2>&1 | node -e "
       const fs = require('fs');
       const raw = fs.readFileSync(0, 'utf8');
-      const marker = raw.indexOf('[');
-      const data = JSON.parse(raw.slice(marker));
+      let data;
+      for (let index = raw.indexOf('['); index >= 0; index = raw.indexOf('[', index + 1)) {
+        try {
+          data = JSON.parse(raw.slice(index));
+          break;
+        } catch {}
+      }
+      if (!data) throw new Error('No Wrangler JSON payload found');
       process.stdout.write(String(data[0]?.results?.[0]?.n ?? 0));
     ")"
   [[ "$n" != "0" ]]
@@ -133,8 +146,14 @@ for table in "${ALLOWED_TABLES[@]}"; do
   count="$("${WRANGLER[@]}" d1 execute "$DB_BINDING" "$TARGET" --command "SELECT COUNT(*) AS n FROM ${table};" 2>&1 | node -e "
     const fs = require('fs');
     const raw = fs.readFileSync(0, 'utf8');
-    const marker = raw.indexOf('[');
-    const data = JSON.parse(raw.slice(marker));
+    let data;
+    for (let index = raw.indexOf('['); index >= 0; index = raw.indexOf('[', index + 1)) {
+      try {
+        data = JSON.parse(raw.slice(index));
+        break;
+      } catch {}
+    }
+    if (!data) throw new Error('No Wrangler JSON payload found');
     process.stdout.write(String(data[0]?.results?.[0]?.n ?? '?'));
   ")"
   printf "  %-32s %s\n" "$table" "$count"

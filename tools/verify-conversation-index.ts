@@ -12,13 +12,13 @@ import {
   projectDesiredVector,
   projectSelfVector,
   quantize,
-} from "../src/features/conversation-profile/vector-projection.ts";
-import { CONVERSATION_DIMENSIONS } from "../src/features/conversation-profile/constants.ts";
-import { buildConversationProfile } from "../src/features/conversation-profile/profile-builder.ts";
+} from "../src/features/conversation/profile/vector-projection.ts";
+import { CONVERSATION_DIMENSIONS } from "../src/features/conversation/profile/constants.ts";
+import { buildConversationProfile } from "../src/features/conversation/profile/profile-builder.ts";
 import type {
   ConversationIntent,
   ProfileAnswers,
-} from "../src/features/conversation-profile/types.ts";
+} from "../src/features/conversation/profile/types.ts";
 
 const fail = (message: string): never => {
   console.error(message);

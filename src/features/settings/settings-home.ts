@@ -5,8 +5,8 @@ import {
   SETTINGS_HOME_MESSAGE,
 } from "../../i18n/settings";
 import { DISPLAY_NAME_UNSET } from "../../i18n/defaults";
-import { escapeHtml } from "../../utils/tools";
-import { publicDisplayName } from "../../utils/user";
+import { escapeHtml } from "../../utils/text";
+import { publicDisplayName } from "../../features/identity/user";
 
 export const formatSettingsHome = (user: BotUser): string => {
   const paused = user.paused;

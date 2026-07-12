@@ -132,9 +132,3 @@ export interface Environment {
   BOT_NAME: string;
   BOT_USERNAME: string;
 }
-
-export type Handler = (
-  request: Request,
-  env: Environment,
-  ctx: ExecutionContext
-) => Response | Promise<Response>;

@@ -12,10 +12,12 @@ import {
   createVectorLookupHash,
   deriveIndexJobRouteKey,
   deriveProfileEncryptionKey,
+  deriveProfileRouteKey,
   deriveVectorRouteKey,
   indexJobRouteAad,
   indexJobVectorsAad,
   profileEncAad,
+  profileRouteAad,
   randomVectorRef,
   vectorRouteAad,
 } from "../features/ticketing/conversation-keys.ts";
@@ -23,6 +25,7 @@ import { decryptEnvelope, encryptEnvelope } from "../features/ticketing/envelope
 import type {
   IndexJobRouteCapsule,
   IndexJobVectorsCapsule,
+  ProfileRouteCapsule,
   VectorRouteCapsule,
 } from "../features/ticketing/conversation-capabilities.ts";
 import {
@@ -31,19 +34,20 @@ import {
   setIndexJobStatus,
   setProfileStatus,
   storeVectorRouteRecord,
+  updateProfileRouteEnc,
 } from "../storage/profile-vault/profile-vault.client";
 import type {
   IndexJobRecord,
   ProfileVaultRecord,
   VectorRouteRole,
 } from "../storage/profile-vault/profile-vault.types";
-import type { ConversationProfile } from "../features/conversation-profile/types.ts";
+import type { ConversationProfile } from "../features/conversation/profile/types.ts";
 import {
   namespaceFor,
   padVectorForIndex,
   projectDesiredVector,
   projectSelfVector,
-} from "../features/conversation-profile/vector-projection.ts";
+} from "../features/conversation/profile/vector-projection.ts";
 
 const MAX_INDEX_ATTEMPTS = 5;
 const VERIFY_DELAY_SECONDS = 10;
@@ -117,6 +121,36 @@ const saveVectorRoute = async (
   });
 };
 
+const persistProfileVectorIds = async (
+  env: Environment,
+  profile: ProfileVaultRecord,
+  vectors: IndexJobVectorsCapsule
+): Promise<void> => {
+  const routeKey = await deriveProfileRouteKey(
+    env.APP_MASTER_KEY,
+    profile.profileHash
+  );
+  const existingRoute = await decryptEnvelope<ProfileRouteCapsule>(
+    routeKey,
+    profile.routeEnc,
+    profileRouteAad(profile.profileHash)
+  ).catch(() => null);
+
+  const routeEnc = await encryptEnvelope(
+    routeKey,
+    JSON.stringify({
+      revision: profile.revision,
+      ...(existingRoute?.deliveryUserId
+        ? { deliveryUserId: existingRoute.deliveryUserId }
+        : {}),
+      selfVectorizeId: vectors.selfVectorizeId,
+      desiredVectorizeId: vectors.desiredVectorizeId,
+    } satisfies ProfileRouteCapsule),
+    profileRouteAad(profile.profileHash)
+  );
+  await updateProfileRouteEnc(env, profile.profileHash, routeEnc);
+};
+
 const runUpsert = async (
   env: Environment,
   job: ProfileIndexJob,
@@ -165,6 +199,7 @@ const runUpsert = async (
     profile.profileHash,
     "active"
   );
+  await persistProfileVectorIds(env, profile, vectors);
 
   await env.CONVERSATION_VECTORS.upsert([
     {

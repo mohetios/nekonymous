@@ -9,7 +9,7 @@ export type TicketVaultStatus =
 export type TicketVaultRecord = {
   ticketHash: string;
   ownerProofTag: string;
-  routeEnc: string;
+  routeEnc: string | null;
   payloadEnc: string | null;
   metaEnc?: string | null;
   status: TicketVaultStatus;

@@ -23,6 +23,13 @@ export const shouldAckIndexJobEarly = (
     return true;
   }
   if (
+    profile.status === "disabled" ||
+    profile.status === "invalidated" ||
+    profile.status === "restricted"
+  ) {
+    return true;
+  }
+  if (
     profile.revision !== routeRevision ||
     profile.revision !== jobRecord.revision
   ) {
@@ -34,7 +41,11 @@ export const shouldAckIndexJobEarly = (
 /** Skip re-index when profile is already discoverable (duplicate upsert job). */
 export const shouldSkipUpsertForDiscoverableProfile = (
   profileStatus: ProfileVaultRecord["status"]
-): boolean => profileStatus === "discoverable";
+): boolean =>
+  profileStatus === "discoverable" ||
+  profileStatus === "disabled" ||
+  profileStatus === "invalidated" ||
+  profileStatus === "restricted";
 
 /** Skip verify retries when profile already left the indexing pipeline. */
 export const shouldSkipVerifyForDiscoverableProfile = (

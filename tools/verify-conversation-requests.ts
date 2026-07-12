@@ -14,8 +14,8 @@ import {
   isActiveBlockingPairState,
 } from "../src/storage/pair-ledger/pair-pending.ts";
 import type { PairStateRecord } from "../src/storage/pair-ledger/pair-ledger.types.ts";
-import { parseRequestCallback } from "../src/features/conversation-suggestions/request-callbacks.ts";
-import { REQUEST_CALLBACK } from "../src/features/conversation-suggestions/constants.ts";
+import { parseRequestCallback } from "../src/features/conversation/suggestions/request-callbacks.ts";
+import { REQUEST_CALLBACK } from "../src/features/conversation/suggestions/constants.ts";
 import { randomRequestRef } from "../src/features/ticketing/conversation-keys.ts";
 
 const fail = (message: string): never => {

@@ -10,6 +10,8 @@ import {
   hmacTelegramUserId,
 } from "../ticketing/ticketing-service";
 import { getUserState, initUserState, purgeUserState } from "../../storage/user-state-client";
+import { expireTicketRecord } from "../../storage/ticket-vault/ticket-vault.client";
+import { invalidateUserConversationProfile } from "../conversation/profile/profile-service";
 import {
   recordLinkCreated,
   recordUserCreated,
@@ -369,7 +371,13 @@ export const clearUserAccountAndRecreate = async (
   userId: string,
   env: Environment
 ): Promise<D1User> => {
-  await purgeUserState(env, userId);
+  await invalidateUserConversationProfile(env, userId).catch(() => undefined);
+  const ticketHashes = await purgeUserState(env, userId);
+  await Promise.all(
+    ticketHashes.map((ticketHash) =>
+      expireTicketRecord(env, ticketHash).catch(() => undefined)
+    )
+  );
   await hardDeleteUserAccount(userId, env);
   return createUserFromTelegram(ctx, env);
 };
@@ -423,4 +431,3 @@ export const toBotUser = async (
     lastMessageAt: state.lastMessageAt,
   };
 };
-

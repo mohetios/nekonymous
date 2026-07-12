@@ -1,6 +1,6 @@
 import type { Context } from "grammy";
 import type { InlineKeyboard } from "grammy";
-import { withHtml } from "../utils/tools";
+import { withHtml } from "../utils/text";
 
 export type RenderedScreen = {
   text: string;

@@ -1,0 +1,10 @@
+export const MIN_RECIPROCAL_SCORE = 0.35;
+
+export const INTENT_MATCH_BOOST = 0.02;
+export const INTENT_MISMATCH_PENALTY = -0.03;
+
+export const DIMENSION_FIT_ALIGNED = 0.72;
+export const DIMENSION_FIT_DIFFERENCE = 0.45;
+
+export const MAX_ALIGNED_DIMENSIONS = 2;
+export const MAX_DIFFERENCE_DIMENSIONS = 1;

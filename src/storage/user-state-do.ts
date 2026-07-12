@@ -718,7 +718,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       }
     }
 
-    this.cleanupExpiredPointers();
+    const evictedTicketHashes = this.cleanupExpiredPointers();
 
     const active = this.unreadInboxCount();
     if (active >= INBOX_MAX_TICKETS) {
@@ -730,6 +730,16 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       .one().count;
 
     if (total >= INBOX_MAX_TICKETS) {
+      const removable = this.ctx.storage.sql
+        .exec<{ ticket_hash: string }>(
+          `SELECT ticket_hash FROM inbox_pointers
+           WHERE status != 'active'
+           ORDER BY created_at ASC
+           LIMIT ?`,
+          total - INBOX_MAX_TICKETS + 1
+        )
+        .toArray();
+      evictedTicketHashes.push(...removable.map((row) => row.ticket_hash));
       this.ctx.storage.sql.exec(
         `DELETE FROM inbox_pointers
          WHERE ticket_hash IN (
@@ -765,6 +775,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return Response.json({
       ok: true,
       pendingCount: this.unreadInboxCount(),
+      evictedTicketHashes,
     });
   }
 
@@ -1192,6 +1203,11 @@ export class UserStateDurableObject extends DurableObject<Environment> {
   }
 
   private async purge(): Promise<Response> {
+    const ticketHashes = this.ctx.storage.sql
+      .exec<{ ticket_hash: string }>("SELECT ticket_hash FROM inbox_pointers")
+      .toArray()
+      .map((row) => row.ticket_hash);
+
     this.ctx.storage.sql.exec(`
       DELETE FROM processed_events;
       DELETE FROM rate_limits;
@@ -1204,6 +1220,6 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       DELETE FROM user_state;
     `);
     await this.ctx.storage.deleteAll();
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, ticketHashes });
   }
 }

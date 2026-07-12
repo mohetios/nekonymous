@@ -5,7 +5,7 @@ import {
   DRAFT_CANCEL_LABEL,
   INPUT_PLACEHOLDERS,
 } from "../i18n/labels";
-import { withHtml } from "../utils/tools";
+import { withHtml } from "../utils/text";
 import { clearDraft } from "../storage/user-state-client";
 import { mainMenu } from "./keyboards";
 

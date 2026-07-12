@@ -21,13 +21,13 @@ How sealed tickets, the ticket vault, and inbox pointers work together. For priv
 
 | Piece | Location | Role |
 |-------|----------|------|
-| Seal + send | `features/messaging/create-sealed-ticket.ts` | Encrypt route/payload, store vault record, add inbox pointer |
-| Inbox pointer helpers | `features/messaging/inbox-pointer.ts` | Retention, display numbers, seal/open callback ref |
+| Seal + send | `features/ticketing/create-sealed-ticket.ts` | Encrypt route/payload, store vault record, add inbox pointer |
+| Inbox pointer helpers | `features/ticketing/inbox-pointer.ts` | Retention, display numbers, seal/open callback ref |
 | Ticket vault DO | `storage/ticket-vault/` | Encrypted route + payload ciphertext per ticket hash |
 | User state DO | `storage/user-state-do.ts` | Per-recipient inbox pointer list (no plaintext bodies) |
-| Callback routing | `utils/telegram-callbacks.ts` | Build/validate inbox `callback_data` |
-| Action resolution | `features/messaging/resolve-ticket-action.ts` | Load vault record, verify owner proof, decrypt route |
-| Webhook idempotency | `storage/user-state-do.ts` + `bot/router.ts` | Two-phase update claim (`processing` lease → `done`) |
+| Callback routing | `bot/callback-data.ts` | Build/validate inbox `callback_data` |
+| Action resolution | `features/ticketing/resolve-ticket-action.ts` | Load vault record, verify owner proof, decrypt route |
+| Webhook idempotency | `storage/user-state-do.ts` + `bot/webhook.ts` | Two-phase update claim (`processing` lease → `done`) |
 
 ## Send flow
 
@@ -63,7 +63,7 @@ Steps in code:
 ```mermaid
 sequenceDiagram
   participant R as Recipient
-  participant H as messaging-commands
+  participant H as ticketing handlers
   participant U as UserState DO
   participant V as TicketVault DO
   participant T as Telegram API
@@ -79,11 +79,11 @@ sequenceDiagram
 
 After delivery, **payload ciphertext is cleared** from the vault. Route material stays for reply, block, and report actions until expiry.
 
-`/inbox` decrypts at most **10** payloads per request (`render-inbox.ts`).
+`/inbox` decrypts at most **10** payloads per request (`features/ticketing/inbox.ts`).
 
 ## Inline actions (reply / block / report / nickname)
 
-Active inbox callbacks: `r:{ref}`, `b:{ref}`, `u:{ref}`, `n:{ref}`, `rp:{ref}` — built from `INBOX_CALLBACK` in `utils/telegram-callbacks.ts`.
+Active inbox callbacks: `r:{ref}`, `b:{ref}`, `u:{ref}`, `n:{ref}`, `rp:{ref}` — built from `INBOX_CALLBACK` in `bot/callback-data.ts`.
 
 1. Grammy routes regex in `bot/register-handlers.ts`.
 2. Handler calls **`resolveTicketAction`** with the action name.
@@ -101,6 +101,7 @@ All ticketing crypto lives under **`src/features/ticketing/`** (Web Crypto only)
 | `keys.ts` | Ticket ref/hash, pair tags, owner proof, HKDF-derived ticket keys |
 | `envelope.ts` | Wire `{ v, kid, iv, ct }` with optional AAD |
 | `ticketing-service.ts` | Chat-id sealing, block HMACs, match intro encryption |
+| `service.ts` / `inbox.ts` / `actions.ts` / `handlers.ts` | Sealed message send, inbox delivery, and ticket callbacks |
 
 Do not log ticket refs, secrets, decrypted payloads, or raw Telegram tokens.
 

@@ -2,7 +2,7 @@ import {
   resolveProcessedEventClaim,
   type ProcessedEventSnapshot,
 } from "../src/storage/processed-events-policy.ts";
-import { messageCreatedOutboxEventKey } from "../src/features/messaging/outbox-event-key.ts";
+import { messageCreatedOutboxEventKey } from "../src/features/ticketing/outbox-event-key.ts";
 
 const assert = (condition: boolean, message: string): void => {
   if (!condition) {

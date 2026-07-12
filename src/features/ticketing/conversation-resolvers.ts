@@ -396,6 +396,9 @@ export const resolveRequestForCandidate = async (
   if (!profileRecord) {
     throw new CapabilityStateError("Candidate profile missing");
   }
+  if (!activeProfileStatuses.has(profileRecord.status)) {
+    throw new CapabilityStateError(`Candidate profile ${profileRecord.status}`);
+  }
 
   const expectedOwnerProof = await createConversationOwnerProofTag(
     appMasterKey,

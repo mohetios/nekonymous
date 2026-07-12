@@ -35,6 +35,12 @@ export const createReportTag = (
   seed: string
 ): Promise<string> => hmacBase64Url(hmacKey, `report:v1:${seed}`);
 
+export const createReportEvidenceTag = (
+  hmacKey: string,
+  ticketHash: string
+): Promise<string> =>
+  hmacBase64Url(hmacKey, `report-evidence:v1:${ticketHash}`);
+
 export const deriveTicketKey = (
   masterKey: string,
   ticketHash: string

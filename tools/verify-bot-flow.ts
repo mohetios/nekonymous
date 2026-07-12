@@ -3,12 +3,12 @@ import {
   INBOX_CALLBACK,
   inboxCallbackQueryRegex,
   isCallbackRef,
-} from "../src/utils/telegram-callbacks.ts";
+} from "../src/bot/callback-data.ts";
 import { MENU, isMainMenuLabel } from "../src/i18n/labels.ts";
 import {
   SUGGESTION_HUB_CALLBACK,
   suggestionHubCallbackQueryRegex,
-} from "../src/features/conversation-suggestions/constants.ts";
+} from "../src/features/conversation/suggestions/constants.ts";
 import { BOT_COMMANDS, BOT_COMMAND_DEFINITIONS } from "../src/bot/commands.ts";
 import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
@@ -110,19 +110,19 @@ const [
   profileScriptSource,
 ] = await Promise.all([
   readSource("../src/bot/register-handlers.ts"),
-  readSource("../src/features/messaging/resolve-ticket-action.ts"),
-  readSource("../src/features/messaging/render-inbox.ts"),
-  readSource("../src/features/messaging/messaging-commands.ts"),
+  readSource("../src/features/ticketing/resolve-ticket-action.ts"),
+  readSource("../src/features/ticketing/inbox.ts"),
+  readSource("../src/features/ticketing/handlers.ts"),
   readSource("../src/i18n/labels.ts"),
-  readSource("../src/utils/user.ts"),
+  readSource("../src/features/identity/user.ts"),
   readSource("../src/bot/keyboards.ts"),
   readSource("../src/features/settings/keyboards.ts"),
-  readSource("../src/features/conversation-suggestions/keyboards.ts"),
+  readSource("../src/features/conversation/suggestions/keyboards.ts"),
   readSource("../src/bot/input-navigation.ts"),
-  readSource("../src/features/conversation-suggestions/suggestion-handlers.ts"),
+  readSource("../src/features/conversation/suggestions/suggestion-handlers.ts"),
   readSource("../src/bot/commands.ts"),
   readSource("../src/bot/menu.ts"),
-  readSource("../src/features/conversation-suggestions/suggestion-hub.ts"),
+  readSource("../src/features/conversation/suggestions/suggestion-hub.ts"),
   readSource("../tools/set-telegram-bot-profile.sh"),
 ]);
 

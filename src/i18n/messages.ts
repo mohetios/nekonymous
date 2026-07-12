@@ -1,6 +1,6 @@
 /** Strings with HTML tags must be sent via `replyHtml` / `withHtml` (parse_mode HTML). */
 
-import { convertToPersianNumbers } from "../utils/tools";
+import { convertToPersianNumbers } from "../utils/text";
 
 export const PROJECT_INTRO_URL = "https://mohetios.github.io/Nekonymous/";
 

@@ -33,11 +33,11 @@ import {
   convertToPersianNumbers,
   escapeHtml,
   withHtml,
-} from "../../utils/tools";
+} from "../../utils/text";
 import {
   buildUserDeepLink,
   sanitizeDisplayName,
-} from "../../utils/user";
+} from "../../features/identity/user";
 import {
   clearUserAccountAndRecreate,
   resolveOrCreateUser,
@@ -47,7 +47,7 @@ import { encryptDisplayName } from "../ticketing/ticketing-service";
 import {
   countUserMatchHistory,
   resetUserMatchHistory,
-} from "../conversation-suggestions/pair-history";
+} from "../conversation/suggestions/pair-history";
 import { SETTINGS_CALLBACK } from "./constants";
 import {
   buildConfirmClearBlocksKeyboard,

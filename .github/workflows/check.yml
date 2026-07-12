@@ -1,7 +1,9 @@
-# Disabled by default. Run manually from the GitHub Actions tab when needed.
 name: Check
 
 on:
+  pull_request:
+  push:
+    branches: [master]
   workflow_dispatch:
 
 jobs:

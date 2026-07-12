@@ -3,20 +3,20 @@
  * Run: pnpm test:conversation-ranking
  */
 
-import { CONVERSATION_DIMENSIONS } from "../src/features/conversation-profile/constants.ts";
-import { buildConversationProfile } from "../src/features/conversation-profile/profile-builder.ts";
+import { CONVERSATION_DIMENSIONS } from "../src/features/conversation/profile/constants.ts";
+import { buildConversationProfile } from "../src/features/conversation/profile/profile-builder.ts";
 import type {
   ConversationIntent,
   ProfileAnswers,
-} from "../src/features/conversation-profile/types.ts";
-import { computeDirectionalFit } from "../src/features/conversation-ranking/directional-fit.ts";
+} from "../src/features/conversation/profile/types.ts";
+import { computeDirectionalFit } from "../src/features/conversation/suggestions/directional-fit.ts";
 import {
   buildSuggestionExplanation,
   computeIntentAdjustment,
   intentsAreCompatible,
-} from "../src/features/conversation-ranking/explanations.ts";
-import { fuseReciprocalScore } from "../src/features/conversation-ranking/reciprocal-fit.ts";
-import { rankCandidateProfiles } from "../src/features/conversation-ranking/rank-candidates.ts";
+} from "../src/features/conversation/suggestions/explanations.ts";
+import { fuseReciprocalScore } from "../src/features/conversation/suggestions/reciprocal-fit.ts";
+import { rankCandidateProfiles } from "../src/features/conversation/suggestions/ranking.ts";
 
 const fail = (message: string): never => {
   console.error(message);

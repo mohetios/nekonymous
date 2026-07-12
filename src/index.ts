@@ -6,7 +6,7 @@ import { ProfileVaultShardDurableObject as ProfileVaultShardDurableObjectBase } 
 import { ConversationVaultShardDurableObject as ConversationVaultShardDurableObjectBase } from "./storage/conversation-vault/conversation-vault.do";
 import { PairLedgerShardDurableObject as PairLedgerShardDurableObjectBase } from "./storage/pair-ledger/pair-ledger.do";
 import type { Environment } from "./types";
-import { handleRequest } from "./bot/router";
+import { handleWebhook } from "./bot/webhook";
 import { handleOutboxBatch } from "./queues/outbox-consumer";
 import type { TelegramOutboxJob } from "./queues/telegram-outbox.types";
 import { handleProfileIndexBatch } from "./queues/profile-index-consumer";
@@ -40,7 +40,7 @@ export class PairLedgerShardDurableObjectV2 extends PairLedgerShardDurableObject
 
 export default {
   fetch: async (request: Request, env: Environment, ctx: ExecutionContext) => {
-    return handleRequest(request, env, ctx);
+    return handleWebhook(request, env, ctx);
   },
   queue: async (
     batch: MessageBatch<TelegramOutboxJob | StatsEvent | ProfileIndexJob>,
@@ -56,6 +56,12 @@ export default {
       await handleProfileIndexBatch(batch as MessageBatch<ProfileIndexJob>, env);
       return;
     }
-    await handleOutboxBatch(batch as MessageBatch<TelegramOutboxJob>, env);
+    if (queueName === "neko-outbox") {
+      await handleOutboxBatch(batch as MessageBatch<TelegramOutboxJob>, env);
+      return;
+    }
+    for (const message of batch.messages) {
+      message.ack();
+    }
   },
 };

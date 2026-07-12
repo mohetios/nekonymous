@@ -7,7 +7,7 @@ import {
 } from "../i18n/messages";
 import { consumeUserRateLimit } from "../storage/user-state-client";
 import { emitUserActive } from "../stats/emit-user-active";
-import { type NekoContext } from "../utils/worker";
+import { type NekoContext } from "./context";
 
 const isUserInputUpdate = (ctx: Context): boolean =>
   ctx.message !== undefined || ctx.callbackQuery !== undefined;

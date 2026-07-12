@@ -4,20 +4,20 @@
  */
 
 import type { PairStateRecord } from "../src/storage/pair-ledger/pair-ledger.types.ts";
-import { MIN_RECIPROCAL_SCORE } from "../src/features/conversation-ranking/constants.ts";
-import type { RankedCandidate } from "../src/features/conversation-ranking/types.ts";
-import { buildConversationProfile } from "../src/features/conversation-profile/profile-builder.ts";
-import type { ConversationIntent, ProfileAnswers } from "../src/features/conversation-profile/types.ts";
-import { CONVERSATION_DIMENSIONS } from "../src/features/conversation-profile/constants.ts";
+import { MIN_RECIPROCAL_SCORE } from "../src/features/conversation/suggestions/ranking-constants.ts";
+import type { RankedCandidate } from "../src/features/conversation/suggestions/ranking-types.ts";
+import { buildConversationProfile } from "../src/features/conversation/profile/profile-builder.ts";
+import type { ConversationIntent, ProfileAnswers } from "../src/features/conversation/profile/types.ts";
+import { CONVERSATION_DIMENSIONS } from "../src/features/conversation/profile/constants.ts";
 import {
   filterEligibleCandidates,
   isPairStateBlocking,
-} from "../src/features/conversation-suggestions/eligibility.ts";
+} from "../src/features/conversation/suggestions/eligibility.ts";
 import {
   rerankWithExposure,
   selectSuggestionResults,
-} from "../src/features/conversation-suggestions/exposure-reranker.ts";
-import { MAX_SUGGESTION_RESULTS } from "../src/features/conversation-suggestions/constants.ts";
+} from "../src/features/conversation/suggestions/exposure-reranker.ts";
+import { MAX_SUGGESTION_RESULTS } from "../src/features/conversation/suggestions/constants.ts";
 
 const fail = (message: string): never => {
   console.error(message);

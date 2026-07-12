@@ -469,9 +469,8 @@ Lazy expiry of suggestion/request capabilities is **not** emitted separately; te
 ## Module layout (target)
 
 ```text
-src/features/conversation-profile/     # questionnaire, build, finalize
-src/features/conversation-suggestions/   # retrieval, eligibility
-src/features/conversation-ranking/       # directional, reciprocal, explanations
+src/features/conversation/profile/     # questionnaire, build, finalize
+src/features/conversation/suggestions/ # retrieval, eligibility, ranking, requests
 src/storage/profile-vault/               # ProfileVaultShardDO + RPC client
 src/storage/conversation-vault/          # ConversationVaultShardDO + RPC client
 src/storage/pair-ledger/                 # PairLedgerShardDO + RPC client

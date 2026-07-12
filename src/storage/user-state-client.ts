@@ -19,6 +19,14 @@ type UserStateSnapshot = {
 const stub = (env: Environment, userId: string) =>
   env.USER_STATE_DO.get(env.USER_STATE_DO.idFromName(userId));
 
+const webhookEventShardName = (eventKey: string): string => {
+  let hash = 0;
+  for (let index = 0; index < eventKey.length; index += 1) {
+    hash = (hash * 31 + eventKey.charCodeAt(index)) >>> 0;
+  }
+  return `__webhook_events__:${hash % 16}`;
+};
+
 const doFetch = async <T>(
   env: Environment,
   userId: string,
@@ -153,7 +161,7 @@ export const claimProcessedEvent = async (
 ): Promise<"acquired" | "processing" | "done"> => {
   const body = await doFetch<{ state: "acquired" | "processing" | "done" }>(
     env,
-    "__webhook_events__",
+    webhookEventShardName(eventKey),
     "/processed-events/claim",
     {
       method: "POST",
@@ -167,7 +175,7 @@ export const completeProcessedEvent = async (
   env: Environment,
   eventKey: string
 ): Promise<void> => {
-  await doFetch(env, "__webhook_events__", "/processed-events/complete", {
+  await doFetch(env, webhookEventShardName(eventKey), "/processed-events/complete", {
     method: "POST",
     body: JSON.stringify({ eventKey }),
   });
@@ -177,7 +185,7 @@ export const failProcessedEvent = async (
   env: Environment,
   eventKey: string
 ): Promise<void> => {
-  await doFetch(env, "__webhook_events__", "/processed-events/fail", {
+  await doFetch(env, webhookEventShardName(eventKey), "/processed-events/fail", {
     method: "POST",
     body: JSON.stringify({ eventKey }),
   });
@@ -197,6 +205,7 @@ export type AddInboxPointerResult = {
   ok: boolean;
   pendingCount?: number;
   duplicate?: boolean;
+  evictedTicketHashes?: string[];
   status: number;
 };
 
@@ -225,6 +234,7 @@ export const addInboxPointer = async (
     ok: boolean;
     pendingCount?: number;
     duplicate?: boolean;
+    evictedTicketHashes?: string[];
   }>();
 
   return { ...body, status: response.status };
@@ -344,10 +354,15 @@ export const markInboxPointerReported = async (
 export const purgeUserState = async (
   env: Environment,
   userId: string
-): Promise<void> => {
-  await stub(env, userId).fetch("https://user-state/purge", {
+): Promise<string[]> => {
+  const response = await stub(env, userId).fetch("https://user-state/purge", {
     method: "DELETE",
   });
+  if (!response.ok) {
+    throw new Error(`UserStateDO purge failed: ${response.status}`);
+  }
+  const body = await response.json<{ ok: boolean; ticketHashes?: string[] }>();
+  return body.ticketHashes ?? [];
 };
 
 export type ProfileSessionWire = {

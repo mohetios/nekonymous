@@ -74,9 +74,9 @@ const [
   readSource("../src/stats/stats-consumer.ts"),
   readSource("../src/stats/emit-stat.ts"),
   readSource("../src/stats/product-events.ts"),
-  readSource("../src/features/conversation-profile/profile-handlers.ts"),
-  readSource("../src/features/messaging/messaging-commands.ts"),
-  readSource("../src/features/messaging/render-inbox.ts"),
+  readSource("../src/features/conversation/profile/profile-handlers.ts"),
+  readSource("../src/features/ticketing/handlers.ts"),
+  readSource("../src/features/ticketing/inbox.ts"),
 ]);
 
 // 4) empty stats state copy exists in formatter source

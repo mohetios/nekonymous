@@ -1,5 +1,5 @@
-import { convertToPersianNumbers } from "../utils/tools";
-import { PROFILE_QUESTION_COUNT } from "../features/conversation-profile/constants";
+import { convertToPersianNumbers } from "../utils/text";
+import { PROFILE_QUESTION_COUNT } from "../features/conversation/profile/constants";
 
 export const PROFILE_ANSWER_SCALE =
   "این جمله چقدر شبیه توئه؟\n\n" +

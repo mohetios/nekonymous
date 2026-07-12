@@ -66,7 +66,7 @@ Settings, suggestion hub, and profile use **inline keyboards only** — not repl
 
 ## Suggestion hub entry points
 
-All three render `renderSuggestionHub` in `src/features/conversation-suggestions/suggestion-hub.ts`:
+All three render `renderSuggestionHub` in `src/features/conversation/suggestions/suggestion-hub.ts`:
 
 - `/match`
 - Main menu `🧭 پیشنهاد گفت‌وگو`
@@ -112,7 +112,7 @@ Registered via `suggestionHubCallbackQueryRegex()`:
 | `n:{ref}` | Private nickname draft |
 | `rp:{ref}` | Report flow |
 
-`{ref}` is a base64url capability ref (16–43 chars for conversation tickets; 32 chars for inbox tickets). Format enforced in handlers and `src/utils/telegram-callbacks.ts`.
+`{ref}` is a base64url capability ref (16–43 chars for conversation tickets; 32 chars for inbox tickets). Format enforced in handlers and `src/bot/callback-data.ts`.
 
 ## Unknown callbacks
 

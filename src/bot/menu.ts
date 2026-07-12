@@ -5,13 +5,13 @@ import {
   OWNER_PAUSED_NOTE,
   USER_LINK_MESSAGE,
 } from "../i18n/messages";
-import { withHtml } from "../utils/tools";
-import { buildUserDeepLink } from "../utils/user";
+import { withHtml } from "../utils/text";
+import { buildUserDeepLink } from "../features/identity/user";
 import { mainMenu } from "./keyboards";
 import { isMainMenuLabel, MENU } from "./menu-labels";
-import { handleInboxCommand } from "../features/messaging/messaging-commands";
+import { handleInboxCommand } from "../features/ticketing/handlers";
 import { renderSettingsHome } from "../features/settings/render-stats-page";
-import { renderSuggestionHub } from "../features/conversation-suggestions/suggestion-hub";
+import { renderSuggestionHub } from "../features/conversation/suggestions/suggestion-hub";
 
 export { MENU, isMainMenuLabel, isReservedDisplayName } from "./menu-labels";
 

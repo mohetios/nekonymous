@@ -1,4 +1,4 @@
-import { convertToPersianNumbers } from "../utils/tools";
+import { convertToPersianNumbers } from "../utils/text";
 import type { PeriodCounts, PublicBotStats } from "./stats-reader";
 
 export const SETTINGS_STATS_EMPTY_MESSAGE = `📊 <b>آمار کلی نِکونیموس</b>
