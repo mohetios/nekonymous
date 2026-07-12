@@ -7,22 +7,6 @@ const stub = (env: Environment, pairTag: string) =>
     env.PAIR_LEDGER_DO.idFromName(shardNameForLookupHash("pair", pairTag))
   );
 
-const doFetch = async <T>(
-  env: Environment,
-  pairTag: string,
-  path: string,
-  init?: RequestInit
-): Promise<T> => {
-  const response = await stub(env, pairTag).fetch(
-    `https://pair-ledger${path}`,
-    init
-  );
-  if (!response.ok) {
-    throw new Error(`PairLedgerDO ${path} failed: ${response.status}`);
-  }
-  return response.json<T>();
-};
-
 const mapBounded = async <T, R>(
   items: T[],
   limit: number,
@@ -68,16 +52,8 @@ export const getPairStatesBatch = async (
 
   await mapBounded(shardEntries, concurrency, async ([, tags]) => {
     const anchorTag = tags[0];
-    const body = await doFetch<{ records: Record<string, PairStateRecord | null> }>(
-      env,
-      anchorTag,
-      "/pair-states/batch",
-      {
-        method: "POST",
-        body: JSON.stringify({ pairTags: tags }),
-      }
-    );
-    for (const [pairTag, record] of Object.entries(body.records)) {
+    const records = await stub(env, anchorTag).batchGetPairStates(tags);
+    for (const [pairTag, record] of Object.entries(records)) {
       merged.set(pairTag, record);
     }
   });
@@ -89,10 +65,7 @@ export const upsertPairStateRecord = async (
   env: Environment,
   input: UpsertPairStateInput
 ): Promise<void> => {
-  await doFetch(env, input.pairTag, "/pair-states", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  await stub(env, input.pairTag).upsertPairState(input);
 };
 
 export type AcquirePairPendingResult =
@@ -104,18 +77,9 @@ export const acquirePairPendingLock = async (
   pairTag: string,
   expiresAt: number
 ): Promise<AcquirePairPendingResult> => {
-  const response = await stub(env, pairTag).fetch(
-    "https://pair-ledger/pair-states/acquire-pending",
-    {
-      method: "POST",
-      body: JSON.stringify({ pairTag, expiresAt }),
-    }
-  );
-  if (response.status === 409) {
+  const result = await stub(env, pairTag).acquirePairPending(pairTag, expiresAt);
+  if (!result.ok) {
     return { ok: false, reason: "blocked" };
-  }
-  if (!response.ok) {
-    throw new Error(`PairLedgerDO acquire-pending failed: ${response.status}`);
   }
   return { ok: true };
 };
@@ -124,14 +88,5 @@ export const releasePairPendingLock = async (
   env: Environment,
   pairTag: string
 ): Promise<void> => {
-  const response = await stub(env, pairTag).fetch(
-    "https://pair-ledger/pair-states/release-pending",
-    {
-      method: "POST",
-      body: JSON.stringify({ pairTag }),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(`PairLedgerDO release-pending failed: ${response.status}`);
-  }
+  await stub(env, pairTag).releasePairPending(pairTag);
 };

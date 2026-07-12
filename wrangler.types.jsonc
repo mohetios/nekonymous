@@ -18,27 +18,17 @@
       "BOT_USERNAME"
     ]
   },
-  "observability": {
-    "logs": {
-      "enabled": true,
-      "head_sampling_rate": 1
-    },
-    "traces": {
-      "enabled": true,
-      "head_sampling_rate": 0.1
-    }
-  },
   "kv_namespaces": [
     {
       "binding": "NEKO_KV",
-      "id": "REPLACE_ME"
+      "id": "de26a1b398614383a2b9702fafaa8824"
     }
   ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "nekonymous_core",
-      "database_id": "REPLACE_ME",
+      "database_id": "bfc0993d-de7b-4963-b59c-22311e4b71c1",
       "migrations_dir": "migrations"
     }
   ],
@@ -115,69 +105,7 @@
   },
   "migrations": [
     {
-      "tag": "v1-clean-core",
-      "new_sqlite_classes": [
-        "UserStateDurableObject",
-        "TelegramOutboxDurableObject"
-      ]
-    },
-    {
-      "tag": "v2-delete-legacy-inbox",
-      "deleted_classes": ["InboxSqliteDurableObject"]
-    },
-    {
-      "tag": "v3-sealed-ticket-routing",
-      "new_sqlite_classes": [
-        "TicketVaultDurableObject",
-        "ReportLedgerDurableObject"
-      ]
-    },
-    {
-      "tag": "v4-create-reset-durable-objects",
-      "new_sqlite_classes": [
-        "UserStateDurableObjectV2",
-        "TelegramOutboxDurableObjectV2",
-        "TicketVaultDurableObjectV2",
-        "ReportLedgerDurableObjectV2"
-      ]
-    },
-    {
-      "tag": "v5-delete-old-durable-objects",
-      "deleted_classes": [
-        "UserStateDurableObject",
-        "TelegramOutboxDurableObject",
-        "TicketVaultDurableObject",
-        "ReportLedgerDurableObject"
-      ]
-    },
-    {
-      "tag": "v6-create-reset-durable-objects-v3",
-      "new_sqlite_classes": [
-        "UserStateDurableObjectV3",
-        "TelegramOutboxDurableObjectV3",
-        "TicketVaultDurableObjectV3",
-        "ReportLedgerDurableObjectV3"
-      ]
-    },
-    {
-      "tag": "v7-delete-durable-objects-v2",
-      "deleted_classes": [
-        "UserStateDurableObjectV2",
-        "TelegramOutboxDurableObjectV2",
-        "TicketVaultDurableObjectV2",
-        "ReportLedgerDurableObjectV2"
-      ]
-    },
-    {
-      "tag": "v8-conversation-v2-vault-shards",
-      "new_sqlite_classes": [
-        "ProfileVaultShardDurableObject",
-        "ConversationVaultShardDurableObject",
-        "PairLedgerShardDurableObject"
-      ]
-    },
-    {
-      "tag": "v9-create-reset-durable-objects-v4",
+      "tag": "vitest-sqlite-durable-objects",
       "new_sqlite_classes": [
         "UserStateDurableObjectV4",
         "TelegramOutboxDurableObjectV4",
@@ -186,18 +114,6 @@
         "ProfileVaultShardDurableObjectV2",
         "ConversationVaultShardDurableObjectV2",
         "PairLedgerShardDurableObjectV2"
-      ]
-    },
-    {
-      "tag": "v10-delete-durable-objects-v3-and-vault-v1",
-      "deleted_classes": [
-        "UserStateDurableObjectV3",
-        "TelegramOutboxDurableObjectV3",
-        "TicketVaultDurableObjectV3",
-        "ReportLedgerDurableObjectV3",
-        "ProfileVaultShardDurableObject",
-        "ConversationVaultShardDurableObject",
-        "PairLedgerShardDurableObject"
       ]
     }
   ],

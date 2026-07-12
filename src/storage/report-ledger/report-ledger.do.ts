@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Environment } from "../../types";
-import type { ReportLedgerEvent } from "./report-ledger.types";
+import type { ReportLedgerEvent, ReportLedgerResult } from "./report-ledger.types";
 
 const isSafeTag = (value: string): boolean => /^[A-Za-z0-9_-]{16,86}$/.test(value);
 
@@ -34,19 +34,7 @@ export class ReportLedgerDurableObject extends DurableObject<Environment> {
     `);
   }
 
-  async fetch(request: Request): Promise<Response> {
-    const { pathname } = new URL(request.url);
-
-    if (request.method === "POST" && pathname === "/reports") {
-      return this.createReport(request);
-    }
-
-    return new Response("Not Found", { status: 404 });
-  }
-
-  private async createReport(request: Request): Promise<Response> {
-    const body = await request.json<ReportLedgerEvent>();
-
+  createReport(body: ReportLedgerEvent): ReportLedgerResult {
     if (
       !body.reportId ||
       !isSafeTag(body.senderAbuseTag) ||
@@ -54,7 +42,7 @@ export class ReportLedgerDurableObject extends DurableObject<Environment> {
       !body.reasonCode ||
       !Number.isSafeInteger(body.createdAt)
     ) {
-      return new Response("Invalid report", { status: 400 });
+      return { ok: false, duplicate: false };
     }
 
     try {
@@ -73,9 +61,9 @@ export class ReportLedgerDurableObject extends DurableObject<Environment> {
         body.createdAt
       );
     } catch {
-      return Response.json({ ok: true, duplicate: true });
+      return { ok: true, duplicate: true };
     }
 
-    return Response.json({ ok: true, duplicate: false });
+    return { ok: true, duplicate: false };
   }
 }

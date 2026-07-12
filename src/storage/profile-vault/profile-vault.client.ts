@@ -16,43 +16,18 @@ const stub = (env: Environment, lookupHash: string) =>
     env.PROFILE_VAULT_DO.idFromName(shardNameForLookupHash("profile", lookupHash))
   );
 
-const doFetch = async <T>(
-  env: Environment,
-  lookupHash: string,
-  path: string,
-  init?: RequestInit
-): Promise<T> => {
-  const response = await stub(env, lookupHash).fetch(
-    `https://profile-vault${path}`,
-    init
-  );
-  if (!response.ok) {
-    throw new Error(`ProfileVaultDO ${path} failed: ${response.status}`);
-  }
-  return response.json<T>();
-};
-
 export const storeProfileRecord = async (
   env: Environment,
   input: StoreProfileInput
 ): Promise<void> => {
-  await doFetch(env, input.profileHash, "/profiles", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  await stub(env, input.profileHash).storeProfile(input);
 };
 
 export const getProfileRecord = async (
   env: Environment,
   profileHash: string
-): Promise<ProfileVaultRecord | null> => {
-  const body = await doFetch<{ record: ProfileVaultRecord | null }>(
-    env,
-    profileHash,
-    `/profiles/${encodeURIComponent(profileHash)}`
-  );
-  return body.record;
-};
+): Promise<ProfileVaultRecord | null> =>
+  stub(env, profileHash).getProfile(profileHash);
 
 export const setProfileStatus = async (
   env: Environment,
@@ -60,10 +35,7 @@ export const setProfileStatus = async (
   status: ProfileVaultRecordStatus,
   expectedRevision?: number
 ): Promise<void> => {
-  await doFetch(env, profileHash, `/profiles/${encodeURIComponent(profileHash)}/status`, {
-    method: "POST",
-    body: JSON.stringify({ status, expectedRevision }),
-  });
+  await stub(env, profileHash).setProfileStatus(profileHash, status, expectedRevision);
 };
 
 export const updateProfileRouteEnc = async (
@@ -71,55 +43,34 @@ export const updateProfileRouteEnc = async (
   profileHash: string,
   routeEnc: string
 ): Promise<void> => {
-  await doFetch(env, profileHash, `/profiles/${encodeURIComponent(profileHash)}/route`, {
-    method: "POST",
-    body: JSON.stringify({ routeEnc }),
-  });
+  await stub(env, profileHash).updateProfileRoute(profileHash, routeEnc);
 };
 
 export const storeVectorRouteRecord = async (
   env: Environment,
   input: StoreVectorRouteInput
 ): Promise<void> => {
-  await doFetch(env, input.vectorHash, "/vector-routes", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  await stub(env, input.vectorHash).storeVectorRoute(input);
 };
 
 export const getVectorRouteRecord = async (
   env: Environment,
   vectorHash: string
-): Promise<VectorRouteRecord | null> => {
-  const body = await doFetch<{ record: VectorRouteRecord | null }>(
-    env,
-    vectorHash,
-    `/vector-routes/${encodeURIComponent(vectorHash)}`
-  );
-  return body.record;
-};
+): Promise<VectorRouteRecord | null> =>
+  stub(env, vectorHash).getVectorRoute(vectorHash);
 
 export const storeIndexJobRecord = async (
   env: Environment,
   input: StoreIndexJobInput
 ): Promise<void> => {
-  await doFetch(env, input.jobHash, "/index-jobs", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  await stub(env, input.jobHash).storeIndexJob(input);
 };
 
 export const getIndexJobRecord = async (
   env: Environment,
   jobHash: string
-): Promise<IndexJobRecord | null> => {
-  const body = await doFetch<{ record: IndexJobRecord | null }>(
-    env,
-    jobHash,
-    `/index-jobs/${encodeURIComponent(jobHash)}`
-  );
-  return body.record;
-};
+): Promise<IndexJobRecord | null> =>
+  stub(env, jobHash).getIndexJob(jobHash);
 
 export const setIndexJobStatus = async (
   env: Environment,
@@ -127,8 +78,5 @@ export const setIndexJobStatus = async (
   status: IndexJobStatus,
   vectorsEnc?: string | null
 ): Promise<void> => {
-  await doFetch(env, jobHash, `/index-jobs/${encodeURIComponent(jobHash)}/status`, {
-    method: "POST",
-    body: JSON.stringify({ status, vectorsEnc }),
-  });
+  await stub(env, jobHash).setIndexJobStatus(jobHash, status, vectorsEnc);
 };

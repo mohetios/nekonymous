@@ -10,6 +10,7 @@ import {
   hmacTelegramUserId,
 } from "../ticketing/ticketing-service";
 import { getUserState, initUserState, purgeUserState } from "../../storage/user-state-client";
+import { isDurableObjectCallError } from "../../storage/durable-object-call-error";
 import { expireTicketRecord } from "../../storage/ticket-vault/ticket-vault.client";
 import { invalidateUserConversationProfile } from "../conversation/profile/profile-service";
 import {
@@ -27,8 +28,12 @@ export const ensureUserStateInitialized = async (
 ): Promise<void> => {
   try {
     await getUserState(env, userId);
-  } catch {
-    await initUserState(env, userId);
+  } catch (error) {
+    if (isDurableObjectCallError(error) && error.status === 404) {
+      await initUserState(env, userId);
+      return;
+    }
+    throw error;
   }
 };
 

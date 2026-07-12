@@ -20,13 +20,18 @@ const safeUniqueHash = (uniqueHash?: string): string | undefined => {
 export const emitStat = async (
   env: Environment,
   eventName: StatsEventName,
-  options?: { statKey?: string; uniqueHash?: string; at?: number }
+  options?: { count?: number; statKey?: string; uniqueHash?: string; at?: number }
 ): Promise<void> => {
+  const count =
+    options?.count !== undefined && Number.isFinite(options.count)
+      ? Math.max(1, Math.floor(options.count))
+      : 1;
   try {
     await env.NEKO_STATS_QUEUE.send(
       {
         eventName,
         at: options?.at ?? Date.now(),
+        count,
         ...(safeStatKey(options?.statKey) ? { statKey: safeStatKey(options?.statKey) } : {}),
         ...(safeUniqueHash(options?.uniqueHash)
           ? { uniqueHash: safeUniqueHash(options?.uniqueHash) }

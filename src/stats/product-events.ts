@@ -12,9 +12,7 @@ const emitCount = async (
   if (count <= 0) {
     return;
   }
-  for (let i = 0; i < count; i += 1) {
-    await emitStat(env, eventName);
-  }
+  await emitStat(env, eventName, { count });
 };
 
 export const recordUserCreated = (env: Environment): Promise<void> =>

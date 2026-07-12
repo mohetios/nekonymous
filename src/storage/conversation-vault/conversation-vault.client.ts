@@ -16,43 +16,18 @@ const stub = (env: Environment, lookupHash: string) =>
     )
   );
 
-const doFetch = async <T>(
-  env: Environment,
-  lookupHash: string,
-  path: string,
-  init?: RequestInit
-): Promise<T> => {
-  const response = await stub(env, lookupHash).fetch(
-    `https://conversation-vault${path}`,
-    init
-  );
-  if (!response.ok) {
-    throw new Error(`ConversationVaultDO ${path} failed: ${response.status}`);
-  }
-  return response.json<T>();
-};
-
 export const storeSuggestionRecord = async (
   env: Environment,
   input: StoreSuggestionInput
 ): Promise<void> => {
-  await doFetch(env, input.suggestionHash, "/suggestions", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  await stub(env, input.suggestionHash).storeSuggestion(input);
 };
 
 export const getSuggestionRecord = async (
   env: Environment,
   suggestionHash: string
-): Promise<SuggestionTicketRecord | null> => {
-  const body = await doFetch<{ record: SuggestionTicketRecord | null }>(
-    env,
-    suggestionHash,
-    `/suggestions/${encodeURIComponent(suggestionHash)}`
-  );
-  return body.record;
-};
+): Promise<SuggestionTicketRecord | null> =>
+  stub(env, suggestionHash).getSuggestion(suggestionHash);
 
 export const setSuggestionStatus = async (
   env: Environment,
@@ -60,38 +35,28 @@ export const setSuggestionStatus = async (
   status: SuggestionTicketStatus,
   expectedStatus?: SuggestionTicketStatus
 ): Promise<void> => {
-  await doFetch(
-    env,
+  const result = await stub(env, suggestionHash).setSuggestionStatus(
     suggestionHash,
-    `/suggestions/${encodeURIComponent(suggestionHash)}/status`,
-    {
-      method: "POST",
-      body: JSON.stringify({ status, expectedStatus }),
-    }
+    status,
+    expectedStatus
   );
+  if (!result.ok) {
+    throw new Error(`ConversationVaultDO setSuggestionStatus ${result.error}`);
+  }
 };
 
 export const storeRequestRecord = async (
   env: Environment,
   input: StoreRequestInput
 ): Promise<void> => {
-  await doFetch(env, input.requestHash, "/requests", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  await stub(env, input.requestHash).storeRequest(input);
 };
 
 export const getRequestRecord = async (
   env: Environment,
   requestHash: string
-): Promise<RequestTicketRecord | null> => {
-  const body = await doFetch<{ record: RequestTicketRecord | null }>(
-    env,
-    requestHash,
-    `/requests/${encodeURIComponent(requestHash)}`
-  );
-  return body.record;
-};
+): Promise<RequestTicketRecord | null> =>
+  stub(env, requestHash).getRequest(requestHash);
 
 export const setRequestStatus = async (
   env: Environment,
@@ -100,13 +65,13 @@ export const setRequestStatus = async (
   expectedStatus?: RequestTicketStatus,
   clearIntro = false
 ): Promise<void> => {
-  await doFetch(
-    env,
+  const result = await stub(env, requestHash).setRequestStatus(
     requestHash,
-    `/requests/${encodeURIComponent(requestHash)}/status`,
-    {
-      method: "POST",
-      body: JSON.stringify({ status, expectedStatus, clearIntro }),
-    }
+    status,
+    expectedStatus,
+    clearIntro
   );
+  if (!result.ok) {
+    throw new Error(`ConversationVaultDO setRequestStatus ${result.error}`);
+  }
 };

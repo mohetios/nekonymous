@@ -1,6 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Environment } from "../../types";
-import type { StoreTicketInput, TicketVaultRecord } from "./ticket-vault.types";
+import type {
+  StoreTicketInput,
+  StoreTicketResult,
+  TicketTransitionStatus,
+  TicketVaultGetResult,
+  TicketVaultRecord,
+} from "./ticket-vault.types";
 
 type TicketRow = {
   ticket_hash: string;
@@ -166,56 +172,7 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
     }
   }
 
-  async fetch(request: Request): Promise<Response> {
-    const { pathname } = new URL(request.url);
-
-    if (request.method === "POST" && pathname === "/tickets") {
-      return this.storeTicket(request);
-    }
-
-    if (pathname.startsWith("/tickets/")) {
-      const rest = pathname.slice("/tickets/".length);
-      const [ticketHash, action] = rest.split("/");
-
-      if (!ticketHash || !isSafeHash(ticketHash)) {
-        return new Response("Invalid ticket hash", { status: 400 });
-      }
-
-      if (request.method === "GET" && !action) {
-        return this.getTicket(ticketHash);
-      }
-
-      if (request.method === "POST" && action === "mark-viewed") {
-        return this.markStatus(ticketHash, "viewed", true);
-      }
-
-      if (request.method === "POST" && action === "mark-replied") {
-        return this.markStatus(ticketHash, "replied", true);
-      }
-
-      if (request.method === "POST" && action === "mark-blocked") {
-        return this.markStatus(ticketHash, "blocked", true);
-      }
-
-      if (request.method === "POST" && action === "mark-reported") {
-        return this.markStatus(ticketHash, "reported", true);
-      }
-
-      if (request.method === "POST" && action === "expire") {
-        return this.expireTicket(ticketHash);
-      }
-
-      if (request.method === "DELETE" && !action) {
-        return this.deleteTicket(ticketHash);
-      }
-    }
-
-    return new Response("Not Found", { status: 404 });
-  }
-
-  private async storeTicket(request: Request): Promise<Response> {
-    const body = await request.json<StoreTicketInput>();
-
+  async storeTicket(body: StoreTicketInput): Promise<StoreTicketResult> {
     if (
       !isSafeHash(body.ticketHash) ||
       !body.ownerProofTag ||
@@ -225,7 +182,7 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
       !Number.isSafeInteger(body.expiresAt) ||
       body.expiresAt <= body.createdAt
     ) {
-      return new Response("Invalid ticket", { status: 400 });
+      return { ok: false, invalid: true };
     }
 
     try {
@@ -244,39 +201,46 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
         body.expiresAt
       );
     } catch {
-      return new Response("Duplicate ticket", { status: 409 });
+      return { ok: false, duplicate: true };
     }
 
     await this.scheduleNextExpiryAlarm();
-    return Response.json({ ok: true });
+    return { ok: true };
   }
 
-  private async getTicket(ticketHash: string): Promise<Response> {
+  async getTicket(ticketHash: string): Promise<TicketVaultGetResult> {
+    if (!isSafeHash(ticketHash)) {
+      return { status: "not_found" };
+    }
+
     const row = this.ctx.storage.sql
       .exec<TicketRow>("SELECT * FROM tickets WHERE ticket_hash = ?", ticketHash)
       .toArray()[0];
 
     if (!row) {
-      return new Response("Not found", { status: 404 });
+      return { status: "not_found" };
     }
 
     if (row.status === "expired" || row.expires_at < Date.now()) {
       await this.expireTicket(ticketHash);
-      return new Response("Expired", { status: 410 });
+      return { status: "expired" };
     }
 
     if (!row.route_enc) {
-      return new Response("Expired", { status: 410 });
+      return { status: "expired" };
     }
 
-    return Response.json(rowToRecord(row));
+    return { status: "found", record: rowToRecord(row) };
   }
 
-  private markStatus(
+  markStatus(
     ticketHash: string,
-    status: TicketVaultRecord["status"],
-    clearPayload: boolean
-  ): Response {
+    status: TicketTransitionStatus
+  ): void {
+    if (!isSafeHash(ticketHash)) {
+      return;
+    }
+
     const allowedPrevious =
       status === "viewed"
         ? ["active", "viewed"]
@@ -290,16 +254,19 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
        WHERE ticket_hash = ?
          AND status IN (${placeholders})
          AND expires_at > ?`,
-      clearPayload ? 1 : 0,
+      1,
       status,
       ticketHash,
       ...allowedPrevious,
       Date.now()
     );
-    return Response.json({ ok: true });
   }
 
-  private async expireTicket(ticketHash: string): Promise<Response> {
+  async expireTicket(ticketHash: string): Promise<void> {
+    if (!isSafeHash(ticketHash)) {
+      return;
+    }
+
     this.ctx.storage.sql.exec(
       `UPDATE tickets
        SET route_enc = NULL,
@@ -310,16 +277,18 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
       ticketHash
     );
     await this.scheduleNextExpiryAlarm();
-    return Response.json({ ok: true });
   }
 
-  private async deleteTicket(ticketHash: string): Promise<Response> {
+  async deleteTicket(ticketHash: string): Promise<void> {
+    if (!isSafeHash(ticketHash)) {
+      return;
+    }
+
     this.ctx.storage.sql.exec(
       "DELETE FROM tickets WHERE ticket_hash = ?",
       ticketHash
     );
     await this.scheduleNextExpiryAlarm();
-    return Response.json({ ok: true });
   }
 
   async alarm(): Promise<void> {

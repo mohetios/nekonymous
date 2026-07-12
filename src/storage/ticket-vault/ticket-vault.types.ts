@@ -27,3 +27,16 @@ export type StoreTicketInput = {
   createdAt: number;
   expiresAt: number;
 };
+
+export type StoreTicketResult = {
+  ok: boolean;
+  duplicate?: boolean;
+  invalid?: boolean;
+};
+
+export type TicketVaultGetResult =
+  | { status: "found"; record: TicketVaultRecord }
+  | { status: "not_found" }
+  | { status: "expired" };
+
+export type TicketTransitionStatus = "viewed" | "replied" | "blocked" | "reported";

@@ -1,5 +1,9 @@
 import type { Environment } from "../../types";
-import type { StoreTicketInput, TicketVaultRecord } from "./ticket-vault.types";
+import type {
+  StoreTicketInput,
+  TicketTransitionStatus,
+  TicketVaultRecord,
+} from "./ticket-vault.types";
 
 export class TicketExpiredError extends Error {
   constructor() {
@@ -14,59 +18,36 @@ const shardName = (ticketHash: string): string =>
 const stub = (env: Environment, ticketHash: string) =>
   env.TICKET_VAULT.get(env.TICKET_VAULT.idFromName(shardName(ticketHash)));
 
-const doFetch = async <T>(
-  env: Environment,
-  ticketHash: string,
-  path: string,
-  init?: RequestInit
-): Promise<T> => {
-  const response = await stub(env, ticketHash).fetch(
-    `https://ticket-vault${path}`,
-    init
-  );
-  if (!response.ok) {
-    throw new Error(`TicketVaultDO ${path} failed: ${response.status}`);
-  }
-  return response.json<T>();
-};
-
 export const storeTicket = async (
   env: Environment,
   input: StoreTicketInput
 ): Promise<void> => {
-  await doFetch(env, input.ticketHash, "/tickets", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  const result = await stub(env, input.ticketHash).storeTicket(input);
+  if (!result.ok && !result.duplicate) {
+    throw new Error("TicketVaultDO storeTicket rejected input");
+  }
 };
 
 export const getTicketRecord = async (
   env: Environment,
   ticketHash: string
 ): Promise<TicketVaultRecord | null> => {
-  const response = await stub(env, ticketHash).fetch(
-    `https://ticket-vault/tickets/${encodeURIComponent(ticketHash)}`
-  );
-  if (response.status === 404) {
+  const result = await stub(env, ticketHash).getTicket(ticketHash);
+  if (result.status === "not_found") {
     return null;
   }
-  if (response.status === 410) {
+  if (result.status === "expired") {
     throw new TicketExpiredError();
   }
-  if (!response.ok) {
-    throw new Error(`TicketVaultDO get failed: ${response.status}`);
-  }
-  return response.json<TicketVaultRecord>();
+  return result.record;
 };
 
 const markTicketStatus = async (
   env: Environment,
   ticketHash: string,
-  status: "viewed" | "replied" | "blocked" | "reported"
+  status: TicketTransitionStatus
 ): Promise<void> => {
-  await doFetch(env, ticketHash, `/tickets/${encodeURIComponent(ticketHash)}/mark-${status}`, {
-    method: "POST",
-  });
+  await stub(env, ticketHash).markStatus(ticketHash, status);
 };
 
 export const markTicketViewed = (env: Environment, ticketHash: string) =>
@@ -89,16 +70,12 @@ export const expireTicketRecord = async (
   env: Environment,
   ticketHash: string
 ): Promise<void> => {
-  await doFetch(env, ticketHash, `/tickets/${encodeURIComponent(ticketHash)}/expire`, {
-    method: "POST",
-  });
+  await stub(env, ticketHash).expireTicket(ticketHash);
 };
 
 export const deleteTicketRecord = async (
   env: Environment,
   ticketHash: string
 ): Promise<void> => {
-  await doFetch(env, ticketHash, `/tickets/${encodeURIComponent(ticketHash)}`, {
-    method: "DELETE",
-  });
+  await stub(env, ticketHash).deleteTicket(ticketHash);
 };

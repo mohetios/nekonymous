@@ -133,6 +133,10 @@ assert(
   "public stats readers must use short-lived KV caching"
 );
 assert(
+  readerSource.includes("env.DB.batch"),
+  "public stats reader must batch D1 queries on cache miss"
+);
+assert(
   !readerSource.includes("`stats:"),
   "stats cache keys must not use the forbidden stats: prefix"
 );
@@ -188,6 +192,11 @@ for (const { event, marker } of productEventChecks) {
     `product-events must expose ${marker} for ${event}`
   );
 }
+
+assert(
+  productEventsSource.includes("emitStat(env, eventName, { count })"),
+  "batched stat counts must emit a single queue message"
+);
 
 for (const eventName of [
   STAT_EVENTS.USER_ACTIVE,

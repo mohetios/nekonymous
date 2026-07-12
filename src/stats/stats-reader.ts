@@ -180,46 +180,63 @@ export const getPublicBotStats = async (
 
   const placeholders = trackedEvents.map(() => "?").join(", ");
 
-  const [usersCountRow, dailyRows, activeTodayRow, active7Row, active30Row] =
-    await Promise.all([
-      env.DB.prepare(
-        "SELECT COUNT(*) AS count FROM users WHERE status = 'active'"
-      ).first<{ count: number }>(),
-      env.DB.prepare(
-        `SELECT day, event_name, SUM(count) AS total
-         FROM platform_daily_stats
-         WHERE day >= ? AND day <= ?
-           AND event_name IN (${placeholders})
-         GROUP BY day, event_name`
-      )
-        .bind(day30, today, ...trackedEvents)
-        .all<DailyStatRow & { day: string }>()
-        .then((result) => result.results ?? []),
-      env.DB.prepare(
-        `SELECT COUNT(*) AS count
-         FROM platform_daily_unique_stats
-         WHERE day = ? AND event_name = ?`
-      )
-        .bind(today, STAT_EVENTS.USER_ACTIVE)
-        .first<{ count: number }>()
-        .catch(() => null),
-      env.DB.prepare(
-        `SELECT COUNT(DISTINCT unique_hash) AS count
-         FROM platform_daily_unique_stats
-         WHERE day >= ? AND day <= ? AND event_name = ?`
-      )
-        .bind(day7, today, STAT_EVENTS.USER_ACTIVE)
-        .first<{ count: number }>()
-        .catch(() => null),
-      env.DB.prepare(
-        `SELECT COUNT(DISTINCT unique_hash) AS count
-         FROM platform_daily_unique_stats
-         WHERE day >= ? AND day <= ? AND event_name = ?`
-      )
-        .bind(day30, today, STAT_EVENTS.USER_ACTIVE)
-        .first<{ count: number }>()
-        .catch(() => null),
+  const usersStatement = env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM users WHERE status = 'active'"
+  );
+  const dailyStatement = env.DB.prepare(
+    `SELECT day, event_name, SUM(count) AS total
+     FROM platform_daily_stats
+     WHERE day >= ? AND day <= ?
+       AND event_name IN (${placeholders})
+     GROUP BY day, event_name`
+  ).bind(day30, today, ...trackedEvents);
+  const activeTodayStatement = env.DB.prepare(
+    `SELECT COUNT(*) AS count
+     FROM platform_daily_unique_stats
+     WHERE day = ? AND event_name = ?`
+  ).bind(today, STAT_EVENTS.USER_ACTIVE);
+  const active7Statement = env.DB.prepare(
+    `SELECT COUNT(DISTINCT unique_hash) AS count
+     FROM platform_daily_unique_stats
+     WHERE day >= ? AND day <= ? AND event_name = ?`
+  ).bind(day7, today, STAT_EVENTS.USER_ACTIVE);
+  const active30Statement = env.DB.prepare(
+    `SELECT COUNT(DISTINCT unique_hash) AS count
+     FROM platform_daily_unique_stats
+     WHERE day >= ? AND day <= ? AND event_name = ?`
+  ).bind(day30, today, STAT_EVENTS.USER_ACTIVE);
+
+  let usersCountRow: { count: number } | null = null;
+  let dailyRows: Array<DailyStatRow & { day: string }> = [];
+  let activeTodayRow: { count: number } | null = null;
+  let active7Row: { count: number } | null = null;
+  let active30Row: { count: number } | null = null;
+
+  try {
+    const [
+      usersResult,
+      dailyResult,
+      activeTodayResult,
+      active7Result,
+      active30Result,
+    ] = await env.DB.batch([
+      usersStatement,
+      dailyStatement,
+      activeTodayStatement,
+      active7Statement,
+      active30Statement,
     ]);
+
+    usersCountRow = (usersResult.results?.[0] as { count: number } | undefined) ?? null;
+    dailyRows = (dailyResult.results as Array<DailyStatRow & { day: string }>) ?? [];
+    activeTodayRow =
+      (activeTodayResult.results?.[0] as { count: number } | undefined) ?? null;
+    active7Row = (active7Result.results?.[0] as { count: number } | undefined) ?? null;
+    active30Row =
+      (active30Result.results?.[0] as { count: number } | undefined) ?? null;
+  } catch {
+    // Aggregate tables may be missing in partial local setups; degrade gracefully.
+  }
 
   const hasDailyData = dailyRows.length > 0;
   const hasActiveUsers =

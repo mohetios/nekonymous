@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Idempotent Cloudflare resource setup for Conversation Suggestions V2.
 #
-# Creates Vectorize index and Queues when missing. Safe to re-run.
+# Creates Vectorize index and profile-index queues when missing. Safe to re-run.
 # Requires: wrangler auth, project wrangler.jsonc bindings.
 #
 # Usage:
@@ -56,7 +56,9 @@ echo "Setup complete."
 echo "Bindings expected in wrangler.jsonc:"
 echo "  CONVERSATION_VECTORS -> ${VECTOR_INDEX}"
 echo "  NEKO_PROFILE_INDEX_QUEUE -> ${PROFILE_INDEX_QUEUE}"
-echo "  NEKO_PROFILE_INDEX_DLQ -> ${PROFILE_INDEX_DLQ}"
+echo "  dead_letter_queue for profile index -> ${PROFILE_INDEX_DLQ}"
 echo "  PROFILE_VAULT_DO / CONVERSATION_VAULT_DO / PAIR_LEDGER_DO"
+echo
+echo "For all Worker queues, also run: ./tools/setup-queues.sh"
 echo
 echo "Deploy DO migration tag v8-conversation-v2-vault-shards before using vault shards."

@@ -20,6 +20,13 @@ const safeUniqueHash = (uniqueHash?: string): string | undefined => {
   return normalized.length > 0 ? normalized : undefined;
 };
 
+const parseCount = (value: unknown): number => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 1;
+  }
+  return Math.max(1, Math.floor(value));
+};
+
 const parseStatEvent = (body: unknown): StatsEvent | null => {
   if (!body || typeof body !== "object") {
     return null;
@@ -34,6 +41,7 @@ const parseStatEvent = (body: unknown): StatsEvent | null => {
   return {
     eventName: record.eventName,
     at: record.at,
+    count: parseCount(record.count),
     ...(safeStatKey(record.statKey) ? { statKey: safeStatKey(record.statKey) } : {}),
     ...(safeUniqueHash(record.uniqueHash)
       ? { uniqueHash: safeUniqueHash(record.uniqueHash) }
@@ -63,12 +71,13 @@ export const handleStatsBatch = async (
     }
 
     const day = dayKey(event.at);
+    const increment = event.count ?? 1;
     const counterKey = `${day}\0${event.eventName}`;
-    counters.set(counterKey, (counters.get(counterKey) ?? 0) + 1);
+    counters.set(counterKey, (counters.get(counterKey) ?? 0) + increment);
 
     if (event.statKey) {
       const keyed = `${day}\0${event.eventName}\0${event.statKey}`;
-      keyedCounters.set(keyed, (keyedCounters.get(keyed) ?? 0) + 1);
+      keyedCounters.set(keyed, (keyedCounters.get(keyed) ?? 0) + increment);
     }
 
     if (event.uniqueHash) {

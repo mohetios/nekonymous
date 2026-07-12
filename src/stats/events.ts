@@ -41,6 +41,7 @@ export type StatsEventName = (typeof STATS_EVENT_NAMES)[number];
 export type StatsEvent = {
   eventName: StatsEventName;
   at: number;
+  count?: number;
   statKey?: string;
   uniqueHash?: string;
 };

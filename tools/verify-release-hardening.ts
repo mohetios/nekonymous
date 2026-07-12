@@ -30,11 +30,14 @@ assertIncludes(ticketVault, "next.expires_at <= now", "TicketVault must reschedu
 
 const userState = read("src/storage/user-state-do.ts");
 assertIncludes(userState, "evictedTicketHashes", "pointer eviction must report ticket hashes");
+assertIncludes(userState, "deleteAlarm()", "purge must clear durable object alarms before deleteAll");
 assertIncludes(userState, "SELECT ticket_hash FROM inbox_pointers", "purge must return inbox ticket hashes");
 
 const identity = read("src/features/identity/identity-service.ts");
 assertIncludes(identity, "invalidateUserConversationProfile", "reset must invalidate profile vault state");
 assertIncludes(identity, "expireTicketRecord", "reset must clear ticket vault records");
+assertIncludes(identity, "DurableObjectCallError", "user state init must fail closed on storage errors");
+assertIncludes(identity, "error.status === 404", "user state init must only run on explicit 404");
 
 const requestService = read("src/features/conversation/suggestions/request-service.ts");
 assertIncludes(requestService, "conversation-request:${resolved.requestHash}", "accepted request tickets need stable dedupe keys");
@@ -46,6 +49,7 @@ if (/idempotencyKey:\s*`request-notify:\$\{requestRef\}`/.test(requestNotify)) {
 }
 
 const outbox = read("src/storage/telegram-outbox-do.ts");
+assertIncludes(outbox, "async sendJob(job: TelegramOutboxJob)", "outbox must expose typed RPC sendJob");
 assertIncludes(outbox, "lease_attempt_id", "outbox sends must use attempt leases");
 assertIncludes(outbox, "send_locks", "outbox must serialize sends per chat DO");
 assertIncludes(outbox, "permanent_error", "outbox must retain permanent failure state");
@@ -58,8 +62,22 @@ assertIncludes(outboxConsumer, "OUTBOX_CHAT_CONCURRENCY", "outbox consumer must 
 assertIncludes(outboxConsumer, "handleChatMessages", "outbox consumer must process each chat sequentially");
 
 const index = read("src/index.ts");
-assertIncludes(index, "queueName === \"neko-outbox\"", "unknown queues must not fall through to outbox");
-assertIncludes(index, "message.ack()", "unknown queue messages must be acknowledged");
+assertIncludes(index, "case \"neko-outbox\"", "queue dispatch must handle outbox explicitly");
+assertIncludes(index, "Unknown queue:", "unknown queues must fail loudly");
+
+const outboxClient = read("src/storage/telegram-outbox-client.ts");
+assertIncludes(outboxClient, "stub.sendJob(job)", "outbox client must use typed DO RPC");
+
+const ticketVaultClient = read("src/storage/ticket-vault/ticket-vault.client.ts");
+assertIncludes(ticketVaultClient, ".storeTicket(input)", "ticket vault client must use typed DO RPC");
+assertIncludes(ticketVaultClient, ".getTicket(ticketHash)", "ticket vault client must use typed DO RPC");
+
+const userStateClient = read("src/storage/user-state-client.ts");
+assertIncludes(userStateClient, ".getState()", "user state client must use typed DO RPC");
+assertIncludes(userStateClient, "DurableObjectCallError(404", "user state client must preserve fail-closed 404 semantics");
+
+const profileVaultClient = read("src/storage/profile-vault/profile-vault.client.ts");
+assertIncludes(profileVaultClient, ".storeProfile(input)", "profile vault client must use typed DO RPC");
 
 const logs = read("src/utils/logs.ts");
 if (logs.includes("console.error(`[${context}]`, error)")) {
@@ -69,5 +87,15 @@ if (logs.includes("console.error(`[${context}]`, error)")) {
 const workflow = read(".github/workflows/check.yml");
 assertIncludes(workflow, "pull_request:", "check workflow must run on pull requests");
 assertIncludes(workflow, "branches: [master]", "check workflow must run on master pushes");
+
+const wrangler = read("wrangler.jsonc");
+assertIncludes(wrangler, "\"observability\"", "production wrangler config must enable observability");
+assertIncludes(wrangler, "head_sampling_rate\": 0.1", "production traces must use reduced sampling");
+assertIncludes(wrangler, "dead_letter_queue\": \"neko-outbox-dlq\"", "outbox must use a dedicated DLQ");
+assertIncludes(wrangler, "dead_letter_queue\": \"neko-stats-dlq\"", "stats must use a dedicated DLQ");
+assertIncludes(wrangler, "dead_letter_queue\": \"neko-profile-index-dlq\"", "profile index must use a dedicated DLQ");
+if (wrangler.includes("NEKO_DLQ") || wrangler.includes("neko-dlq")) {
+  fail("wrangler.jsonc must not bind the legacy shared neko-dlq queue");
+}
 
 console.log("verify-release-hardening: OK");

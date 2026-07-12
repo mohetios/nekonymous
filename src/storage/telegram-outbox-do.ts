@@ -1,7 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Environment } from "../types";
 import type { TelegramOutboxSendStatus } from "../status";
-import type { TelegramOutboxJob } from "../queues/telegram-outbox.types";
+import type {
+  TelegramOutboxJob,
+  TelegramOutboxSendResult,
+} from "../queues/telegram-outbox.types";
 import { decryptTelegramChatId } from "../features/ticketing/ticketing-service";
 
 type SentRow = {
@@ -158,20 +161,9 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
     `);
   }
 
-  async fetch(request: Request): Promise<Response> {
-    if (request.method === "POST" && new URL(request.url).pathname === "/send") {
-      return this.sendJob(request);
-    }
-    return new Response("Not Found", { status: 404 });
-  }
-
-  private async sendJob(request: Request): Promise<Response> {
-    const job = await request.json<unknown>();
+  async sendJob(job: TelegramOutboxJob): Promise<TelegramOutboxSendResult> {
     if (!isOutboxJob(job)) {
-      return Response.json(
-        { ok: false, retryable: false },
-        { status: 400 }
-      );
+      return { ok: false, retryable: false };
     }
 
     const now = Date.now();
@@ -187,19 +179,19 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
       .toArray()[0];
 
     if (existing?.status === "sent") {
-      return Response.json({
+      return {
         ok: true,
         duplicate: true,
         telegramMessageId: existing.telegram_message_id,
-      });
+      };
     }
 
     if (existing?.status === "failed" && existing.permanent_error === 1) {
-      return Response.json({
+      return {
         ok: true,
         duplicate: true,
         permanentFailure: true,
-      });
+      };
     }
 
     if (
@@ -207,17 +199,11 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
       existing?.lease_until !== undefined &&
       existing.lease_until > now
     ) {
-      return Response.json(
-        {
-          ok: false,
-          retryable: true,
-          delaySeconds: Math.max(
-            1,
-            Math.ceil((existing.lease_until - now) / 1000)
-          ),
-        },
-        { status: 409 }
-      );
+      return {
+        ok: false,
+        retryable: true,
+        delaySeconds: Math.max(1, Math.ceil((existing.lease_until - now) / 1000)),
+      };
     }
 
     const lock = this.ctx.storage.sql
@@ -227,14 +213,11 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
       )
       .toArray()[0];
     if (lock && lock.lease_until > now) {
-      return Response.json(
-        {
-          ok: false,
-          retryable: true,
-          delaySeconds: Math.max(1, Math.ceil((lock.lease_until - now) / 1000)),
-        },
-        { status: 409 }
-      );
+      return {
+        ok: false,
+        retryable: true,
+        delaySeconds: Math.max(1, Math.ceil((lock.lease_until - now) / 1000)),
+      };
     }
 
     const attemptId = crypto.randomUUID();
@@ -315,16 +298,13 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
         .toArray()[0];
 
       if (current?.status !== "sent") {
-        return Response.json(
-          { ok: false, retryable: true, delaySeconds: 5 },
-          { status: 409 }
-        );
+        return { ok: false, retryable: true, delaySeconds: 5 };
       }
 
-      return Response.json({
+      return {
         ok: true,
         telegramMessageId: current.telegram_message_id ?? result.messageId,
-      });
+      };
     } catch (error) {
       const telegramError =
         error instanceof TelegramApiError
@@ -350,7 +330,7 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
       if (telegramError.permanent) {
         this.releaseChatLock(attemptId);
         await this.scheduleCleanupAlarm();
-        return Response.json({ ok: true, permanentFailure: true });
+        return { ok: true, permanentFailure: true };
       }
 
       const delaySeconds =
@@ -370,10 +350,7 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
         retryLeaseUntil
       );
       await this.scheduleCleanupAlarm();
-      return Response.json(
-        { ok: false, retryable: true, delaySeconds },
-        { status: 503 }
-      );
+      return { ok: false, retryable: true, delaySeconds };
     }
   }
 

@@ -55,5 +55,11 @@ export default TSESLint.config(
       "@typescript-eslint/require-await": "error",
       "no-console": ["warn", { allow: ["warn", "error"] }],
     },
+  },
+  {
+    files: ["src/storage/**/*.{do.ts,-do.ts}"],
+    rules: {
+      "@typescript-eslint/require-await": "off",
+    },
   }
 );

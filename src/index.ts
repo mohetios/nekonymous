@@ -48,20 +48,19 @@ export default {
   ) => {
     const queueName =
       "queue" in batch && typeof batch.queue === "string" ? batch.queue : "";
-    if (queueName === "neko-stats") {
-      await handleStatsBatch(batch as MessageBatch<StatsEvent>, env);
-      return;
-    }
-    if (queueName === "neko-profile-index") {
-      await handleProfileIndexBatch(batch as MessageBatch<ProfileIndexJob>, env);
-      return;
-    }
-    if (queueName === "neko-outbox") {
-      await handleOutboxBatch(batch as MessageBatch<TelegramOutboxJob>, env);
-      return;
-    }
-    for (const message of batch.messages) {
-      message.ack();
+
+    switch (queueName) {
+      case "neko-outbox":
+        await handleOutboxBatch(batch as MessageBatch<TelegramOutboxJob>, env);
+        return;
+      case "neko-stats":
+        await handleStatsBatch(batch as MessageBatch<StatsEvent>, env);
+        return;
+      case "neko-profile-index":
+        await handleProfileIndexBatch(batch as MessageBatch<ProfileIndexJob>, env);
+        return;
+      default:
+        throw new Error(`Unknown queue: ${queueName || "<missing>"}`);
     }
   },
 };

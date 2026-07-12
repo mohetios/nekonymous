@@ -3,7 +3,7 @@ import type { Environment } from "../../types";
 import {
   evaluateAcquirePairPending,
 } from "./pair-pending.ts";
-import type { PairStateRecord } from "./pair-ledger.types";
+import type { PairStateRecord, UpsertPairStateInput } from "./pair-ledger.types";
 
 type PairStateRow = {
   pair_tag: string;
@@ -49,43 +49,19 @@ export class PairLedgerShardDurableObject extends DurableObject<Environment> {
     `);
   }
 
-  async fetch(request: Request): Promise<Response> {
-    const { pathname } = new URL(request.url);
-
-    if (request.method === "POST" && pathname === "/pair-states/batch") {
-      return this.batchGetPairStates(request);
-    }
-
-    if (request.method === "POST" && pathname === "/pair-states") {
-      return this.upsertPairState(request);
-    }
-
-    if (request.method === "POST" && pathname === "/pair-states/acquire-pending") {
-      return this.acquirePairPending(request);
-    }
-
-    if (request.method === "POST" && pathname === "/pair-states/release-pending") {
-      return this.releasePairPending(request);
-    }
-
-    return new Response("Not Found", { status: 404 });
-  }
-
-  private async batchGetPairStates(request: Request): Promise<Response> {
-    const body = await request.json<{ pairTags?: string[] }>();
+  batchGetPairStates(pairTags: string[]): Record<string, PairStateRecord | null> {
     if (
-      !body.pairTags ||
-      !Array.isArray(body.pairTags) ||
-      body.pairTags.length === 0 ||
-      body.pairTags.length > 50
+      !Array.isArray(pairTags) ||
+      pairTags.length === 0 ||
+      pairTags.length > 50
     ) {
-      return new Response("Invalid pair tag batch", { status: 400 });
+      throw new Error("Invalid pair tag batch");
     }
 
     const records: Record<string, PairStateRecord | null> = {};
-    for (const pairTag of body.pairTags) {
+    for (const pairTag of pairTags) {
       if (!pairTag || pairTag.length > 86) {
-        return new Response("Invalid pair tag in batch", { status: 400 });
+        throw new Error("Invalid pair tag in batch");
       }
       const row = this.ctx.storage.sql
         .exec<PairStateRow>(
@@ -96,16 +72,10 @@ export class PairLedgerShardDurableObject extends DurableObject<Environment> {
       records[pairTag] = row ? rowToPairState(row) : null;
     }
 
-    return Response.json({ records });
+    return records;
   }
 
-  private async upsertPairState(request: Request): Promise<Response> {
-    const body = await request.json<{
-      pairTag?: string;
-      state?: string;
-      expiresAt?: number | null;
-    }>();
-
+  upsertPairState(body: UpsertPairStateInput): void {
     if (
       !body.pairTag ||
       body.pairTag.length > 86 ||
@@ -114,7 +84,7 @@ export class PairLedgerShardDurableObject extends DurableObject<Environment> {
         body.expiresAt !== undefined &&
         !Number.isInteger(body.expiresAt))
     ) {
-      return new Response("Invalid pair state payload", { status: 400 });
+      throw new Error("Invalid pair state payload");
     }
 
     const now = Date.now();
@@ -130,31 +100,31 @@ export class PairLedgerShardDurableObject extends DurableObject<Environment> {
       body.expiresAt ?? null,
       now
     );
-
-    return Response.json({ ok: true });
   }
 
-  private async acquirePairPending(request: Request): Promise<Response> {
-    const body = await request.json<{ pairTag?: string; expiresAt?: number }>();
+  acquirePairPending(
+    pairTag: string,
+    expiresAt: number
+  ): { ok: boolean; reason?: "blocked" } {
     if (
-      !body.pairTag ||
-      body.pairTag.length > 86 ||
-      !Number.isInteger(body.expiresAt)
+      !pairTag ||
+      pairTag.length > 86 ||
+      !Number.isInteger(expiresAt)
     ) {
-      return new Response("Invalid acquire pending payload", { status: 400 });
+      return { ok: false, reason: "blocked" };
     }
 
     const row = this.ctx.storage.sql
       .exec<PairStateRow>(
         "SELECT * FROM pair_states WHERE pair_tag = ? LIMIT 1",
-        body.pairTag
+        pairTag
       )
       .toArray()[0];
 
     const current = row ? rowToPairState(row) : null;
     const decision = evaluateAcquirePairPending(current);
     if (!decision.ok) {
-      return new Response("Pair pending lock rejected", { status: 409 });
+      return { ok: false, reason: "blocked" };
     }
 
     const now = Date.now();
@@ -165,29 +135,30 @@ export class PairLedgerShardDurableObject extends DurableObject<Environment> {
          state = 'pending',
          expires_at = excluded.expires_at,
          updated_at = excluded.updated_at`,
-      body.pairTag,
-      body.expiresAt,
+      pairTag,
+      expiresAt,
       now
     );
 
-    return Response.json({ ok: true });
+    return { ok: true };
   }
 
-  private async releasePairPending(request: Request): Promise<Response> {
-    const body = await request.json<{ pairTag?: string }>();
-    if (!body.pairTag || body.pairTag.length > 86) {
-      return new Response("Invalid release pending payload", { status: 400 });
+  releasePairPending(
+    pairTag: string
+  ): { ok: true; released: boolean } {
+    if (!pairTag || pairTag.length > 86) {
+      return { ok: true, released: false };
     }
 
     const row = this.ctx.storage.sql
       .exec<PairStateRow>(
         "SELECT * FROM pair_states WHERE pair_tag = ? LIMIT 1",
-        body.pairTag
+        pairTag
       )
       .toArray()[0];
 
     if (!row) {
-      return Response.json({ ok: true, released: false });
+      return { ok: true, released: false };
     }
 
     const record = rowToPairState(row);
@@ -195,14 +166,14 @@ export class PairLedgerShardDurableObject extends DurableObject<Environment> {
       record.state !== "pending" ||
       (record.expiresAt !== null && record.expiresAt <= Date.now())
     ) {
-      return Response.json({ ok: true, released: false });
+      return { ok: true, released: false };
     }
 
     this.ctx.storage.sql.exec(
       "DELETE FROM pair_states WHERE pair_tag = ? AND state = 'pending'",
-      body.pairTag
+      pairTag
     );
 
-    return Response.json({ ok: true, released: true });
+    return { ok: true, released: true };
   }
 }

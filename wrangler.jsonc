@@ -7,6 +7,27 @@
   "placement": {
     "mode": "smart"
   },
+  "secrets": {
+    "required": [
+      "SECRET_TELEGRAM_API_TOKEN",
+      "BOT_SECRET_KEY",
+      "APP_MASTER_KEY",
+      "APP_HMAC_PEPPER",
+      "BOT_INFO",
+      "BOT_NAME",
+      "BOT_USERNAME"
+    ]
+  },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.1
+    }
+  },
   "kv_namespaces": [
     {
       "binding": "NEKO_KV",
@@ -32,16 +53,8 @@
         "queue": "neko-stats"
       },
       {
-        "binding": "NEKO_DLQ",
-        "queue": "neko-dlq"
-      },
-      {
         "binding": "NEKO_PROFILE_INDEX_QUEUE",
         "queue": "neko-profile-index"
-      },
-      {
-        "binding": "NEKO_PROFILE_INDEX_DLQ",
-        "queue": "neko-profile-index-dlq"
       }
     ],
     "consumers": [
@@ -50,14 +63,14 @@
         "max_batch_size": 10,
         "max_batch_timeout": 2,
         "max_retries": 5,
-        "dead_letter_queue": "neko-dlq"
+        "dead_letter_queue": "neko-outbox-dlq"
       },
       {
         "queue": "neko-stats",
         "max_batch_size": 50,
         "max_batch_timeout": 5,
         "max_retries": 5,
-        "dead_letter_queue": "neko-dlq"
+        "dead_letter_queue": "neko-stats-dlq"
       },
       {
         "queue": "neko-profile-index",

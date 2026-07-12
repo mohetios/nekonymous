@@ -2,7 +2,12 @@ import { DurableObject } from "cloudflare:workers";
 import type { Environment } from "../../types";
 import type {
   IndexJobRecord,
+  IndexJobStatus,
   ProfileVaultRecord,
+  ProfileVaultRecordStatus,
+  StoreIndexJobInput,
+  StoreProfileInput,
+  StoreVectorRouteInput,
   VectorRouteRecord,
 } from "./profile-vault.types";
 
@@ -139,94 +144,7 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
     }
   }
 
-  async fetch(request: Request): Promise<Response> {
-    const { pathname } = new URL(request.url);
-
-    if (request.method === "POST" && pathname === "/profiles") {
-      return this.storeProfile(request);
-    }
-
-    if (pathname.startsWith("/profiles/")) {
-      const rest = pathname.slice("/profiles/".length);
-      if (rest.endsWith("/status")) {
-        const profileHash = decodeURIComponent(rest.slice(0, -"/status".length));
-        if (!isSafeHash(profileHash)) {
-          return new Response("Invalid profile hash", { status: 400 });
-        }
-        if (request.method === "POST") {
-          return this.setProfileStatus(profileHash, request);
-        }
-      } else if (rest.endsWith("/route")) {
-        const profileHash = decodeURIComponent(rest.slice(0, -"/route".length));
-        if (!isSafeHash(profileHash)) {
-          return new Response("Invalid profile hash", { status: 400 });
-        }
-        if (request.method === "POST") {
-          return this.updateProfileRoute(profileHash, request);
-        }
-      } else {
-        const profileHash = decodeURIComponent(rest);
-        if (!isSafeHash(profileHash)) {
-          return new Response("Invalid profile hash", { status: 400 });
-        }
-        if (request.method === "GET") {
-          return this.getProfile(profileHash);
-        }
-      }
-    }
-
-    if (request.method === "POST" && pathname === "/vector-routes") {
-      return this.storeVectorRoute(request);
-    }
-
-    if (pathname.startsWith("/vector-routes/")) {
-      const vectorHash = decodeURIComponent(pathname.slice("/vector-routes/".length));
-      if (!isSafeHash(vectorHash)) {
-        return new Response("Invalid vector hash", { status: 400 });
-      }
-      if (request.method === "GET") {
-        return this.getVectorRoute(vectorHash);
-      }
-    }
-
-    if (request.method === "POST" && pathname === "/index-jobs") {
-      return this.storeIndexJob(request);
-    }
-
-    if (pathname.startsWith("/index-jobs/")) {
-      const rest = pathname.slice("/index-jobs/".length);
-      if (rest.endsWith("/status")) {
-        const jobHash = decodeURIComponent(rest.slice(0, -"/status".length));
-        if (!isSafeHash(jobHash)) {
-          return new Response("Invalid index job hash", { status: 400 });
-        }
-        if (request.method === "POST") {
-          return this.setIndexJobStatus(jobHash, request);
-        }
-      } else {
-        const jobHash = decodeURIComponent(rest);
-        if (!isSafeHash(jobHash)) {
-          return new Response("Invalid index job hash", { status: 400 });
-        }
-        if (request.method === "GET") {
-          return this.getIndexJob(jobHash);
-        }
-      }
-    }
-
-    return new Response("Not Found", { status: 404 });
-  }
-
-  private async storeProfile(request: Request): Promise<Response> {
-    const body = await request.json<{
-      profileHash: string;
-      ownerProofTag: string;
-      profileEnc: string;
-      routeEnc: string;
-      revision: number;
-      status: string;
-    }>();
-
+  storeProfile(body: StoreProfileInput): void {
     if (
       !body.profileHash ||
       !isSafeHash(body.profileHash) ||
@@ -237,7 +155,7 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
       body.revision < 1 ||
       !body.status
     ) {
-      return new Response("Invalid profile payload", { status: 400 });
+      throw new Error("Invalid profile payload");
     }
 
     const now = Date.now();
@@ -262,82 +180,67 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
       now,
       now
     );
-
-    return Response.json({ ok: true });
   }
 
-  private getProfile(profileHash: string): Response {
+  getProfile(profileHash: string): ProfileVaultRecord | null {
+    if (!isSafeHash(profileHash)) {
+      return null;
+    }
+
     const row = this.ctx.storage.sql
       .exec<ProfileRow>("SELECT * FROM profiles WHERE profile_hash = ? LIMIT 1", profileHash)
       .toArray()[0];
 
-    return Response.json({ record: row ? rowToProfile(row) : null });
+    return row ? rowToProfile(row) : null;
   }
 
-  private async setProfileStatus(
+  setProfileStatus(
     profileHash: string,
-    request: Request
-  ): Promise<Response> {
-    const body = await request.json<{
-      status: string;
-      expectedRevision?: number;
-    }>();
-
-    if (!body.status) {
-      return new Response("Invalid status payload", { status: 400 });
+    status: ProfileVaultRecordStatus,
+    expectedRevision?: number
+  ): void {
+    if (!isSafeHash(profileHash) || !status) {
+      return;
     }
 
     const now = Date.now();
-    if (Number.isInteger(body.expectedRevision)) {
+    if (Number.isInteger(expectedRevision)) {
       this.ctx.storage.sql.exec(
         `UPDATE profiles SET status = ?, updated_at = ?
          WHERE profile_hash = ? AND revision = ?`,
-        body.status,
+        status,
         now,
         profileHash,
-        body.expectedRevision
+        expectedRevision
       );
     } else {
       this.ctx.storage.sql.exec(
         "UPDATE profiles SET status = ?, updated_at = ? WHERE profile_hash = ?",
-        body.status,
+        status,
         now,
         profileHash
       );
     }
-
-    return Response.json({ ok: true });
   }
 
-  private async updateProfileRoute(
+  updateProfileRoute(
     profileHash: string,
-    request: Request
-  ): Promise<Response> {
-    const body = await request.json<{ routeEnc?: string }>();
-    if (!body.routeEnc) {
-      return new Response("Invalid profile route payload", { status: 400 });
+    routeEnc: string
+  ): void {
+    if (!isSafeHash(profileHash) || !routeEnc) {
+      return;
     }
 
     const now = Date.now();
     this.ctx.storage.sql.exec(
       "UPDATE profiles SET route_enc = ?, updated_at = ? WHERE profile_hash = ?",
-      body.routeEnc,
+      routeEnc,
       now,
       profileHash
     );
-
-    return Response.json({ ok: true });
   }
 
-  private async storeVectorRoute(request: Request): Promise<Response> {
-    const body = await request.json<{
-      vectorHash: string;
-      vectorRouteEnc: string;
-      role: string;
-      revision: number;
-      status: string;
-    }>();
-
+  storeVectorRoute(body: StoreVectorRouteInput): void {
     if (
       !body.vectorHash ||
       !isSafeHash(body.vectorHash) ||
@@ -347,7 +250,7 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
       body.revision < 1 ||
       !body.status
     ) {
-      return new Response("Invalid vector route payload", { status: 400 });
+      throw new Error("Invalid vector route payload");
     }
 
     const now = Date.now();
@@ -369,11 +272,13 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
       now,
       now
     );
-
-    return Response.json({ ok: true });
   }
 
-  private getVectorRoute(vectorHash: string): Response {
+  getVectorRoute(vectorHash: string): VectorRouteRecord | null {
+    if (!isSafeHash(vectorHash)) {
+      return null;
+    }
+
     const row = this.ctx.storage.sql
       .exec<VectorRouteRow>(
         "SELECT * FROM vector_routes WHERE vector_hash = ? LIMIT 1",
@@ -381,18 +286,10 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
       )
       .toArray()[0];
 
-    return Response.json({ record: row ? rowToVectorRoute(row) : null });
+    return row ? rowToVectorRoute(row) : null;
   }
 
-  private async storeIndexJob(request: Request): Promise<Response> {
-    const body = await request.json<{
-      jobHash: string;
-      routeEnc: string;
-      revision: number;
-      status: string;
-      expiresAt: number;
-    }>();
-
+  storeIndexJob(body: StoreIndexJobInput): void {
     if (
       !body.jobHash ||
       !isSafeHash(body.jobHash) ||
@@ -402,7 +299,7 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
       !body.status ||
       !Number.isInteger(body.expiresAt)
     ) {
-      return new Response("Invalid index job payload", { status: 400 });
+      throw new Error("Invalid index job payload");
     }
 
     const now = Date.now();
@@ -422,46 +319,42 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
       now,
       body.expiresAt
     );
-
-    return Response.json({ ok: true });
   }
 
-  private getIndexJob(jobHash: string): Response {
+  getIndexJob(jobHash: string): IndexJobRecord | null {
+    if (!isSafeHash(jobHash)) {
+      return null;
+    }
+
     const row = this.ctx.storage.sql
       .exec<IndexJobRow>("SELECT * FROM index_jobs WHERE job_hash = ? LIMIT 1", jobHash)
       .toArray()[0];
 
-    return Response.json({ record: row ? rowToIndexJob(row) : null });
+    return row ? rowToIndexJob(row) : null;
   }
 
-  private async setIndexJobStatus(
+  setIndexJobStatus(
     jobHash: string,
-    request: Request
-  ): Promise<Response> {
-    const body = await request.json<{
-      status: string;
-      vectorsEnc?: string | null;
-    }>();
-
-    if (!body.status) {
-      return new Response("Invalid index job status payload", { status: 400 });
+    status: IndexJobStatus,
+    vectorsEnc?: string | null
+  ): void {
+    if (!isSafeHash(jobHash) || !status) {
+      return;
     }
 
-    if (typeof body.vectorsEnc === "string" && body.vectorsEnc.length > 0) {
+    if (typeof vectorsEnc === "string" && vectorsEnc.length > 0) {
       this.ctx.storage.sql.exec(
         "UPDATE index_jobs SET status = ?, vectors_enc = ? WHERE job_hash = ?",
-        body.status,
-        body.vectorsEnc,
+        status,
+        vectorsEnc,
         jobHash
       );
     } else {
       this.ctx.storage.sql.exec(
         "UPDATE index_jobs SET status = ? WHERE job_hash = ?",
-        body.status,
+        status,
         jobHash
       );
     }
-
-    return Response.json({ ok: true });
   }
 }

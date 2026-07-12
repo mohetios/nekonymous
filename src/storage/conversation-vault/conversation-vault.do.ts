@@ -10,7 +10,13 @@ import {
   effectiveSuggestionStatus,
 } from "./suggestion-transitions.ts";
 import type {
+  RequestTicketStatus,
   RequestTicketRecord,
+  SetRequestStatusResult,
+  SetSuggestionStatusResult,
+  StoreRequestInput,
+  StoreSuggestionInput,
+  SuggestionTicketStatus,
   SuggestionTicketRecord,
 } from "./conversation-vault.types";
 
@@ -112,75 +118,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
     `);
   }
 
-  async fetch(request: Request): Promise<Response> {
-    const { pathname } = new URL(request.url);
-
-    if (request.method === "POST" && pathname === "/suggestions") {
-      return this.storeSuggestion(request);
-    }
-
-    if (pathname.startsWith("/suggestions/")) {
-      const rest = pathname.slice("/suggestions/".length);
-      if (rest.endsWith("/status")) {
-        const suggestionHash = decodeURIComponent(
-          rest.slice(0, -"/status".length)
-        );
-        if (!isSafeHash(suggestionHash)) {
-          return new Response("Invalid suggestion hash", { status: 400 });
-        }
-        if (request.method === "POST") {
-          return this.setSuggestionStatus(suggestionHash, request);
-        }
-      } else {
-        const suggestionHash = decodeURIComponent(rest);
-        if (!isSafeHash(suggestionHash)) {
-          return new Response("Invalid suggestion hash", { status: 400 });
-        }
-        if (request.method === "GET") {
-          return this.getSuggestion(suggestionHash);
-        }
-      }
-    }
-
-    if (request.method === "POST" && pathname === "/requests") {
-      return this.storeRequest(request);
-    }
-
-    if (pathname.startsWith("/requests/")) {
-      const rest = pathname.slice("/requests/".length);
-      if (rest.endsWith("/status")) {
-        const requestHash = decodeURIComponent(rest.slice(0, -"/status".length));
-        if (!isSafeHash(requestHash)) {
-          return new Response("Invalid request hash", { status: 400 });
-        }
-        if (request.method === "POST") {
-          return this.setRequestStatus(requestHash, request);
-        }
-      } else {
-        const requestHash = decodeURIComponent(rest);
-        if (!isSafeHash(requestHash)) {
-          return new Response("Invalid request hash", { status: 400 });
-        }
-        if (request.method === "GET") {
-          return this.getRequest(requestHash);
-        }
-      }
-    }
-
-    return new Response("Not Found", { status: 404 });
-  }
-
-  private async storeSuggestion(request: Request): Promise<Response> {
-    const body = await request.json<{
-      suggestionHash: string;
-      requesterProofTag: string;
-      candidateRouteEnc: string;
-      pairTag: string;
-      explanationEnc: string;
-      status: string;
-      expiresAt: number;
-    }>();
-
+  storeSuggestion(body: StoreSuggestionInput): void {
     if (
       !body.suggestionHash ||
       !isSafeHash(body.suggestionHash) ||
@@ -191,7 +129,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       !body.status ||
       !Number.isInteger(body.expiresAt)
     ) {
-      return new Response("Invalid suggestion payload", { status: 400 });
+      throw new Error("Invalid suggestion payload");
     }
 
     const now = Date.now();
@@ -216,11 +154,13 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       now,
       body.expiresAt
     );
-
-    return Response.json({ ok: true });
   }
 
-  private getSuggestion(suggestionHash: string): Response {
+  getSuggestion(suggestionHash: string): SuggestionTicketRecord | null {
+    if (!isSafeHash(suggestionHash)) {
+      return null;
+    }
+
     const row = this.ctx.storage.sql
       .exec<SuggestionRow>(
         "SELECT * FROM suggestion_tickets WHERE suggestion_hash = ? LIMIT 1",
@@ -229,7 +169,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       .toArray()[0];
 
     if (!row) {
-      return Response.json({ record: null });
+      return null;
     }
 
     const record = rowToSuggestion(row);
@@ -246,16 +186,16 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       record.status = effectiveStatus;
     }
 
-    return Response.json({ record });
+    return record;
   }
 
-  private async setSuggestionStatus(
+  setSuggestionStatus(
     suggestionHash: string,
-    request: Request
-  ): Promise<Response> {
-    const body = await request.json<{ status: string; expectedStatus?: string }>();
-    if (!body.status) {
-      return new Response("Invalid suggestion status payload", { status: 400 });
+    status: SuggestionTicketStatus,
+    expectedStatus?: SuggestionTicketStatus
+  ): SetSuggestionStatusResult {
+    if (!isSafeHash(suggestionHash) || !status) {
+      return { ok: false, error: "invalid" };
     }
 
     const row = this.ctx.storage.sql
@@ -266,29 +206,29 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       .toArray()[0];
 
     if (!row) {
-      return new Response("Suggestion not found", { status: 404 });
+      return { ok: false, error: "not_found" };
     }
 
     const current = effectiveSuggestionStatus(
       row.status as SuggestionTicketRecord["status"],
       row.expires_at
     );
-    const next = body.status as SuggestionTicketRecord["status"];
+    const next = status;
 
     if (
-      body.expectedStatus &&
-      body.expectedStatus !== current &&
-      body.expectedStatus !== row.status
+      expectedStatus &&
+      expectedStatus !== current &&
+      expectedStatus !== row.status
     ) {
-      return new Response("Suggestion status mismatch", { status: 409 });
+      return { ok: false, error: "conflict" };
     }
 
     if (current === next) {
-      return Response.json({ ok: true, status: current });
+      return { ok: true, status: current };
     }
 
     if (!canTransitionSuggestionStatus(current, next)) {
-      return new Response("Suggestion transition rejected", { status: 409 });
+      return { ok: false, error: "conflict" };
     }
 
     this.ctx.storage.sql.exec(
@@ -297,21 +237,10 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       suggestionHash
     );
 
-    return Response.json({ ok: true, status: next });
+    return { ok: true, status: next };
   }
 
-  private async storeRequest(request: Request): Promise<Response> {
-    const body = await request.json<{
-      requestHash: string;
-      requesterProofTag: string;
-      candidateProofTag: string;
-      requesterRouteEnc: string;
-      candidateRouteEnc: string;
-      introEnc: string;
-      status: string;
-      expiresAt: number;
-    }>();
-
+  storeRequest(body: StoreRequestInput): void {
     if (
       !body.requestHash ||
       !isSafeHash(body.requestHash) ||
@@ -323,7 +252,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       !body.status ||
       !Number.isInteger(body.expiresAt)
     ) {
-      return new Response("Invalid request payload", { status: 400 });
+      throw new Error("Invalid request payload");
     }
 
     const now = Date.now();
@@ -351,11 +280,13 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       now,
       body.expiresAt
     );
-
-    return Response.json({ ok: true });
   }
 
-  private getRequest(requestHash: string): Response {
+  getRequest(requestHash: string): RequestTicketRecord | null {
+    if (!isSafeHash(requestHash)) {
+      return null;
+    }
+
     const row = this.ctx.storage.sql
       .exec<RequestRow>(
         "SELECT * FROM request_tickets WHERE request_hash = ? LIMIT 1",
@@ -364,7 +295,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       .toArray()[0];
 
     if (!row) {
-      return Response.json({ record: null });
+      return null;
     }
 
     const record = rowToRequest(row);
@@ -384,20 +315,17 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       }
     }
 
-    return Response.json({ record });
+    return record;
   }
 
-  private async setRequestStatus(
+  setRequestStatus(
     requestHash: string,
-    request: Request
-  ): Promise<Response> {
-    const body = await request.json<{
-      status: string;
-      expectedStatus?: string;
-      clearIntro?: boolean;
-    }>();
-    if (!body.status) {
-      return new Response("Invalid request status payload", { status: 400 });
+    status: RequestTicketStatus,
+    expectedStatus?: RequestTicketStatus,
+    clearIntro?: boolean
+  ): SetRequestStatusResult {
+    if (!isSafeHash(requestHash) || !status) {
+      return { ok: false, error: "invalid" };
     }
 
     const row = this.ctx.storage.sql
@@ -408,41 +336,40 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       .toArray()[0];
 
     if (!row) {
-      return new Response("Request not found", { status: 404 });
+      return { ok: false, error: "not_found" };
     }
 
     const current = effectiveRequestStatus(
       row.status as RequestTicketRecord["status"],
       row.expires_at
     );
-    const next = body.status as RequestTicketRecord["status"];
+    const next = status;
 
     if (
-      body.expectedStatus &&
-      body.expectedStatus !== current &&
-      body.expectedStatus !== row.status
+      expectedStatus &&
+      expectedStatus !== current &&
+      expectedStatus !== row.status
     ) {
-      return new Response("Request status mismatch", { status: 409 });
+      return { ok: false, error: "conflict" };
     }
 
     if (current === next) {
-      return Response.json({ ok: true, status: current });
+      return { ok: true, status: current };
     }
 
     if (!canTransitionRequestStatus(current, next)) {
-      return new Response("Request transition rejected", { status: 409 });
+      return { ok: false, error: "conflict" };
     }
 
-    const clearIntro =
-      body.clearIntro === true || shouldClearRequestIntro(next);
+    const shouldClearIntro = clearIntro === true || shouldClearRequestIntro(next);
     this.ctx.storage.sql.exec(
-      clearIntro
+      shouldClearIntro
         ? "UPDATE request_tickets SET status = ?, intro_enc = NULL WHERE request_hash = ?"
         : "UPDATE request_tickets SET status = ? WHERE request_hash = ?",
       next,
       requestHash
     );
 
-    return Response.json({ ok: true, status: next });
+    return { ok: true, status: next };
   }
 }

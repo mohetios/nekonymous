@@ -20,7 +20,7 @@ elif [[ -n "${1:-}" ]]; then
   exit 1
 fi
 
-WRANGLER=(pnpm exec wrangler)
+WRANGLER=(wrangler)
 DB_BINDING="DB"
 KV_BINDING="NEKO_KV"
 

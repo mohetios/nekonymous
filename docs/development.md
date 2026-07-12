@@ -122,25 +122,41 @@ git diff --check
 `pnpm check` runs:
 
 ```text
+types:check (wrangler binding drift)
 typecheck
 lint
 knip
 all repository verification scripts
 sealed-ticket storage audit
+test:workers (Vitest in workerd)
+```
+
+Use the global Wrangler CLI (`wrangler`, not `pnpm exec wrangler`) for remote operations in this repository.
+
+Regenerate binding types after `wrangler.jsonc` binding changes:
+
+```bash
+pnpm types:bindings
+pnpm types:check
 ```
 
 ### Individual commands
 
 ```bash
 pnpm typecheck
+pnpm types:bindings
+pnpm types:check
 pnpm lint
 pnpm lint:fix
 pnpm knip
 pnpm test
+pnpm test:workers
 pnpm audit:d1
 pnpm audit:d1:local
 pnpm audit:ticket-storage
 ```
+
+`pnpm test` runs the Node verification scripts only. `pnpm test:workers` runs Vitest with `@cloudflare/vitest-pool-workers` for runtime integration tests under `test/`.
 
 ### Focused verification
 
@@ -164,9 +180,30 @@ pnpm test:conversation-requests
 pnpm test:profile-index-idempotency
 
 pnpm test:release-hardening
+pnpm test:workers
 ```
 
 The verification scripts use Node's TypeScript stripping and do not introduce a runtime test framework into the Worker.
+
+Vitest worker tests cover:
+
+- webhook auth and routing (`test/worker-runtime.test.ts`)
+- queue dispatch fail-closed behavior
+- typed Durable Object RPC smoke tests (`test/storage-rpc.test.ts`)
+
+### Queue setup
+
+Create or verify Cloudflare Queues and dedicated DLQs:
+
+```bash
+./tools/setup-queues.sh
+```
+
+Primary queues: `neko-outbox`, `neko-stats`, `neko-profile-index`
+
+Dead-letter queues: `neko-outbox-dlq`, `neko-stats-dlq`, `neko-profile-index-dlq`
+
+The legacy shared `neko-dlq` producer binding is removed from `wrangler.jsonc`.
 
 ## Manual two-account QA
 

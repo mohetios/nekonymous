@@ -55,3 +55,11 @@ export type StoreRequestInput = {
   status: RequestTicketStatus;
   expiresAt: number;
 };
+
+export type SetSuggestionStatusResult =
+  | { ok: true; status: SuggestionTicketStatus }
+  | { ok: false; error: "not_found" | "conflict" | "invalid" };
+
+export type SetRequestStatusResult =
+  | { ok: true; status: RequestTicketStatus }
+  | { ok: false; error: "not_found" | "conflict" | "invalid" };

@@ -18,7 +18,7 @@ if [[ "${1:-}" == "--local" ]]; then
   LOCAL_TOO=true
 fi
 
-WRANGLER=(pnpm exec wrangler)
+WRANGLER=(wrangler)
 DB_BINDING="DB"
 KV_BINDING="NEKO_KV"
 VECTOR_INDEX="nekonymous-conversation-v2"

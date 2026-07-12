@@ -1,3 +1,12 @@
+export type TelegramOutboxSendResult = {
+  ok: boolean;
+  duplicate?: boolean;
+  permanentFailure?: boolean;
+  retryable?: boolean;
+  delaySeconds?: number;
+  telegramMessageId?: string | null;
+};
+
 export type TelegramOutboxJob = {
   idempotencyKey: string;
 

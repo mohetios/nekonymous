@@ -1,8 +1,5 @@
 import type { TelegramOutboxJob } from "./queues/telegram-outbox.types";
 import type { ProfileIndexJob } from "./queues/profile-index.types";
-import type { ConversationVaultShardDurableObject } from "./storage/conversation-vault/conversation-vault.do";
-import type { PairLedgerShardDurableObject } from "./storage/pair-ledger/pair-ledger.do";
-import type { ProfileVaultShardDurableObject } from "./storage/profile-vault/profile-vault.do";
 import type { StatsEvent } from "./stats/events";
 import type {
   D1UserStatus,
@@ -105,30 +102,8 @@ export type BotUser = {
   lastMessageAt?: number;
 };
 
-export interface Environment {
-  SECRET_TELEGRAM_API_TOKEN: string;
-  BOT_SECRET_KEY: string;
-  APP_MASTER_KEY: string;
-  APP_HMAC_PEPPER: string;
-
-  NEKO_KV: KVNamespace;
-  DB: D1Database;
-
-  USER_STATE_DO: DurableObjectNamespace;
-  TELEGRAM_OUTBOX_DO: DurableObjectNamespace;
-  TICKET_VAULT: DurableObjectNamespace;
-  REPORT_LEDGER: DurableObjectNamespace;
-  PROFILE_VAULT_DO: DurableObjectNamespace<ProfileVaultShardDurableObject>;
-  CONVERSATION_VAULT_DO: DurableObjectNamespace<ConversationVaultShardDurableObject>;
-  PAIR_LEDGER_DO: DurableObjectNamespace<PairLedgerShardDurableObject>;
-
+export interface Environment extends CloudflareEnv {
   NEKO_OUTBOX_QUEUE: Queue<TelegramOutboxJob>;
   NEKO_STATS_QUEUE: Queue<StatsEvent>;
   NEKO_PROFILE_INDEX_QUEUE: Queue<ProfileIndexJob>;
-
-  CONVERSATION_VECTORS: VectorizeIndex;
-
-  BOT_INFO: string;
-  BOT_NAME: string;
-  BOT_USERNAME: string;
 }

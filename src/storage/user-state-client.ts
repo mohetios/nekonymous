@@ -1,7 +1,8 @@
 import type { Environment, InboxPointer, UserDraft } from "../types";
 import type { InboxPointerTransitionStatus } from "../status";
+import { DurableObjectCallError } from "./durable-object-call-error";
 
-type UserStateSnapshot = {
+export type UserStateSnapshot = {
   paused: boolean;
   displayNameCiphertext: string | null;
   discoverable: boolean;
@@ -27,48 +28,50 @@ const webhookEventShardName = (eventKey: string): string => {
   return `__webhook_events__:${hash % 16}`;
 };
 
-const doFetch = async <T>(
-  env: Environment,
-  userId: string,
-  path: string,
-  init?: RequestInit
-): Promise<T> => {
-  const response = await stub(env, userId).fetch(`https://user-state${path}`, init);
-  if (!response.ok) {
-    throw new Error(`UserStateDO ${path} failed: ${response.status}`);
-  }
-  return response.json<T>();
-};
+const userStateOperation = (path: string): string => `UserStateDO ${path}`;
 
 export const initUserState = async (
   env: Environment,
   userId: string,
   displayNameCiphertext?: string
 ): Promise<void> => {
-  const response = await stub(env, userId).fetch("https://user-state/init", {
-    method: "POST",
-    body: JSON.stringify({ userId, displayNameCiphertext }),
-  });
-  if (!response.ok) {
-    throw new Error(`UserStateDO init failed: ${response.status}`);
+  const result = await stub(env, userId).initState(userId, displayNameCiphertext);
+  if (!result.ok) {
+    throw new DurableObjectCallError(400, userStateOperation("/init"));
   }
 };
 
 export const getUserState = async (
   env: Environment,
   userId: string
-): Promise<UserStateSnapshot> =>
-  doFetch<UserStateSnapshot>(env, userId, "/state");
+): Promise<UserStateSnapshot> => {
+  const state = await stub(env, userId).getState();
+  if (state === null) {
+    throw new DurableObjectCallError(404, userStateOperation("/state"));
+  }
+  return state;
+};
+
+export const getOptionalUserState = async (
+  env: Environment,
+  userId: string
+): Promise<UserStateSnapshot | null> => {
+  try {
+    return await getUserState(env, userId);
+  } catch (error) {
+    if (error instanceof DurableObjectCallError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+};
 
 export const setPaused = async (
   env: Environment,
   userId: string,
   paused: boolean
 ): Promise<void> => {
-  await doFetch(env, userId, "/set-paused", {
-    method: "POST",
-    body: JSON.stringify({ paused }),
-  });
+  await stub(env, userId).setPaused(paused);
 };
 
 export const setDisplayName = async (
@@ -76,10 +79,7 @@ export const setDisplayName = async (
   userId: string,
   ciphertext: string
 ): Promise<void> => {
-  await doFetch(env, userId, "/set-display-name", {
-    method: "POST",
-    body: JSON.stringify({ ciphertext }),
-  });
+  await stub(env, userId).setDisplayName(ciphertext);
 };
 
 export const setDraft = async (
@@ -87,25 +87,19 @@ export const setDraft = async (
   userId: string,
   draft: UserDraft
 ): Promise<void> => {
-  await doFetch(env, userId, "/set-draft", {
-    method: "POST",
-    body: JSON.stringify(draft),
-  });
+  await stub(env, userId).setDraft(draft);
 };
 
 export const getDraft = async (
   env: Environment,
   userId: string
-): Promise<UserDraft | null> => {
-  const body = await doFetch<{ draft: UserDraft | null }>(env, userId, "/draft");
-  return body.draft;
-};
+): Promise<UserDraft | null> => stub(env, userId).getDraft();
 
 export const clearDraft = async (
   env: Environment,
   userId: string
 ): Promise<void> => {
-  await doFetch(env, userId, "/clear-draft", { method: "POST" });
+  await stub(env, userId).clearDraft();
 };
 
 export const checkCanReceive = async (
@@ -113,23 +107,15 @@ export const checkCanReceive = async (
   recipientUserId: string,
   senderUserId: string
 ): Promise<{ ok: boolean; reason?: string }> =>
-  doFetch(env, recipientUserId, "/check-can-receive", {
-    method: "POST",
-    body: JSON.stringify({ senderUserId }),
-  });
+  stub(env, recipientUserId).checkCanReceive(senderUserId);
 
 /** Atomically checks and records a user action; returns true when throttled. */
 export const consumeUserRateLimit = async (
   env: Environment,
   userId: string
 ): Promise<boolean> => {
-  const body = await doFetch<{ limited: boolean }>(
-    env,
-    userId,
-    "/consume-rate-limit",
-    { method: "POST" }
-  );
-  return body.limited;
+  const { limited } = await stub(env, userId).consumeRateLimit();
+  return limited;
 };
 
 export const claimProcessedEvent = async (
@@ -137,36 +123,33 @@ export const claimProcessedEvent = async (
   eventKey: string,
   leaseMs?: number
 ): Promise<"acquired" | "processing" | "done"> => {
-  const body = await doFetch<{ state: "acquired" | "processing" | "done" }>(
+  const result = await stub(
     env,
-    webhookEventShardName(eventKey),
-    "/processed-events/claim",
-    {
-      method: "POST",
-      body: JSON.stringify({ eventKey, leaseMs }),
-    }
-  );
-  return body.state;
+    webhookEventShardName(eventKey)
+  ).claimProcessedEvent(eventKey, leaseMs);
+  if ("error" in result) {
+    throw new DurableObjectCallError(
+      400,
+      userStateOperation("/processed-events/claim")
+    );
+  }
+  return result.state;
 };
 
 export const completeProcessedEvent = async (
   env: Environment,
   eventKey: string
 ): Promise<void> => {
-  await doFetch(env, webhookEventShardName(eventKey), "/processed-events/complete", {
-    method: "POST",
-    body: JSON.stringify({ eventKey }),
-  });
+  await stub(env, webhookEventShardName(eventKey)).completeProcessedEvent(
+    eventKey
+  );
 };
 
 export const failProcessedEvent = async (
   env: Environment,
   eventKey: string
 ): Promise<void> => {
-  await doFetch(env, webhookEventShardName(eventKey), "/processed-events/fail", {
-    method: "POST",
-    body: JSON.stringify({ eventKey }),
-  });
+  await stub(env, webhookEventShardName(eventKey)).failProcessedEvent(eventKey);
 };
 
 export type AddInboxPointerInput = {
@@ -192,30 +175,21 @@ export const addInboxPointer = async (
   recipientUserId: string,
   pointer: AddInboxPointerInput
 ): Promise<AddInboxPointerResult> => {
-  const response = await stub(env, recipientUserId).fetch(
-    "https://user-state/add-inbox-pointer",
-    {
-      method: "POST",
-      body: JSON.stringify(pointer),
-    }
-  );
+  const result = await stub(env, recipientUserId).addInboxPointer(pointer);
 
-  if (response.status === 429) {
-    return { ok: false, status: 429 };
+  if (!result.ok) {
+    return { ok: false, status: result.reason === "full" ? 429 : 400 };
   }
 
-  if (!response.ok) {
-    return { ok: false, status: response.status };
-  }
-
-  const body = await response.json<{
-    ok: boolean;
-    pendingCount?: number;
-    duplicate?: boolean;
-    evictedTicketHashes?: string[];
-  }>();
-
-  return { ...body, status: response.status };
+  return {
+    ok: true,
+    status: 200,
+    pendingCount: result.pendingCount,
+    ...(result.duplicate !== undefined ? { duplicate: result.duplicate } : {}),
+    ...(result.evictedTicketHashes !== undefined
+      ? { evictedTicketHashes: result.evictedTicketHashes }
+      : {}),
+  };
 };
 
 export type InboxPage = {
@@ -228,12 +202,7 @@ export const listInboxPage = async (
   env: Environment,
   userId: string,
   offset = 0
-): Promise<InboxPage> =>
-  doFetch<InboxPage>(
-    env,
-    userId,
-    `/inbox-page?offset=${encodeURIComponent(String(offset))}`
-  );
+): Promise<InboxPage> => stub(env, userId).inboxPage(offset);
 
 const markInboxPointerStatus = async (
   env: Environment,
@@ -241,10 +210,7 @@ const markInboxPointerStatus = async (
   ticketHash: string,
   status: InboxPointerTransitionStatus
 ): Promise<void> => {
-  await doFetch(env, userId, "/mark-inbox-status", {
-    method: "POST",
-    body: JSON.stringify({ ticketHash, status }),
-  });
+  await stub(env, userId).markInboxStatus(ticketHash, status);
 };
 
 export const markInboxPointerViewed = (
@@ -270,10 +236,7 @@ export const addBlock = async (
   userId: string,
   blockedUserId: string
 ): Promise<void> => {
-  await doFetch(env, userId, "/add-block", {
-    method: "POST",
-    body: JSON.stringify({ blockedUserId }),
-  });
+  await stub(env, userId).addBlock(blockedUserId);
 };
 
 export const removeBlock = async (
@@ -281,17 +244,14 @@ export const removeBlock = async (
   userId: string,
   blockedUserId: string
 ): Promise<void> => {
-  await doFetch(env, userId, "/remove-block", {
-    method: "POST",
-    body: JSON.stringify({ blockedUserId }),
-  });
+  await stub(env, userId).removeBlock(blockedUserId);
 };
 
 export const clearBlocks = async (
   env: Environment,
   userId: string
 ): Promise<void> => {
-  await doFetch(env, userId, "/clear-blocks", { method: "POST" });
+  await stub(env, userId).clearBlocks();
 };
 
 export const setContactLabel = async (
@@ -301,23 +261,17 @@ export const setContactLabel = async (
   targetUserId: string,
   nicknameCiphertext: string | null
 ): Promise<void> => {
-  const response = await stub(env, userId).fetch(
-    "https://user-state/set-label",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        alias,
-        targetUserId,
-        nicknameCiphertext,
-      }),
-    }
+  const result = await stub(env, userId).setLabel(
+    alias,
+    targetUserId,
+    nicknameCiphertext
   );
 
-  if (response.status === 429) {
-    throw new Error("Contact label limit reached");
-  }
-  if (!response.ok) {
-    throw new Error(`setContactLabel failed: ${response.status}`);
+  if (!result.ok) {
+    if (result.limited) {
+      throw new Error("Contact label limit reached");
+    }
+    throw new DurableObjectCallError(400, userStateOperation("/set-label"));
   }
 };
 
@@ -333,14 +287,8 @@ export const purgeUserState = async (
   env: Environment,
   userId: string
 ): Promise<string[]> => {
-  const response = await stub(env, userId).fetch("https://user-state/purge", {
-    method: "DELETE",
-  });
-  if (!response.ok) {
-    throw new Error(`UserStateDO purge failed: ${response.status}`);
-  }
-  const body = await response.json<{ ok: boolean; ticketHashes?: string[] }>();
-  return body.ticketHashes ?? [];
+  const result = await stub(env, userId).purge();
+  return result.ticketHashes ?? [];
 };
 
 export type ProfileSessionWire = {
@@ -367,58 +315,56 @@ export const startProfileSessionWire = async (
   userId: string,
   input: { version: string; totalQuestions: number; answersEnc: string }
 ): Promise<void> => {
-  await doFetch(env, userId, "/profile-session/start", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  const result = await stub(env, userId).startProfileSession(input);
+  if (!result.ok) {
+    throw new DurableObjectCallError(400, userStateOperation("/profile-session/start"));
+  }
 };
 
 export const getActiveProfileSessionWire = async (
   env: Environment,
   userId: string
-): Promise<ProfileSessionWire | null> => {
-  const body = await doFetch<{ session: ProfileSessionWire | null }>(
-    env,
-    userId,
-    "/profile-session/active"
-  );
-  return body.session;
-};
+): Promise<ProfileSessionWire | null> =>
+  stub(env, userId).getActiveProfileSession();
 
 export const updateProfileSessionWire = async (
   env: Environment,
   userId: string,
   input: { answersEnc: string; currentIndex: number; status?: string }
 ): Promise<void> => {
-  await doFetch(env, userId, "/profile-session/update", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  const result = await stub(env, userId).updateProfileSession(input);
+  if (!result.ok) {
+    throw new DurableObjectCallError(
+      result.reason === "not_found" ? 404 : 400,
+      userStateOperation("/profile-session/update")
+    );
+  }
 };
 
 export const deleteProfileSessionWire = async (
   env: Environment,
   userId: string
 ): Promise<void> => {
-  await stub(env, userId).fetch("https://user-state/profile-session/active", {
-    method: "DELETE",
-  });
+  await stub(env, userId).deleteProfileSession();
 };
 
 export const getProfileMeta = async (
   env: Environment,
   userId: string
-): Promise<ProfileMeta> => doFetch<ProfileMeta>(env, userId, "/profile/meta");
+): Promise<ProfileMeta> => {
+  const meta = await stub(env, userId).getProfileMeta();
+  if (meta === null) {
+    throw new DurableObjectCallError(404, userStateOperation("/profile/meta"));
+  }
+  return meta;
+};
 
 export const setDiscoverable = async (
   env: Environment,
   userId: string,
   discoverable: boolean
 ): Promise<void> => {
-  await doFetch(env, userId, "/profile/set-discoverable", {
-    method: "POST",
-    body: JSON.stringify({ discoverable }),
-  });
+  await stub(env, userId).setDiscoverable(discoverable);
 };
 
 export const setProfileCapabilityEnc = async (
@@ -426,22 +372,15 @@ export const setProfileCapabilityEnc = async (
   userId: string,
   ciphertext: string | null
 ): Promise<void> => {
-  await doFetch(env, userId, "/profile/set-capability-enc", {
-    method: "POST",
-    body: JSON.stringify({ ciphertext }),
-  });
+  await stub(env, userId).setProfileCapabilityEnc(ciphertext);
 };
 
 export const getActiveExposureTokenHashes = async (
   env: Environment,
   userId: string
 ): Promise<string[]> => {
-  const body = await doFetch<{ tokenHashes: string[] }>(
-    env,
-    userId,
-    "/exposure-tokens/active"
-  );
-  return body.tokenHashes;
+  const { tokenHashes } = await stub(env, userId).getActiveExposureTokens();
+  return tokenHashes;
 };
 
 export const recordExposureTokenHash = async (
@@ -449,17 +388,11 @@ export const recordExposureTokenHash = async (
   userId: string,
   tokenHash: string
 ): Promise<void> => {
-  await doFetch(env, userId, "/exposure-tokens/record", {
-    method: "POST",
-    body: JSON.stringify({ tokenHash }),
-  });
+  await stub(env, userId).recordExposureToken(tokenHash);
 };
 
 export const consumeSuggestionSearchBudget = async (
   env: Environment,
   userId: string
-): Promise<{ limited: boolean; remaining?: number }> => {
-  return doFetch(env, userId, "/consume-suggestion-search", {
-    method: "POST",
-  });
-};
+): Promise<{ limited: boolean; remaining?: number }> =>
+  stub(env, userId).consumeSuggestionSearch();

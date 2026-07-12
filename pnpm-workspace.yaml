@@ -13,3 +13,8 @@ minimumReleaseAgeExclude:
   - miniflare
   - workerd
   - wrangler
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true

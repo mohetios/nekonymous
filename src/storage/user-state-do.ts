@@ -264,106 +264,6 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     `);
   }
 
-  async fetch(request: Request): Promise<Response> {
-    const { pathname } = new URL(request.url);
-
-    if (request.method === "POST" && pathname === "/init") {
-      return this.initState(request);
-    }
-    if (request.method === "GET" && pathname === "/state") {
-      return this.getState();
-    }
-    if (request.method === "POST" && pathname === "/set-paused") {
-      return this.setPaused(request);
-    }
-    if (request.method === "POST" && pathname === "/set-display-name") {
-      return this.setDisplayName(request);
-    }
-    if (request.method === "POST" && pathname === "/set-draft") {
-      return this.setDraft(request);
-    }
-    if (request.method === "GET" && pathname === "/draft") {
-      return this.getDraft();
-    }
-    if (request.method === "POST" && pathname === "/clear-draft") {
-      return this.clearDraft();
-    }
-    if (request.method === "POST" && pathname === "/check-can-receive") {
-      return this.checkCanReceive(request);
-    }
-    if (request.method === "POST" && pathname === "/consume-rate-limit") {
-      return this.consumeRateLimit();
-    }
-    if (request.method === "POST" && pathname === "/processed-events/claim") {
-      return this.claimProcessedEvent(request);
-    }
-    if (request.method === "POST" && pathname === "/processed-events/complete") {
-      return this.completeProcessedEvent(request);
-    }
-    if (request.method === "POST" && pathname === "/processed-events/fail") {
-      return this.failProcessedEvent(request);
-    }
-    if (request.method === "POST" && pathname === "/add-inbox-pointer") {
-      return this.addInboxPointer(request);
-    }
-    if (request.method === "GET" && pathname === "/inbox-page") {
-      return this.inboxPage(request);
-    }
-    if (request.method === "POST" && pathname === "/mark-inbox-status") {
-      return this.markInboxStatus(request);
-    }
-    if (request.method === "POST" && pathname === "/add-block") {
-      return this.addBlock(request);
-    }
-    if (request.method === "POST" && pathname === "/remove-block") {
-      return this.removeBlock(request);
-    }
-    if (request.method === "POST" && pathname === "/clear-blocks") {
-      return this.clearBlocks();
-    }
-    if (request.method === "POST" && pathname === "/set-label") {
-      return this.setLabel(request);
-    }
-    if (request.method === "POST" && pathname === "/mark-reported") {
-      return this.markReported(request);
-    }
-    if (request.method === "DELETE" && pathname === "/purge") {
-      return this.purge();
-    }
-    if (request.method === "POST" && pathname === "/profile-session/start") {
-      return this.startProfileSession(request);
-    }
-    if (request.method === "GET" && pathname === "/profile-session/active") {
-      return this.getActiveProfileSession();
-    }
-    if (request.method === "POST" && pathname === "/profile-session/update") {
-      return this.updateProfileSession(request);
-    }
-    if (request.method === "DELETE" && pathname === "/profile-session/active") {
-      return this.deleteProfileSession();
-    }
-    if (request.method === "GET" && pathname === "/profile/meta") {
-      return this.getProfileMeta();
-    }
-    if (request.method === "POST" && pathname === "/profile/set-discoverable") {
-      return this.setDiscoverable(request);
-    }
-    if (request.method === "POST" && pathname === "/profile/set-capability-enc") {
-      return this.setProfileCapabilityEnc(request);
-    }
-    if (request.method === "GET" && pathname === "/exposure-tokens/active") {
-      return this.getActiveExposureTokens();
-    }
-    if (request.method === "POST" && pathname === "/exposure-tokens/record") {
-      return this.recordExposureToken(request);
-    }
-    if (request.method === "POST" && pathname === "/consume-suggestion-search") {
-      return this.consumeSuggestionSearch();
-    }
-
-    return new Response("Not Found", { status: 404 });
-  }
-
   private getUserId(): string | null {
     const rows = this.ctx.storage.sql
       .exec<{ user_id: string }>("SELECT user_id FROM user_state LIMIT 1")
@@ -371,19 +271,17 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return rows[0]?.user_id ?? null;
   }
 
-  private async initState(request: Request): Promise<Response> {
-    const body = await request.json<{
-      userId: string;
-      displayNameCiphertext?: string;
-    }>();
-
-    if (!body.userId) {
-      return new Response("Missing userId", { status: 400 });
+  initState(userId: string, displayNameCiphertext?: string): {
+    ok: boolean;
+    existing?: boolean;
+  } {
+    if (!userId) {
+      return { ok: false };
     }
 
     const existing = this.getUserId();
     if (existing) {
-      return Response.json({ ok: true, existing: true });
+      return { ok: true, existing: true };
     }
 
     const now = Date.now();
@@ -391,22 +289,35 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       `INSERT INTO user_state (
         user_id, display_name_ciphertext, created_at, updated_at
       ) VALUES (?, ?, ?, ?)`,
-      body.userId,
-      body.displayNameCiphertext ?? null,
+      userId,
+      displayNameCiphertext ?? null,
       now,
       now
     );
 
-    return Response.json({ ok: true });
+    return { ok: true };
   }
 
-  private getState(): Response {
+  getState(): {
+    paused: boolean;
+    displayNameCiphertext: string | null;
+    discoverable: boolean;
+    profileCapabilityEnc: string | null;
+    draft: UserDraft | null;
+    blockedUserIds: string[];
+    labels: Array<{
+      alias: string;
+      target_user_id: string;
+      nickname_ciphertext: string;
+    }>;
+    lastMessageAt?: number;
+  } | null {
     const rows = this.ctx.storage.sql
       .exec<UserStateRow>("SELECT * FROM user_state LIMIT 1")
       .toArray();
     const state = rows[0];
     if (!state) {
-      return new Response("Not initialized", { status: 404 });
+      return null;
     }
 
     const draftRows = this.ctx.storage.sql
@@ -437,7 +348,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       )
       .toArray()[0];
 
-    return Response.json({
+    return {
       paused: !!state.paused,
       displayNameCiphertext: state.display_name_ciphertext,
       discoverable: !!state.discoverable,
@@ -446,33 +357,28 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       blockedUserIds: blocks,
       labels,
       lastMessageAt: rateRow?.last_at,
-    });
+    };
   }
 
-  private async setPaused(request: Request): Promise<Response> {
-    const { paused } = await request.json<{ paused: boolean }>();
+  setPaused(paused: boolean): void {
     const now = Date.now();
     this.ctx.storage.sql.exec(
       "UPDATE user_state SET paused = ?, updated_at = ?",
       paused ? 1 : 0,
       now
     );
-    return Response.json({ ok: true });
   }
 
-  private async setDisplayName(request: Request): Promise<Response> {
-    const { ciphertext } = await request.json<{ ciphertext: string }>();
+  setDisplayName(ciphertext: string): void {
     const now = Date.now();
     this.ctx.storage.sql.exec(
       "UPDATE user_state SET display_name_ciphertext = ?, updated_at = ?",
       ciphertext,
       now
     );
-    return Response.json({ ok: true });
   }
 
-  private async setDraft(request: Request): Promise<Response> {
-    const body = await request.json<UserDraft & { id?: string }>();
+  setDraft(body: UserDraft & { id?: string }): void {
     const now = Date.now();
     const draftId = body.id ?? "primary";
 
@@ -497,30 +403,26 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       now,
       now
     );
-
-    return Response.json({ ok: true });
   }
 
-  private getDraft(): Response {
+  getDraft(): UserDraft | null {
     const rows = this.ctx.storage.sql
       .exec<DraftRow>("SELECT * FROM drafts ORDER BY updated_at DESC LIMIT 1")
       .toArray();
-    return Response.json({ draft: rows[0] ? rowToDraft(rows[0]) : null });
+    return rows[0] ? rowToDraft(rows[0]) : null;
   }
 
-  private clearDraft(): Response {
+  clearDraft(): void {
     this.ctx.storage.sql.exec("DELETE FROM drafts");
-    return Response.json({ ok: true });
   }
 
-  private async checkCanReceive(request: Request): Promise<Response> {
-    const { senderUserId } = await request.json<{ senderUserId: string }>();
+  checkCanReceive(senderUserId: string): { ok: boolean; reason?: string } {
     const state = this.ctx.storage.sql
       .exec<UserStateRow>("SELECT paused FROM user_state LIMIT 1")
       .toArray()[0];
 
     if (state?.paused) {
-      return Response.json({ ok: false, reason: "paused" });
+      return { ok: false, reason: "paused" };
     }
 
     const blocked = this.ctx.storage.sql
@@ -531,13 +433,13 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       .toArray();
 
     if (blocked.length > 0) {
-      return Response.json({ ok: false, reason: "blocked" });
+      return { ok: false, reason: "blocked" };
     }
 
-    return Response.json({ ok: true });
+    return { ok: true };
   }
 
-  private consumeRateLimit(): Response {
+  consumeRateLimit(): { limited: boolean } {
     const now = Date.now();
     const row = this.ctx.storage.sql
       .exec<{ last_at: number }>(
@@ -547,7 +449,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       .toArray()[0];
 
     if (row !== undefined && now - row.last_at < RATE_LIMIT_MS) {
-      return Response.json({ limited: true });
+      return { limited: true };
     }
 
     this.ctx.storage.sql.exec(
@@ -558,7 +460,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       now,
       now
     );
-    return Response.json({ limited: false });
+    return { limited: false };
   }
 
   private cleanupProcessedEvents(now: number): void {
@@ -574,16 +476,18 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     );
   }
 
-  private async claimProcessedEvent(request: Request): Promise<Response> {
-    const body = await request.json<{ eventKey?: string; leaseMs?: number }>();
-    const eventKey = body.eventKey?.trim();
+  claimProcessedEvent(
+    rawEventKey: string,
+    leaseMsInput?: number
+  ): { state: "acquired" | "processing" | "done" } | { error: "invalid_event_key" } {
+    const eventKey = rawEventKey?.trim();
     const leaseMs =
-      typeof body.leaseMs === "number" && Number.isFinite(body.leaseMs)
-        ? Math.max(1000, Math.min(24 * 60 * 60 * 1000, Math.floor(body.leaseMs)))
+      typeof leaseMsInput === "number" && Number.isFinite(leaseMsInput)
+        ? Math.max(1000, Math.min(24 * 60 * 60 * 1000, Math.floor(leaseMsInput)))
         : PROCESSED_EVENT_LEASE_MS;
 
     if (!eventKey || eventKey.length > 128) {
-      return new Response("Invalid event key", { status: 400 });
+      return { error: "invalid_event_key" };
     }
 
     const now = Date.now();
@@ -611,11 +515,11 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     );
 
     if (claimState === "done") {
-      return Response.json({ state: "done" as const });
+      return { state: "done" as const };
     }
 
     if (claimState === "processing") {
-      return Response.json({ state: "processing" as const });
+      return { state: "processing" as const };
     }
 
     if (!existing) {
@@ -629,7 +533,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
         now,
         expiresAt
       );
-      return Response.json({ state: "acquired" as const });
+      return { state: "acquired" as const };
     }
 
     this.ctx.storage.sql.exec(
@@ -645,14 +549,13 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       expiresAt,
       eventKey
     );
-    return Response.json({ state: "acquired" as const });
+    return { state: "acquired" as const };
   }
 
-  private async completeProcessedEvent(request: Request): Promise<Response> {
-    const body = await request.json<{ eventKey?: string }>();
-    const eventKey = body.eventKey?.trim();
+  completeProcessedEvent(rawEventKey: string): void {
+    const eventKey = rawEventKey?.trim();
     if (!eventKey || eventKey.length > 128) {
-      return new Response("Invalid event key", { status: 400 });
+      return;
     }
     const now = Date.now();
     this.ctx.storage.sql.exec(
@@ -666,24 +569,20 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       now + PROCESSED_EVENT_DONE_TTL_MS,
       eventKey
     );
-    return Response.json({ ok: true });
   }
 
-  private async failProcessedEvent(request: Request): Promise<Response> {
-    const body = await request.json<{ eventKey?: string }>();
-    const eventKey = body.eventKey?.trim();
+  failProcessedEvent(rawEventKey: string): void {
+    const eventKey = rawEventKey?.trim();
     if (!eventKey || eventKey.length > 128) {
-      return new Response("Invalid event key", { status: 400 });
+      return;
     }
     this.ctx.storage.sql.exec(
       `DELETE FROM processed_events WHERE key = ?`,
       eventKey
     );
-    return Response.json({ ok: true });
   }
 
-  private async addInboxPointer(request: Request): Promise<Response> {
-    const body = await request.json<{
+  addInboxPointer(body: {
       ticketHash: string;
       sealedTicketRef: string;
       displayNumber: string;
@@ -691,7 +590,13 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       createdAt: number;
       expiresAt: number;
       dedupeKey: string;
-    }>();
+    }): {
+      ok: boolean;
+      reason?: "full" | "invalid";
+      pendingCount?: number;
+      duplicate?: boolean;
+      evictedTicketHashes?: string[];
+    } {
 
     if (
       !body.ticketHash ||
@@ -702,7 +607,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       !Number.isSafeInteger(body.expiresAt) ||
       body.expiresAt <= body.createdAt
     ) {
-      return new Response("Invalid inbox pointer", { status: 400 });
+      return { ok: false, reason: "invalid" };
     }
 
     if (body.dedupeKey) {
@@ -714,7 +619,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
         .toArray();
       if (existing.length > 0) {
         const pending = this.unreadInboxCount();
-        return Response.json({ ok: true, duplicate: true, pendingCount: pending });
+        return { ok: true, duplicate: true, pendingCount: pending };
       }
     }
 
@@ -722,7 +627,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
     const active = this.unreadInboxCount();
     if (active >= INBOX_MAX_TICKETS) {
-      return new Response("Inbox full", { status: 429 });
+      return { ok: false, reason: "full" };
     }
 
     const total = this.ctx.storage.sql
@@ -769,14 +674,14 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       );
     } catch {
       const pendingAfter = this.unreadInboxCount();
-      return Response.json({ ok: true, duplicate: true, pendingCount: pendingAfter });
+      return { ok: true, duplicate: true, pendingCount: pendingAfter };
     }
 
-    return Response.json({
+    return {
       ok: true,
       pendingCount: this.unreadInboxCount(),
       evictedTicketHashes,
-    });
+    };
   }
 
   private unreadInboxCount(): number {
@@ -812,9 +717,20 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return rows.map((row) => row.ticket_hash);
   }
 
-  private inboxPage(request: Request): Response {
-    const url = new URL(request.url);
-    const offset = Math.max(0, Number(url.searchParams.get("offset") ?? "0") || 0);
+  inboxPage(offset = 0): {
+    pointers: Array<{
+      ticketHash: string;
+      sealedTicketRef: string;
+      displayNumber: string;
+      status: InboxPointerStatus;
+      createdBucket: number;
+      createdAt: number;
+      expiresAt: number;
+    }>;
+    nextOffset?: number;
+    expiredTicketHashes: string[];
+  } {
+    const normalizedOffset = Math.max(0, Number(offset) || 0);
     const expiredTicketHashes = this.cleanupExpiredPointers();
     const rows = this.ctx.storage.sql
       .exec<InboxPointerRow>(
@@ -827,15 +743,17 @@ export class UserStateDurableObject extends DurableObject<Environment> {
          LIMIT ${INBOX_PAGE_SIZE + 1}
          OFFSET ?`,
         Date.now(),
-        offset
+        normalizedOffset
       )
       .toArray();
 
     const pageRows = rows.slice(0, INBOX_PAGE_SIZE);
     const nextOffset =
-      rows.length > INBOX_PAGE_SIZE ? offset + INBOX_PAGE_SIZE : undefined;
+      rows.length > INBOX_PAGE_SIZE
+        ? normalizedOffset + INBOX_PAGE_SIZE
+        : undefined;
 
-    return Response.json({
+    return {
       pointers: pageRows.map((row) => ({
         ticketHash: row.ticket_hash,
         sealedTicketRef: row.sealed_ref_enc,
@@ -847,16 +765,12 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       })),
       ...(nextOffset !== undefined ? { nextOffset } : {}),
       expiredTicketHashes,
-    });
+    };
   }
 
-  private async markInboxStatus(request: Request): Promise<Response> {
-    const { ticketHash, status } = await request.json<{
-      ticketHash: string;
-      status: string;
-    }>();
+  markInboxStatus(ticketHash: string, status: string): void {
     if (!isInboxPointerTransition(status)) {
-      return new Response("Invalid status", { status: 400 });
+      return;
     }
     const now = Date.now();
     const timestampColumn =
@@ -875,48 +789,41 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       now,
       ticketHash
     );
-    return Response.json({ ok: true });
   }
 
-  private async addBlock(request: Request): Promise<Response> {
-    const { blockedUserId } = await request.json<{ blockedUserId: string }>();
+  addBlock(blockedUserId: string): void {
     const now = Date.now();
     this.ctx.storage.sql.exec(
       `INSERT OR IGNORE INTO blocks (blocked_user_id, created_at) VALUES (?, ?)`,
       blockedUserId,
       now
     );
-    return Response.json({ ok: true });
   }
 
-  private async removeBlock(request: Request): Promise<Response> {
-    const { blockedUserId } = await request.json<{ blockedUserId: string }>();
+  removeBlock(blockedUserId: string): void {
     this.ctx.storage.sql.exec(
       "DELETE FROM blocks WHERE blocked_user_id = ?",
       blockedUserId
     );
-    return Response.json({ ok: true });
   }
 
-  private clearBlocks(): Response {
+  clearBlocks(): void {
     this.ctx.storage.sql.exec("DELETE FROM blocks");
-    return Response.json({ ok: true });
   }
 
-  private async setLabel(request: Request): Promise<Response> {
-    const body = await request.json<{
-      alias: string;
-      targetUserId: string;
-      nicknameCiphertext: string | null;
-    }>();
+  setLabel(
+    alias: string,
+    targetUserId: string,
+    nicknameCiphertext: string | null
+  ): { ok: boolean; limited?: boolean } {
     const now = Date.now();
 
-    if (!body.nicknameCiphertext) {
+    if (!nicknameCiphertext) {
       this.ctx.storage.sql.exec(
         "DELETE FROM contact_labels WHERE alias = ?",
-        body.alias
+        alias
       );
-      return Response.json({ ok: true });
+      return { ok: true };
     }
 
     const count = this.ctx.storage.sql
@@ -926,12 +833,12 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     const exists = this.ctx.storage.sql
       .exec<{ alias: string }>(
         "SELECT alias FROM contact_labels WHERE alias = ?",
-        body.alias
+        alias
       )
       .toArray();
 
     if (!exists.length && count >= 200) {
-      return new Response("Label limit", { status: 429 });
+      return { ok: false, limited: true };
     }
 
     this.ctx.storage.sql.exec(
@@ -940,25 +847,14 @@ export class UserStateDurableObject extends DurableObject<Environment> {
        ON CONFLICT(alias) DO UPDATE SET
          nickname_ciphertext = excluded.nickname_ciphertext,
          updated_at = excluded.updated_at`,
-      body.alias,
-      body.targetUserId,
-      body.nicknameCiphertext,
+      alias,
+      targetUserId,
+      nicknameCiphertext,
       now,
       now
     );
 
-    return Response.json({ ok: true });
-  }
-
-  private async markReported(request: Request): Promise<Response> {
-    const { ticketHash } = await request.json<{ ticketHash: string }>();
-    const now = Date.now();
-    this.ctx.storage.sql.exec(
-      "UPDATE inbox_pointers SET reported_at = ? WHERE ticket_hash = ?",
-      now,
-      ticketHash
-    );
-    return Response.json({ ok: true });
+    return { ok: true };
   }
 
   private parseProfileSession(row: ProfileSessionRow) {
@@ -998,15 +894,14 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     return row;
   }
 
-  private async startProfileSession(request: Request): Promise<Response> {
-    const body = await request.json<{
+  startProfileSession(body: {
       version: string;
       totalQuestions: number;
       answersEnc: string;
-    }>();
+    }): { ok: boolean } {
 
     if (!body.version || !body.totalQuestions || !body.answersEnc) {
-      return new Response("Missing fields", { status: 400 });
+      return { ok: false };
     }
 
     const now = Date.now();
@@ -1026,32 +921,43 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       now + PROFILE_SESSION_TTL_MS
     );
 
-    return Response.json({ ok: true });
+    return { ok: true };
   }
 
-  private getActiveProfileSession(): Response {
+  getActiveProfileSession():
+    | {
+        id: string;
+        version: string;
+        status: string;
+        currentIndex: number;
+        totalQuestions: number;
+        answersEnc: string;
+        startedAt: number;
+        updatedAt: number;
+        expiresAt: number | null;
+      }
+    | null {
     const row = this.getActiveProfileSessionRow();
     if (!row) {
-      return Response.json({ session: null });
+      return null;
     }
 
-    return Response.json({ session: this.parseProfileSession(row) });
+    return this.parseProfileSession(row);
   }
 
-  private async updateProfileSession(request: Request): Promise<Response> {
-    const body = await request.json<{
+  updateProfileSession(body: {
       answersEnc: string;
       currentIndex: number;
       status?: string;
-    }>();
+    }): { ok: boolean; reason?: "not_found" | "invalid" } {
 
     const row = this.getActiveProfileSessionRow();
     if (!row) {
-      return new Response("No active session", { status: 404 });
+      return { ok: false, reason: "not_found" };
     }
 
     if (!body.answersEnc || !Number.isInteger(body.currentIndex)) {
-      return new Response("Invalid update", { status: 400 });
+      return { ok: false, reason: "invalid" };
     }
 
     const now = Date.now();
@@ -1067,15 +973,19 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       row.id
     );
 
-    return Response.json({ ok: true });
+    return { ok: true };
   }
 
-  private deleteProfileSession(): Response {
+  deleteProfileSession(): void {
     this.ctx.storage.sql.exec("DELETE FROM profile_sessions");
-    return Response.json({ ok: true });
   }
 
-  private getProfileMeta(): Response {
+  getProfileMeta(): {
+    discoverable: boolean;
+    profileCapabilityEnc: string | null;
+    hasActiveSession: boolean;
+    sessionStatus: string | null;
+  } | null {
     const rows = this.ctx.storage.sql
       .exec<{
         discoverable: number;
@@ -1087,42 +997,38 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
     const state = rows[0];
     if (!state) {
-      return new Response("Not initialized", { status: 404 });
+      return null;
     }
 
     const session = this.getActiveProfileSessionRow();
 
-    return Response.json({
+    return {
       discoverable: !!state.discoverable,
       profileCapabilityEnc: state.profile_capability_enc,
       hasActiveSession: !!session,
       sessionStatus: session?.status ?? null,
-    });
+    };
   }
 
-  private async setDiscoverable(request: Request): Promise<Response> {
-    const { discoverable } = await request.json<{ discoverable: boolean }>();
+  setDiscoverable(discoverable: boolean): void {
     const now = Date.now();
     this.ctx.storage.sql.exec(
       "UPDATE user_state SET discoverable = ?, updated_at = ?",
       discoverable ? 1 : 0,
       now
     );
-    return Response.json({ ok: true });
   }
 
-  private async setProfileCapabilityEnc(request: Request): Promise<Response> {
-    const { ciphertext } = await request.json<{ ciphertext: string | null }>();
+  setProfileCapabilityEnc(ciphertext: string | null): void {
     const now = Date.now();
     this.ctx.storage.sql.exec(
       "UPDATE user_state SET profile_capability_enc = ?, updated_at = ?",
       ciphertext,
       now
     );
-    return Response.json({ ok: true });
   }
 
-  private getActiveExposureTokens(): Response {
+  getActiveExposureTokens(): { tokenHashes: string[] } {
     const now = Date.now();
     this.ctx.storage.sql.exec(
       "DELETE FROM exposure_tokens WHERE expires_at <= ?",
@@ -1135,15 +1041,12 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       )
       .toArray();
 
-    return Response.json({
-      tokenHashes: rows.map((row) => row.token_hash),
-    });
+    return { tokenHashes: rows.map((row) => row.token_hash) };
   }
 
-  private async recordExposureToken(request: Request): Promise<Response> {
-    const body = await request.json<{ tokenHash?: string }>();
-    if (!body.tokenHash || body.tokenHash.length > 86) {
-      return new Response("Invalid exposure token", { status: 400 });
+  recordExposureToken(tokenHash: string): void {
+    if (!tokenHash || tokenHash.length > 86) {
+      return;
     }
 
     const now = Date.now();
@@ -1151,15 +1054,13 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       `INSERT INTO exposure_tokens (token_hash, created_at, expires_at)
        VALUES (?, ?, ?)
        ON CONFLICT(token_hash) DO UPDATE SET expires_at = excluded.expires_at`,
-      body.tokenHash,
+      tokenHash,
       now,
       now + EXPOSURE_TOKEN_TTL_MS
     );
-
-    return Response.json({ ok: true });
   }
 
-  private consumeSuggestionSearch(): Response {
+  consumeSuggestionSearch(): { limited: boolean; remaining?: number } {
     const now = Date.now();
     const row = this.ctx.storage.sql
       .exec<{ tokens: number; updated_at: number }>(
@@ -1180,14 +1081,14 @@ export class UserStateDurableObject extends DurableObject<Environment> {
         now,
         now
       );
-      return Response.json({
+      return {
         limited: false,
         remaining: SUGGESTION_SEARCH_LIMIT - 1,
-      });
+      };
     }
 
     if (row.tokens >= SUGGESTION_SEARCH_LIMIT) {
-      return Response.json({ limited: true });
+      return { limited: true };
     }
 
     this.ctx.storage.sql.exec(
@@ -1196,13 +1097,13 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       SUGGESTION_SEARCH_SCOPE
     );
 
-    return Response.json({
+    return {
       limited: false,
       remaining: SUGGESTION_SEARCH_LIMIT - row.tokens - 1,
-    });
+    };
   }
 
-  private async purge(): Promise<Response> {
+  async purge(): Promise<{ ok: boolean; ticketHashes: string[] }> {
     const ticketHashes = this.ctx.storage.sql
       .exec<{ ticket_hash: string }>("SELECT ticket_hash FROM inbox_pointers")
       .toArray()
@@ -1219,7 +1120,8 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       DELETE FROM exposure_tokens;
       DELETE FROM user_state;
     `);
+    await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
-    return Response.json({ ok: true, ticketHashes });
+    return { ok: true, ticketHashes };
   }
 }

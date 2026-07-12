@@ -19,7 +19,7 @@ Durable Object exports
   → expose stateful storage and coordination classes
 ```
 
-Unknown HTTP paths return `404`. Unknown queue names are explicitly acknowledged and ignored; they are not treated as Telegram outbox jobs.
+Unknown HTTP paths return `404`. Unknown queue names throw and fail the batch; they are not routed to another consumer.
 
 The bot is wired statically with grammY. Handler order is explicit because middleware and callback registration order affect behavior.
 
@@ -251,6 +251,16 @@ Rules:
 - Every promise is awaited, returned, or deliberately passed to `waitUntil`.
 - New abstractions require repeated, concrete behavior; no generic repository or plugin layer.
 
+## Storage access
+
+Worker code talks to Durable Objects through typed storage clients in `src/storage/*-client.ts`. Each client resolves a shard stub and calls a public RPC method on the Durable Object class (for example `stub.getState()` or `stub.storeTicket(input)`). HTTP `fetch` routers inside Durable Objects are not used for internal Worker-to-DO calls.
+
+Fail-closed rules:
+
+- `UserStateDO` initialization runs only when `getState()` returns `null` (uninitialized), not on transient storage failures.
+- unknown queue names throw during `queue()` dispatch;
+- inbox-full and label-limit responses remain explicit at the client boundary.
+
 ## Performance invariants
 
 - At most 10 unseen message payloads are decrypted per inbox request.
@@ -285,4 +295,7 @@ Run:
 ```bash
 pnpm check
 pnpm audit:d1
+pnpm test:workers
 ```
+
+`pnpm test:workers` runs Vitest inside the Workers runtime (`@cloudflare/vitest-pool-workers`) for webhook routing, queue dispatch, and typed Durable Object RPC smoke tests.
