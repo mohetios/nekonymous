@@ -293,7 +293,7 @@ The repository verification scripts enforce important parts of this document:
 Run:
 
 ```bash
-pnpm check
+pnpm run check
 pnpm audit:d1
 pnpm test:workers
 ```

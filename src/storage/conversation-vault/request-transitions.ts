@@ -11,7 +11,8 @@ const ALLOWED_TRANSITIONS: Record<
   RequestTicketStatus,
   Set<RequestTicketStatus>
 > = {
-  pending: new Set(["accepted", "declined", "canceled", "expired"]),
+  pending: new Set(["accepting", "declined", "canceled", "expired"]),
+  accepting: new Set(["accepted", "expired"]),
   accepted: new Set(),
   declined: new Set(),
   canceled: new Set(),

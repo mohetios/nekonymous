@@ -1,8 +1,10 @@
 import type { Environment } from "../../types";
 import { shardNameForLookupHash } from "../shard-routing";
 import type {
+  ClaimRequestAcceptResult,
   RequestTicketRecord,
   RequestTicketStatus,
+  SetRequestStatusResult,
   StoreRequestInput,
   StoreSuggestionInput,
   SuggestionTicketRecord,
@@ -75,3 +77,34 @@ export const setRequestStatus = async (
     throw new Error(`ConversationVaultDO setRequestStatus ${result.error}`);
   }
 };
+
+export const claimRequestAccept = async (
+  env: Environment,
+  requestHash: string,
+  operationId: string,
+  leaseMs?: number
+): Promise<ClaimRequestAcceptResult> =>
+  stub(env, requestHash).claimRequestAccept(requestHash, operationId, leaseMs);
+
+export const completeRequestAccept = async (
+  env: Environment,
+  requestHash: string,
+  operationId: string,
+  acceptedTicketHash: string
+): Promise<void> => {
+  const result = await stub(env, requestHash).completeRequestAccept(
+    requestHash,
+    operationId,
+    acceptedTicketHash
+  );
+  if (!result.ok) {
+    throw new Error(`ConversationVaultDO completeRequestAccept ${result.error}`);
+  }
+};
+
+export const failRequestAccept = async (
+  env: Environment,
+  requestHash: string,
+  operationId: string
+): Promise<SetRequestStatusResult> =>
+  stub(env, requestHash).failRequestAccept(requestHash, operationId);

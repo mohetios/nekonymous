@@ -27,6 +27,9 @@ import {
 import { createSealedTicket } from "../../ticketing/create-sealed-ticket.ts";
 import { notifyRecipientInbox } from "../../ticketing/service.ts";
 import {
+  claimRequestAccept,
+  completeRequestAccept,
+  failRequestAccept,
   getRequestRecord,
   setRequestStatus,
   storeRequestRecord,
@@ -76,6 +79,11 @@ export type CreateConversationRequestInput = {
   explanation: string;
   suggestionRef?: string;
 };
+
+const REQUEST_ACCEPT_LEASE_MS = 30 * 1000;
+
+const requestAcceptOperationId = (requestHash: string): string =>
+  `conversation-request:${requestHash}`;
 
 const loadRequestRecord = async (env: Environment, requestHash: string) =>
   getRequestRecord(env, requestHash);
@@ -304,21 +312,48 @@ export const acceptConversationRequest = async (
         requestRef,
         actorHash: candidateActorHash,
         decryptIntro: true,
+        allowedTerminalStatuses: ["accepted"],
       },
       (lookupHash) => loadRequestRecord(env, lookupHash),
       (profileHash) => loadProfileRecord(env, profileHash)
     );
 
-    if (resolved.status === "accepted") {
-      return { ok: true };
+    if (!resolved.route) {
+      return { ok: false, reason: "invalid" };
     }
 
-    if (!resolved.route || typeof resolved.intro !== "string") {
+    const operationId = requestAcceptOperationId(resolved.requestHash);
+    const claim = await claimRequestAccept(
+      env,
+      resolved.requestHash,
+      operationId,
+      REQUEST_ACCEPT_LEASE_MS
+    );
+    if (!claim.ok) {
+      return {
+        ok: false,
+        reason: claim.error === "expired" ? "expired" : "state",
+      };
+    }
+    if (claim.state === "accepted") {
+      return { ok: true };
+    }
+    if (claim.state === "processing") {
+      return { ok: false, reason: "state" };
+    }
+
+    if (typeof resolved.intro !== "string") {
+      await failRequestAccept(env, resolved.requestHash, operationId).catch(
+        () => undefined
+      );
       return { ok: false, reason: "invalid" };
     }
 
     const requester = await getUserById(resolved.route.requesterUserId, env);
     if (!requester) {
+      await failRequestAccept(env, resolved.requestHash, operationId).catch(
+        () => undefined
+      );
       return { ok: false, reason: "invalid" };
     }
 
@@ -336,19 +371,21 @@ export const acceptConversationRequest = async (
       },
       linkSlug,
       isThreadReply: false,
-      dedupeKey: `conversation-request:${resolved.requestHash}`,
+      dedupeKey: operationId,
     });
 
-    if (!ticketResult.ok) {
+    if (!ticketResult.ok || !ticketResult.ticketHash) {
+      await failRequestAccept(env, resolved.requestHash, operationId).catch(
+        () => undefined
+      );
       return { ok: false, reason: "state" };
     }
 
-    await setRequestStatus(
+    await completeRequestAccept(
       env,
       resolved.requestHash,
-      "accepted",
-      resolved.status,
-      true
+      operationId,
+      ticketResult.ticketHash
     );
     await upsertPairStateRecord(env, {
       pairTag: resolved.route.pairTag,
@@ -365,7 +402,7 @@ export const acceptConversationRequest = async (
         env,
         candidateUser,
         ticketResult.pendingCount,
-        `conversation-request:${resolved.requestHash}`
+        operationId
       );
     }
 

@@ -106,6 +106,7 @@ export type ResolveRequestInput = {
   actorHash: string;
   decryptRoute?: boolean;
   decryptIntro?: boolean;
+  allowedTerminalStatuses?: readonly RequestTicketRecord["status"][];
 };
 
 export type ResolvedRequestCapability = {
@@ -130,6 +131,11 @@ const verifyOwnerProof = async (
     throw new CapabilityProofError();
   }
 };
+
+const isAllowedTerminalRequestStatus = (
+  status: RequestTicketRecord["status"],
+  allowedStatuses?: readonly RequestTicketRecord["status"][]
+): boolean => allowedStatuses?.includes(status) ?? false;
 
 export const resolveProfileCapability = async (
   appMasterKey: string,
@@ -325,7 +331,13 @@ export const resolveRequestCapability = async (
     throw new CapabilityExpiredError();
   }
 
-  if (terminalRequestStatuses.has(record.status)) {
+  if (
+    terminalRequestStatuses.has(record.status) &&
+    !isAllowedTerminalRequestStatus(
+      record.status,
+      input.allowedTerminalStatuses
+    )
+  ) {
     throw new CapabilityStateError(`Request status ${record.status}`);
   }
 
@@ -372,7 +384,13 @@ export const resolveRequestForCandidate = async (
     throw new CapabilityExpiredError();
   }
 
-  if (terminalRequestStatuses.has(record.status)) {
+  if (
+    terminalRequestStatuses.has(record.status) &&
+    !isAllowedTerminalRequestStatus(
+      record.status,
+      input.allowedTerminalStatuses
+    )
+  ) {
     throw new CapabilityStateError(`Request status ${record.status}`);
   }
 

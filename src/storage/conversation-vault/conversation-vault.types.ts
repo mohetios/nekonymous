@@ -7,6 +7,7 @@ export type SuggestionTicketStatus =
 
 export type RequestTicketStatus =
   | "pending"
+  | "accepting"
   | "accepted"
   | "declined"
   | "canceled"
@@ -41,6 +42,9 @@ export type RequestTicketRecord = {
   candidateRouteEnc: string;
   introEnc: string | null;
   status: RequestTicketStatus;
+  acceptOperationId?: string | null;
+  acceptLeaseUntil?: number | null;
+  acceptedTicketHash?: string | null;
   createdAt: number;
   expiresAt: number;
 };
@@ -63,3 +67,11 @@ export type SetSuggestionStatusResult =
 export type SetRequestStatusResult =
   | { ok: true; status: RequestTicketStatus }
   | { ok: false; error: "not_found" | "conflict" | "invalid" };
+
+export type ClaimRequestAcceptResult =
+  | {
+      ok: true;
+      state: "acquired" | "processing" | "accepted";
+      acceptedTicketHash?: string | null;
+    }
+  | { ok: false; error: "not_found" | "conflict" | "expired" | "invalid" };

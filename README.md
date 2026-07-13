@@ -169,7 +169,7 @@ cp .env.example .dev.vars
 pnpm db:migrations:apply:local
 ./tools/setup-conversation-v2-resources.sh
 
-pnpm check
+pnpm run check
 pnpm dev
 ```
 
@@ -186,11 +186,11 @@ pnpm typecheck
 pnpm lint
 pnpm knip
 pnpm test
-pnpm check
+pnpm run check
 pnpm audit:d1
 ```
 
-`pnpm check` runs type checking, linting, dead-code checks, the repository verification scripts, and the sealed-ticket storage audit.
+`pnpm run check` runs type checking, linting, dead-code checks, the repository verification scripts, Workers-runtime tests, and the sealed-ticket storage audit.
 
 The current test suite covers ticket lifecycle, webhook and outbox idempotency, statistics, bot flow, D1 schema boundaries, profile indexing, conversation capabilities, privacy leakage, profile construction, retrieval, ranking, eligibility, requests, and release-hardening invariants.
 

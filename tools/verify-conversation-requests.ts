@@ -25,11 +25,23 @@ const fail = (message: string): never => {
 
 const now = Date.now();
 
-if (!canTransitionRequestStatus("pending", "accepted")) {
-  fail("pending must transition to accepted");
+if (!canTransitionRequestStatus("pending", "accepting")) {
+  fail("pending must transition to accepting");
+}
+if (canTransitionRequestStatus("pending", "accepted")) {
+  fail("pending must not skip accepting");
+}
+if (!canTransitionRequestStatus("accepting", "accepted")) {
+  fail("accepting must transition to accepted");
+}
+if (canTransitionRequestStatus("accepting", "declined")) {
+  fail("accepting must not transition to declined");
 }
 if (canTransitionRequestStatus("accepted", "pending")) {
   fail("accepted must stay terminal");
+}
+if (isTerminalRequestStatus("accepting")) {
+  fail("accepting must not be terminal");
 }
 if (!isTerminalRequestStatus("canceled")) {
   fail("canceled must be terminal");
@@ -39,6 +51,9 @@ if (!shouldClearRequestIntro("declined")) {
 }
 if (shouldClearRequestIntro("pending")) {
   fail("pending must retain intro");
+}
+if (shouldClearRequestIntro("accepting")) {
+  fail("accepting must retain intro");
 }
 
 if (effectiveRequestStatus("pending", now - 1, now) !== "expired") {

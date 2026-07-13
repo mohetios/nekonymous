@@ -239,6 +239,8 @@ Rules:
 - transitions are compare-and-set;
 - accept, decline, and cancel are mutually exclusive;
 - concurrent accepts create at most one intro message ticket;
+- an accept first claims `accepting(operationId)` before sealed-ticket creation;
+- accepted requests store the created `ticketHash` for idempotent retries;
 - retries return the same durable result;
 - stable request-derived operation keys deduplicate ticket creation;
 - notification delivery happens after durable request state is committed;
@@ -338,5 +340,5 @@ pnpm test:conversation-eligibility
 pnpm test:conversation-suggestions
 pnpm test:conversation-requests
 pnpm test:profile-index-idempotency
-pnpm check
+pnpm run check
 ```

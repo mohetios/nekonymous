@@ -40,7 +40,9 @@ assertIncludes(identity, "DurableObjectCallError", "user state init must fail cl
 assertIncludes(identity, "error.status === 404", "user state init must only run on explicit 404");
 
 const requestService = read("src/features/conversation/suggestions/request-service.ts");
-assertIncludes(requestService, "conversation-request:${resolved.requestHash}", "accepted request tickets need stable dedupe keys");
+assertIncludes(requestService, "claimRequestAccept", "accepted request tickets need an accepting claim before ticket creation");
+assertIncludes(requestService, "completeRequestAccept", "accepted requests must finalize with the created ticket hash");
+assertIncludes(requestService, "requestAcceptOperationId", "accepted request tickets need stable operation keys");
 assertIncludes(requestService, "candidateProfile?.status === \"discoverable\"", "request creation must reject non-discoverable candidates");
 
 const requestNotify = read("src/features/conversation/suggestions/request-notify.ts");

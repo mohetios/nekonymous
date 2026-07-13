@@ -4,8 +4,17 @@ import {
   isDurableObjectCallError,
   DurableObjectCallError,
 } from "../src/storage/durable-object-call-error";
+import {
+  claimRequestAccept,
+  completeRequestAccept,
+  getRequestRecord,
+  storeRequestRecord,
+} from "../src/storage/conversation-vault/conversation-vault.client";
 
 const safeTicketHash = "a".repeat(43);
+
+const uniqueSafeHash = (prefix: string): string =>
+  `${prefix}${crypto.randomUUID().replaceAll("-", "")}`;
 
 describe("UserState typed RPC", () => {
   it("returns null state before init", async () => {
@@ -118,6 +127,59 @@ describe("PairLedger typed RPC", () => {
     const released = await stub.releasePairPending(pairTag);
     expect(released.ok).toBe(true);
     expect(released.released).toBe(true);
+  });
+});
+
+describe("ConversationVault typed RPC", () => {
+  it("claims request accept before finalizing with a ticket hash", async () => {
+    const requestHash = uniqueSafeHash("req");
+    const operationId = `conversation-request:${requestHash}`;
+    const ticketHash = uniqueSafeHash("tic");
+    const expiresAt = Date.now() + 60_000;
+
+    await storeRequestRecord(env, {
+      requestHash,
+      requesterProofTag: "requester-proof-tag-123456",
+      candidateProofTag: "candidate-proof-tag-123456",
+      requesterRouteEnc: "requester-route-ciphertext",
+      candidateRouteEnc: "{}",
+      introEnc: "intro-ciphertext",
+      status: "pending",
+      expiresAt,
+    });
+
+    const firstClaim = await claimRequestAccept(
+      env,
+      requestHash,
+      operationId,
+      30_000
+    );
+    expect(firstClaim.ok).toBe(true);
+    if (firstClaim.ok) {
+      expect(firstClaim.state).toBe("acquired");
+    }
+
+    const duplicateClaim = await claimRequestAccept(
+      env,
+      requestHash,
+      operationId,
+      30_000
+    );
+    expect(duplicateClaim.ok).toBe(true);
+    if (duplicateClaim.ok) {
+      expect(duplicateClaim.state).toBe("processing");
+    }
+
+    const accepting = await getRequestRecord(env, requestHash);
+    expect(accepting?.status).toBe("accepting");
+    expect(accepting?.introEnc).toBe("intro-ciphertext");
+
+    await completeRequestAccept(env, requestHash, operationId, ticketHash);
+
+    const accepted = await getRequestRecord(env, requestHash);
+    expect(accepted?.status).toBe("accepted");
+    expect(accepted?.introEnc).toBeNull();
+    expect(accepted?.acceptedTicketHash).toBe(ticketHash);
   });
 });
 

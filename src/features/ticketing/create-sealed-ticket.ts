@@ -230,13 +230,14 @@ export const createSealedTicket = async (
   await expireTicketHashesBestEffort(env, inboxResult.evictedTicketHashes);
 
   if (inboxResult.duplicate) {
+    const existingTicketHash = inboxResult.ticketHash;
     await cleanupStoredTicket(env, ticketHash);
     return {
       ok: true,
       status: 200,
       duplicate: true,
       pendingCount: inboxResult.pendingCount,
-      ticketHash,
+      ticketHash: existingTicketHash ?? ticketHash,
     };
   }
 

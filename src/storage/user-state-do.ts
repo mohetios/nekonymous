@@ -595,6 +595,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       reason?: "full" | "invalid";
       pendingCount?: number;
       duplicate?: boolean;
+      ticketHash?: string;
       evictedTicketHashes?: string[];
     } {
 
@@ -619,7 +620,12 @@ export class UserStateDurableObject extends DurableObject<Environment> {
         .toArray();
       if (existing.length > 0) {
         const pending = this.unreadInboxCount();
-        return { ok: true, duplicate: true, pendingCount: pending };
+        return {
+          ok: true,
+          duplicate: true,
+          pendingCount: pending,
+          ticketHash: existing[0]?.ticket_hash,
+        };
       }
     }
 
@@ -673,8 +679,21 @@ export class UserStateDurableObject extends DurableObject<Environment> {
         body.dedupeKey
       );
     } catch {
+      const existing = body.dedupeKey
+        ? this.ctx.storage.sql
+            .exec<{ ticket_hash: string }>(
+              "SELECT ticket_hash FROM inbox_pointers WHERE dedupe_key = ?",
+              body.dedupeKey
+            )
+            .toArray()[0]
+        : undefined;
       const pendingAfter = this.unreadInboxCount();
-      return { ok: true, duplicate: true, pendingCount: pendingAfter };
+      return {
+        ok: true,
+        duplicate: true,
+        pendingCount: pendingAfter,
+        ticketHash: existing?.ticket_hash,
+      };
     }
 
     return {

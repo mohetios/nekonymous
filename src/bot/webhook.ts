@@ -50,8 +50,14 @@ export const handleWebhook = async (
     eventKey,
     UPDATE_CLAIM_LEASE_MS
   );
-  if (claimState === "done" || claimState === "processing") {
+  if (claimState === "done") {
     return new Response("OK", { status: 200 });
+  }
+  if (claimState === "processing") {
+    return new Response("Processing", {
+      status: 503,
+      headers: { "Retry-After": "1" },
+    });
   }
 
   try {

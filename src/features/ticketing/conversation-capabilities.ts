@@ -98,6 +98,9 @@ export type RequestTicketRecord = {
   candidateRouteEnc: string;
   introEnc: string | null;
   status: RequestTicketStatus;
+  acceptOperationId?: string | null;
+  acceptLeaseUntil?: number | null;
+  acceptedTicketHash?: string | null;
   createdAt: number;
   expiresAt: number;
 };

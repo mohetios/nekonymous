@@ -46,7 +46,7 @@ assert(
   "expired processing lease must allow takeover"
 );
 
-// 4) processing lease active is skipped safely
+// 4) active processing lease prevents duplicate processing until retry
 const activeLeaseSnapshot: ProcessedEventSnapshot = {
   status: "processing",
   leaseUntil: now + 30_000,

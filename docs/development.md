@@ -115,11 +115,11 @@ The Worker does not expose a public application API. Non-`POST /bot` requests sh
 ### Required before every pull request or deploy
 
 ```bash
-pnpm check
+pnpm run check
 git diff --check
 ```
 
-`pnpm check` runs:
+`pnpm run check` runs:
 
 ```text
 types:check (wrangler binding drift)
@@ -184,6 +184,8 @@ pnpm test:workers
 ```
 
 The verification scripts use Node's TypeScript stripping and do not introduce a runtime test framework into the Worker.
+
+Tooling note: keep TypeScript on the latest `5.9.x` line until `typescript-eslint` officially supports TypeScript 7. The July 2026 dependency update keeps `typescript-eslint` on `8.63.x`, whose supported peer range is `<6.1`.
 
 Vitest worker tests cover:
 
@@ -275,7 +277,7 @@ Before deploying:
 
 ```bash
 git status --short
-pnpm check
+pnpm run check
 pnpm audit:d1
 ```
 

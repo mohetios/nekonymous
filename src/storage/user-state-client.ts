@@ -167,6 +167,7 @@ export type AddInboxPointerResult = {
   pendingCount?: number;
   duplicate?: boolean;
   evictedTicketHashes?: string[];
+  ticketHash?: string;
   status: number;
 };
 

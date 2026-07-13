@@ -287,7 +287,7 @@ new
   → done
 ```
 
-A duplicate completed update returns safely. A crashed processing lease can be reclaimed.
+A duplicate completed update returns safely. A duplicate update observed while the original claim is still `processing` returns a retryable non-2xx response, so Telegram can retry if the original execution crashes before completion. A crashed processing lease can be reclaimed after expiry.
 
 ### Ticket creation
 
@@ -379,7 +379,7 @@ pnpm test:bot-flow
 pnpm test:conversation-requests
 pnpm test:release-hardening
 pnpm audit:ticket-storage
-pnpm check
+pnpm run check
 ```
 
 The storage audit must fail if it detects raw ticket references, anonymous message bodies in D1, plaintext routes, user IDs in callback data, or other forbidden ticket storage patterns.
