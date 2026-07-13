@@ -1,4 +1,4 @@
-import type { ConversationDimension } from "./types.ts";
+import type { ConversationDimension } from "../../../contracts/conversation/profile";
 
 export const PROFILE_SCHEMA_VERSION = "v2" as const;
 

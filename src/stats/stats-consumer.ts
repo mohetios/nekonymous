@@ -1,4 +1,4 @@
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import { isStatsEventName, type StatsEvent } from "./events";
 
 const dayKey = (timestamp: number): string =>

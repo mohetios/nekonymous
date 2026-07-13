@@ -10,7 +10,7 @@ DROP TABLE IF EXISTS platform_daily_stats;
 DROP TABLE IF EXISTS public_links;
 DROP TABLE IF EXISTS users;
 
--- Legacy V1 tables (no-op if absent)
+-- Removed tables (no-op if absent)
 DROP TABLE IF EXISTS platform_stats;
 DROP TABLE IF EXISTS match_events;
 DROP TABLE IF EXISTS match_suggestions;

@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import {
   evaluateAcquirePairPending,
 } from "./pair-pending.ts";

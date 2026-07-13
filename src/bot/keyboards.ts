@@ -1,7 +1,6 @@
 import { InlineKeyboard, Keyboard } from "grammy";
 import {
   encodeInboxCallbackData,
-  INBOX_MENU_CALLBACK,
   type InboxCallbackAction,
 } from "../bot/callback-data";
 import { INBOX_BUTTON, MENU } from "./menu-labels";
@@ -36,9 +35,3 @@ export const createMessageKeyboard = (
     .text(isBlocked ? INBOX_BUTTON.unblock : INBOX_BUTTON.block, blockData)
     .text(INBOX_BUTTON.report, reportData);
 };
-
-export const buildInboxPaginationKeyboard = (nextOffset: number): InlineKeyboard =>
-  new InlineKeyboard().text(
-    INBOX_BUTTON.loadMore,
-    INBOX_MENU_CALLBACK.more(nextOffset)
-  );

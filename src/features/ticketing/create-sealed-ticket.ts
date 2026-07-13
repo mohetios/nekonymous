@@ -1,84 +1,44 @@
-import type { D1User, Environment, MessagePayload } from "../../types";
+import type { Environment } from "../../contracts/runtime";
+import type { MessagePayload } from "../../contracts/telegram/delivery";
 import { encryptEnvelope } from "./envelope";
 import {
   createOwnerProofTag,
-  createPairTag,
   createTicketHash,
-  deriveTicketKey,
+  createUnreadInboxDedupeTag,
+  deriveTicketKeys,
+  metaAad,
   payloadAad,
-  randomTicketRef,
   routeAad,
 } from "./keys";
-import { createMessageDedupeKey, getSenderAlias } from "./ticketing-service";
+import { createTicketCapability, encodeTicketCapability } from "./ticket-capability";
 import { ensureUserStateInitialized } from "../identity/identity-service";
 import { recordMessageCreated } from "../../stats/product-events";
 import {
-  addInboxPointer,
-  type AddInboxPointerResult,
+  addUnreadItem,
+  checkCanReceive,
 } from "../../storage/user-state-client";
+import type { AddUnreadItemResult } from "../../contracts/inbox/rpc";
 import {
   deleteTicketRecord,
-  expireTicketRecord,
   storeTicket,
 } from "../../storage/ticket-vault/ticket-vault.client";
+import { displayNumberForTicketHash, ticketExpiresAt } from "./ticket-lifecycle";
+import { sealUnreadCapability } from "./unread-capability";
+import { enqueueFreshUnreadNotification } from "./inbox-notification";
 import {
-  createdBucketForTime,
-  displayNumberForTicketHash,
-  inboxExpiresAt,
-  sealInboxTicketRef,
-} from "./inbox-pointer";
+  createAbuseSubjectTag,
+  createBlockTag,
+  createContactTag,
+} from "./blind-tags";
+import { getSafetyDecision } from "../../storage/safety-state/safety-state.client";
 
-export type RouteCapsule = {
-  senderChatRoute: string;
-  recipientRouteTag: string;
-  senderRouteTag: string;
-  pairTag: string;
-  reportSeeds: {
-    senderAbuseSeed: string;
-    pairAbuseSeed: string;
-    linkAbuseSeed?: string;
-  };
-  replyPolicy: {
-    canReply: boolean;
-    maxChars: number;
-  };
-  senderAlias?: string;
-  linkSlug?: string;
-  parentMessageId?: number;
-  replyToMessageId?: number;
-  createdAt: number;
-};
-
-export type PayloadCapsule =
-  | {
-      type: "text";
-      text: string;
-      telegramMessageId: number;
-      createdAt: number;
-    }
-  | {
-      type: "telegram";
-      payload: MessagePayload;
-      createdAt: number;
-    };
-
-export type CreateSealedTicketInput = {
-  sender: D1User;
-  recipient: D1User;
-  payload: MessagePayload;
-  linkSlug: string;
-  isThreadReply: boolean;
-  replyToMessageId?: number;
-  dedupeKey?: string;
-};
-
-export type CreateSealedTicketResult = {
-  ok: boolean;
-  status: number;
-  pendingCount?: number;
-  duplicate?: boolean;
-  ticketHash?: string;
-};
+import type {
+  CreateSealedTicketInput,
+  CreateSealedTicketResult,
+  RouteCapsule,
+  TicketMetadata,
+  TicketPayloadCapsule as PayloadCapsule,
+} from "../../contracts/ticketing/model";
 
 const payloadCapsuleFromMessage = (payload: MessagePayload): PayloadCapsule => {
   if (payload.message_type === "text" && payload.message_text !== undefined) {
@@ -108,114 +68,123 @@ const cleanupStoredTicket = async (
   }
 };
 
-const expireTicketHashesBestEffort = async (
-  env: Environment,
-  ticketHashes: string[] | undefined
-): Promise<void> => {
-  if (!ticketHashes || ticketHashes.length === 0) {
-    return;
-  }
-
-  await Promise.all(
-    ticketHashes.map((ticketHash) =>
-      expireTicketRecord(env, ticketHash).catch(() => undefined)
-    )
-  );
-};
-
 export const createSealedTicket = async (
   env: Environment,
   input: CreateSealedTicketInput
 ): Promise<CreateSealedTicketResult> => {
   const now = Date.now();
-  const createdBucket = createdBucketForTime(now);
-  const expiresAt = inboxExpiresAt(now);
-  const ticketRef = randomTicketRef();
-  const ticketHash = await createTicketHash(env.APP_HMAC_PEPPER, ticketRef);
+  const expiresAt = ticketExpiresAt(now);
+  const capability = createTicketCapability();
+  const ticketCapability = encodeTicketCapability(capability);
+  const ticketHash = await createTicketHash(env.APP_HMAC_PEPPER, capability);
   const ownerProofTag = await createOwnerProofTag(
     env.APP_HMAC_PEPPER,
     input.recipient.telegram_user_hash,
+    input.recipient.id,
     ticketHash
   );
-  const ticketKey = await deriveTicketKey(env.APP_MASTER_KEY, ticketHash);
-  const senderAlias = await getSenderAlias(
-    input.recipient.id,
-    input.sender.id,
-    env.APP_MASTER_KEY
+  const ticketKeys = await deriveTicketKeys(
+    env.APP_MASTER_KEY,
+    ticketHash,
+    capability
   );
-  const pairTag = await createPairTag(
-    env.APP_HMAC_PEPPER,
-    input.sender.telegram_user_hash,
-    input.recipient.telegram_user_hash
-  );
+  const [contactTag, blockTag, abuseSubjectTag] = await Promise.all([
+    createContactTag(env.APP_HMAC_PEPPER, input.recipient.id, input.sender.id),
+    createBlockTag(
+      env.APP_HMAC_PEPPER,
+      input.recipient.id,
+      input.sender.telegram_user_hash
+    ),
+    createAbuseSubjectTag(env.APP_HMAC_PEPPER, input.sender.telegram_user_hash),
+  ]);
+
+  const safetyDecision = await getSafetyDecision(env, abuseSubjectTag);
+  if (!safetyDecision.allowed) {
+    return { ok: false, status: 403 };
+  }
 
   const route: RouteCapsule = {
     senderChatRoute: input.sender.telegram_chat_ciphertext,
-    recipientRouteTag: input.recipient.telegram_user_hash,
-    senderRouteTag: input.sender.telegram_user_hash,
-    pairTag,
-    reportSeeds: {
-      senderAbuseSeed: input.sender.telegram_user_hash,
-      pairAbuseSeed: pairTag,
-      linkAbuseSeed: input.linkSlug,
-    },
+    replyRouteTag: input.sender.telegram_user_hash,
+    contactTag,
+    blockTag,
+    abuseSubjectTag,
     replyPolicy: {
       canReply: true,
       maxChars: 4096,
     },
-    senderAlias,
-    linkSlug: input.linkSlug,
     parentMessageId: input.payload.telegramMessageId,
     replyToMessageId: input.isThreadReply ? input.replyToMessageId : undefined,
-    createdAt: now,
   };
+  const meta = {
+    displayNumber: displayNumberForTicketHash(ticketHash),
+    createdAt: now,
+  } satisfies TicketMetadata;
 
-  const [routeEnc, payloadEnc, sealedTicketRef] = await Promise.all([
+  const canReceive = await checkCanReceive(env, input.recipient.id, blockTag);
+  if (!canReceive.ok) {
+    return { ok: false, status: 403 };
+  }
+
+  const routeSize = new TextEncoder().encode(JSON.stringify(route)).length;
+  if (routeSize > 1024) {
+    return { ok: false, status: 500 };
+  }
+
+  const [routeEnc, payloadEnc, metaEnc] = await Promise.all([
     encryptEnvelope(
-      ticketKey,
+      ticketKeys.routeKey,
       JSON.stringify(route),
       routeAad(ticketHash),
-      "ticket-route:v1"
+      "ticket-route"
     ),
     encryptEnvelope(
-      ticketKey,
+      ticketKeys.payloadKey,
       JSON.stringify(payloadCapsuleFromMessage(input.payload)),
       payloadAad(ticketHash),
-      "ticket-payload:v1"
+      "ticket-payload"
     ),
-    sealInboxTicketRef(env, ticketHash, ticketRef),
+    encryptEnvelope(
+      ticketKeys.metaKey,
+      JSON.stringify(meta),
+      metaAad(ticketHash),
+      "ticket-meta"
+    ),
   ]);
-
-  const dedupeKey =
-    input.dedupeKey ??
-    (await createMessageDedupeKey(
-      env.APP_HMAC_PEPPER,
-      input.sender.telegram_user_hash,
-      input.recipient.telegram_user_hash,
-      input.payload.telegramMessageId
-    ));
 
   await storeTicket(env, {
     ticketHash,
     ownerProofTag,
     routeEnc,
     payloadEnc,
+    metaEnc,
     createdAt: now,
     expiresAt,
   });
 
   await ensureUserStateInitialized(env, input.recipient.id);
 
-  let inboxResult: AddInboxPointerResult;
+  const dedupeTag = await createUnreadInboxDedupeTag(
+    env.APP_HMAC_PEPPER,
+    ticketHash
+  );
+  const itemId = crypto.randomUUID();
+  const sealedCapabilityEnc = await sealUnreadCapability(
+    env.APP_MASTER_KEY,
+    input.recipient.id,
+    itemId,
+    dedupeTag,
+    ticketCapability
+  );
+
+  let inboxResult: AddUnreadItemResult;
   try {
-    inboxResult = await addInboxPointer(env, input.recipient.id, {
-      ticketHash,
-      sealedTicketRef,
-      displayNumber: displayNumberForTicketHash(ticketHash),
-      createdBucket,
+    inboxResult = await addUnreadItem(env, input.recipient.id, {
+      itemId,
+      sealedCapabilityEnc,
+      dedupeTag,
       createdAt: now,
       expiresAt,
-      dedupeKey,
     });
   } catch {
     await cleanupStoredTicket(env, ticketHash);
@@ -227,34 +196,36 @@ export const createSealedTicket = async (
     return { ok: false, status: inboxResult.status };
   }
 
-  await expireTicketHashesBestEffort(env, inboxResult.evictedTicketHashes);
-
   if (inboxResult.duplicate) {
-    const existingTicketHash = inboxResult.ticketHash;
     await cleanupStoredTicket(env, ticketHash);
     return {
       ok: true,
       status: 200,
       duplicate: true,
-      pendingCount: inboxResult.pendingCount,
-      ticketHash: existingTicketHash ?? ticketHash,
+      pendingCount: inboxResult.unreadCount,
     };
   }
 
   if (
-    typeof inboxResult.pendingCount !== "number" ||
-    inboxResult.pendingCount < 1
+    typeof inboxResult.unreadCount !== "number" ||
+    inboxResult.unreadCount < 1
   ) {
     await cleanupStoredTicket(env, ticketHash);
     return { ok: false, status: 500 };
   }
+
+  await enqueueFreshUnreadNotification(
+    env,
+    input.recipient,
+    itemId
+  ).catch(() => undefined);
 
   await recordMessageCreated(env);
 
   return {
     ok: true,
     status: 200,
-    pendingCount: inboxResult.pendingCount,
+    pendingCount: inboxResult.unreadCount,
     ticketHash,
   };
 };

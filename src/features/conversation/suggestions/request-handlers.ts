@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import type { Environment } from "../../../types";
+import type { Environment } from "../../../contracts/runtime";
 import { mainMenu } from "../../../bot/keyboards";
 import {
   MATCH_ACCEPTED_CANDIDATE,

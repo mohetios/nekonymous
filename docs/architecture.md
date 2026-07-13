@@ -76,25 +76,28 @@ Durable Objects coordinate atomic state changes. D1 remains the relational sourc
   → sender writes text
   → create sealed ticket
   → TicketVault stores encrypted route + payload
-  → recipient UserState stores sealed inbox pointer
-  → recipient receives a generic notification
+  → recipient UserState stores an unread inbox item
+  → recipient receives an aggregated unread notice
 ```
 
-The notification does not include the message body.
+The notice does not include the message body or ticket capability. UserState holds only authenticated ciphertext for undelivered items. After successful delivery, the unread row is deleted and the delivered Telegram message owns future ticket actions.
 
 ### Inbox delivery
 
 ```text
-/inbox
-  → load bounded non-expired pointers
-  → resolve and verify ticket ownership
-  → decrypt at most 10 unseen payloads
-  → send each message through Telegram
+ib:n / ib:b
+  → claim unread item
+  → decrypt sealed capability in memory
+  → derive blind ticketHash from lookupNonce
+  → resolve and verify current actor/account ownership
+  → derive route/payload keys from keySeed
+  → decrypt and send the payload through Telegram
   → clear payload only after successful send
-  → keep compact actionable shell until expiry
+  → delete the unread UserState item
+  → keep route actions until expiry
 ```
 
-Viewed shells do not decrypt payloads. Expiry and pointer eviction remove the corresponding sensitive ticket material.
+`/inbox` renders the unread inbox control card. It is a bounded delivery queue, not a message archive. Delivered items disappear from UserState.
 
 ### Anonymous reply and actions
 
@@ -165,13 +168,13 @@ freeze old identity
   → disable discovery
   → remove/revoke profile and vector state
   → revoke conversation capabilities
-  → delete owned inbox pointers and tickets
+  → purge blind ticket slots
   → purge UserState
   → remove D1 identity and KV routes
   → create new internal identity and public link
 ```
 
-The operation is retryable and idempotent. See [Threat Model](./threat-model.md) for migration limitations on older profile records.
+The operation is retryable and idempotent. Ticket access is revoked immediately because owner proof includes the old internal account id; old encrypted ticket records physically expire through the bounded ticket lifecycle. See [Threat Model](./threat-model.md) for profile-record limits.
 
 ## Bot interaction model
 
@@ -217,11 +220,12 @@ Draft input is processed before main-menu labels so navigation text cannot hijac
 | `m:` | conversation suggestion hub |
 | `s:` | sealed suggestion actions |
 | `q:` | sealed conversation-request actions |
+| `o:` | open a message ticket |
 | `r:` | reply to message ticket |
 | `b:` / `u:` | block and unblock |
 | `n:` | private nickname |
 | `rp:` | report |
-| `ib:` | inbox navigation |
+| `ib:` | inbox menu |
 
 Callback data remains language-independent, bounded by Telegram limits, and free of raw Telegram IDs or plaintext route data. Unrecognized or expired callbacks return one generic unavailable response.
 

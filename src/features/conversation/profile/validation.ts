@@ -9,7 +9,7 @@ import type {
   ConversationIntent,
   ProfileAnswers,
   ProfileQuestion,
-} from "./types.ts";
+} from "../../../contracts/conversation/profile";
 
 const INTENT_VALUES = new Set<ConversationIntent>([
   "light",

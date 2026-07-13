@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
-import type { BotUser, Environment } from "../../types";
+import type { BotUser } from "../../contracts/identity/model";
+import type { Environment } from "../../contracts/runtime";
 import { mainMenu } from "../../bot/keyboards";
 import {
   buildDraftCancelKeyboard,
@@ -248,7 +249,7 @@ export const handleSettingsCallback = async (
     }
 
     if (data === SETTINGS_CALLBACK.clearBlocks) {
-      if (user.blockedUserIds.length === 0) {
+      if (user.blockTags.length === 0) {
         await ctx.answerCallbackQuery({ text: SETTINGS_BLOCK_LIST_EMPTY_CALLBACK });
         return;
       }
@@ -260,7 +261,7 @@ export const handleSettingsCallback = async (
       await renderScreen(ctx, {
         text: SETTINGS_CLEAR_BLOCKS_WARNING_MESSAGE.replace(
           "COUNT",
-          convertToPersianNumbers(user.blockedUserIds.length)
+          convertToPersianNumbers(user.blockTags.length)
         ),
         replyMarkup: buildConfirmClearBlocksKeyboard(),
       });

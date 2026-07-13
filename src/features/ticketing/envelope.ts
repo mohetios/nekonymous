@@ -1,4 +1,4 @@
-import type { CipherEnvelope } from "../../types";
+import type { CipherEnvelope } from "../../contracts/crypto";
 import { decryptAesGcm, encryptAesGcm } from "./aes-gcm.ts";
 
 const DEFAULT_KID = "sealed:v1";

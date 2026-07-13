@@ -86,8 +86,8 @@
         "class_name": "TicketVaultDurableObjectV4"
       },
       {
-        "name": "REPORT_LEDGER",
-        "class_name": "ReportLedgerDurableObjectV4"
+        "name": "SAFETY_STATE_DO",
+        "class_name": "SafetyStateDurableObjectV4"
       },
       {
         "name": "PROFILE_VAULT_DO",
@@ -110,7 +110,7 @@
         "UserStateDurableObjectV4",
         "TelegramOutboxDurableObjectV4",
         "TicketVaultDurableObjectV4",
-        "ReportLedgerDurableObjectV4",
+        "SafetyStateDurableObjectV4",
         "ProfileVaultShardDurableObjectV2",
         "ConversationVaultShardDurableObjectV2",
         "PairLedgerShardDurableObjectV2"

@@ -1,4 +1,4 @@
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import { STAT_EVENTS } from "./events";
 
 const PUBLIC_STATS_CACHE_TTL_SECONDS = 60;

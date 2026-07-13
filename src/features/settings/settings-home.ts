@@ -1,4 +1,4 @@
-import type { BotUser } from "../../types";
+import type { BotUser } from "../../contracts/identity/model";
 import {
   SETTINGS_INBOX_STATUS_ACTIVE,
   SETTINGS_INBOX_STATUS_PAUSED,

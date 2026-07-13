@@ -1,12 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import type {
   StoreTicketInput,
   StoreTicketResult,
   TicketTransitionStatus,
   TicketVaultGetResult,
   TicketVaultRecord,
-} from "./ticket-vault.types";
+} from "../../contracts/ticketing/storage";
 
 type TicketRow = {
   ticket_hash: string;

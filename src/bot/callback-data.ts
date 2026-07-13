@@ -1,17 +1,21 @@
+import {
+  TICKET_CAPABILITY_PATTERN,
+  validateTicketCapability,
+} from "../features/ticketing/ticket-capability.ts";
+
 /**
  * Shared Telegram callback_data contracts for inbox ticket actions.
  * Used by keyboards (encode), register-handlers (regex routing), and validation.
  */
 
-/** 24-byte random ref encoded as base64url → 32 characters. */
-export const CALLBACK_REF_PATTERN = "[A-Za-z0-9_-]{32}";
-
+/** Ticket capabilities are 43-character unpadded base64url values. */
+export const CALLBACK_REF_PATTERN = TICKET_CAPABILITY_PATTERN;
 export const CALLBACK_REF_RE = new RegExp(`^${CALLBACK_REF_PATTERN}$`);
 
-export const isCallbackRef = (value: string): boolean => CALLBACK_REF_RE.test(value);
+export const isCallbackRef = (value: string): boolean =>
+  validateTicketCapability(value);
 
 export type InboxCallbackAction =
-  | "open"
   | "reply"
   | "block"
   | "unblock"
@@ -19,7 +23,6 @@ export type InboxCallbackAction =
   | "nickname";
 
 export const INBOX_CALLBACK_PREFIX: Record<InboxCallbackAction, string> = {
-  open: "o",
   reply: "r",
   block: "b",
   unblock: "u",
@@ -28,7 +31,6 @@ export const INBOX_CALLBACK_PREFIX: Record<InboxCallbackAction, string> = {
 };
 
 export const INBOX_CALLBACK = {
-  open: (ref: string) => `${INBOX_CALLBACK_PREFIX.open}:${ref}`,
   reply: (ref: string) => `${INBOX_CALLBACK_PREFIX.reply}:${ref}`,
   block: (ref: string) => `${INBOX_CALLBACK_PREFIX.block}:${ref}`,
   unblock: (ref: string) => `${INBOX_CALLBACK_PREFIX.unblock}:${ref}`,
@@ -54,6 +56,5 @@ export const inboxCallbackQueryRegex = (
 
 /** Inline keyboard shortcuts for inbox navigation. */
 export const INBOX_MENU_CALLBACK = {
-  open: "ib:open",
-  more: (offset: number) => `ib:m:${offset}`,
+  deliver: "ib:d",
 } as const;

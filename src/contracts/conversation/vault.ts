@@ -13,7 +13,7 @@ export type RequestTicketStatus =
   | "canceled"
   | "expired";
 
-export type SuggestionTicketRecord = {
+export type ConversationSuggestionTicketRecord = {
   suggestionHash: string;
   requesterProofTag: string;
   candidateRouteEnc: string;
@@ -34,7 +34,7 @@ export type StoreSuggestionInput = {
   expiresAt: number;
 };
 
-export type RequestTicketRecord = {
+export type ConversationRequestTicketRecord = {
   requestHash: string;
   requesterProofTag: string;
   candidateProofTag: string;
@@ -66,7 +66,7 @@ export type SetSuggestionStatusResult =
 
 export type SetRequestStatusResult =
   | { ok: true; status: RequestTicketStatus }
-  | { ok: false; error: "not_found" | "conflict" | "invalid" };
+  | { ok: false; error: "not_found" | "conflict" | "expired" | "invalid" };
 
 export type ClaimRequestAcceptResult =
   | {

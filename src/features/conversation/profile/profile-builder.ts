@@ -19,7 +19,7 @@ import type {
   ProfileAnswers,
   ProfileBuildResult,
   ProfileLocale,
-} from "./types.ts";
+} from "../../../contracts/conversation/profile";
 
 const readSelfAnswers = (
   answers: ProfileAnswers,

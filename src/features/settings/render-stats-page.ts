@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
-import type { BotUser, Environment } from "../../types";
+import type { BotUser } from "../../contracts/identity/model";
+import type { Environment } from "../../contracts/runtime";
 import { renderScreen } from "../../bot/render-screen";
 import { logBotError } from "../../utils/logs";
 import { withHtml } from "../../utils/text";

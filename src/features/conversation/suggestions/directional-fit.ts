@@ -1,6 +1,6 @@
 import { CONVERSATION_DIMENSIONS } from "../profile/constants.ts";
 import { effectiveDimensionWeight } from "../profile/normalization.ts";
-import type { ConversationProfile } from "../profile/types.ts";
+import type { ConversationProfile } from "../../../contracts/conversation/profile";
 
 export const computeDirectionalFit = (
   observer: ConversationProfile,

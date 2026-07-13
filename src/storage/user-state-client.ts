@@ -1,21 +1,16 @@
-import type { Environment, InboxPointer, UserDraft } from "../types";
-import type { InboxPointerTransitionStatus } from "../status";
+import type { Environment } from "../contracts/runtime";
+import type { UserDraft, UserStateSnapshot } from "../contracts/user-state/model";
+import type {
+  AddUnreadItemInput,
+  AddUnreadItemResult,
+  CompleteUnreadDeliveryInput,
+  ReleaseUnreadDeliveryInput,
+} from "../contracts/inbox/rpc";
+import type {
+  UnreadDeliveryClaim,
+  UnreadSummary as UnreadInboxSummary,
+} from "../contracts/inbox/model";
 import { DurableObjectCallError } from "./durable-object-call-error";
-
-export type UserStateSnapshot = {
-  paused: boolean;
-  displayNameCiphertext: string | null;
-  discoverable: boolean;
-  profileCapabilityEnc: string | null;
-  draft: UserDraft | null;
-  blockedUserIds: string[];
-  labels: Array<{
-    alias: string;
-    target_user_id: string;
-    nickname_ciphertext: string;
-  }>;
-  lastMessageAt?: number;
-};
 
 const stub = (env: Environment, userId: string) =>
   env.USER_STATE_DO.get(env.USER_STATE_DO.idFromName(userId));
@@ -105,9 +100,9 @@ export const clearDraft = async (
 export const checkCanReceive = async (
   env: Environment,
   recipientUserId: string,
-  senderUserId: string
+  blockTag: string
 ): Promise<{ ok: boolean; reason?: string }> =>
-  stub(env, recipientUserId).checkCanReceive(senderUserId);
+  stub(env, recipientUserId).checkCanReceive(blockTag);
 
 /** Atomically checks and records a user action; returns true when throttled. */
 export const consumeUserRateLimit = async (
@@ -152,100 +147,92 @@ export const failProcessedEvent = async (
   await stub(env, webhookEventShardName(eventKey)).failProcessedEvent(eventKey);
 };
 
-export type AddInboxPointerInput = {
-  ticketHash: string;
-  sealedTicketRef: string;
-  displayNumber: string;
-  createdBucket: number;
-  createdAt: number;
-  expiresAt: number;
-  dedupeKey: string;
-};
-
-export type AddInboxPointerResult = {
-  ok: boolean;
-  pendingCount?: number;
-  duplicate?: boolean;
-  evictedTicketHashes?: string[];
-  ticketHash?: string;
-  status: number;
-};
-
-export const addInboxPointer = async (
+export const addUnreadItem = async (
   env: Environment,
   recipientUserId: string,
-  pointer: AddInboxPointerInput
-): Promise<AddInboxPointerResult> => {
-  const result = await stub(env, recipientUserId).addInboxPointer(pointer);
-
+  item: AddUnreadItemInput
+): Promise<AddUnreadItemResult> => {
+  const result = await stub(env, recipientUserId).addUnreadItem(item);
   if (!result.ok) {
     return { ok: false, status: result.reason === "full" ? 429 : 400 };
   }
-
   return {
     ok: true,
     status: 200,
-    pendingCount: result.pendingCount,
-    ...(result.duplicate !== undefined ? { duplicate: result.duplicate } : {}),
-    ...(result.evictedTicketHashes !== undefined
-      ? { evictedTicketHashes: result.evictedTicketHashes }
+    ...(typeof result.unreadCount === "number"
+      ? { unreadCount: result.unreadCount }
       : {}),
+    ...(result.duplicate !== undefined ? { duplicate: result.duplicate } : {}),
   };
 };
 
-export type InboxPage = {
-  pointers: InboxPointer[];
-  nextOffset?: number;
-  expiredTicketHashes: string[];
+export const getUnreadSummary = (
+  env: Environment,
+  userId: string
+): Promise<UnreadInboxSummary> => stub(env, userId).getUnreadSummary();
+
+export const claimNextUnreadItem = (
+  env: Environment,
+  userId: string
+): Promise<UnreadDeliveryClaim | null> =>
+  stub(env, userId).claimNextUnreadItem();
+
+export const completeUnreadDelivery = async (
+  env: Environment,
+  userId: string,
+  claim: CompleteUnreadDeliveryInput
+): Promise<UnreadInboxSummary> => {
+  const result = await stub(env, userId).completeUnreadDelivery(claim);
+  return result.summary;
 };
 
-export const listInboxPage = async (
+export const releaseUnreadDelivery = async (
   env: Environment,
   userId: string,
-  offset = 0
-): Promise<InboxPage> => stub(env, userId).inboxPage(offset);
-
-const markInboxPointerStatus = async (
-  env: Environment,
-  userId: string,
-  ticketHash: string,
-  status: InboxPointerTransitionStatus
+  claim: ReleaseUnreadDeliveryInput
 ): Promise<void> => {
-  await stub(env, userId).markInboxStatus(ticketHash, status);
+  await stub(env, userId).releaseUnreadDelivery(claim);
 };
 
-export const markInboxPointerViewed = (
+export const cleanupExpiredUnreadItems = async (
   env: Environment,
-  userId: string,
-  ticketHash: string
-): Promise<void> => markInboxPointerStatus(env, userId, ticketHash, "viewed");
+  userId: string
+): Promise<UnreadInboxSummary> => {
+  const result = await stub(env, userId).cleanupExpiredUnreadItems();
+  return result.summary;
+};
 
-export const markInboxPointerReplied = (
+export const purgeUnreadInbox = async (
   env: Environment,
-  userId: string,
-  ticketHash: string
-): Promise<void> => markInboxPointerStatus(env, userId, ticketHash, "replied");
+  userId: string
+): Promise<UnreadInboxSummary> => {
+  const result = await stub(env, userId).purgeUnreadInbox();
+  return result.summary;
+};
 
-export const markInboxPointerBlocked = (
+export const listUnreadItemsForReset = (
   env: Environment,
-  userId: string,
-  ticketHash: string
-): Promise<void> => markInboxPointerStatus(env, userId, ticketHash, "blocked");
+  userId: string
+): Promise<Array<{
+  itemId: string;
+  sealedCapabilityEnc: string;
+  dedupeTag: string;
+}>> => stub(env, userId).listUnreadItemsForReset();
 
 export const addBlock = async (
   env: Environment,
   userId: string,
-  blockedUserId: string
+  blockTag: string
 ): Promise<void> => {
-  await stub(env, userId).addBlock(blockedUserId);
+  await stub(env, userId).addBlock(blockTag);
 };
 
 export const removeBlock = async (
   env: Environment,
   userId: string,
-  blockedUserId: string
+  blockTag: string
 ): Promise<void> => {
-  await stub(env, userId).removeBlock(blockedUserId);
+  await stub(env, userId).removeBlock(blockTag);
 };
 
 export const clearBlocks = async (
@@ -258,13 +245,11 @@ export const clearBlocks = async (
 export const setContactLabel = async (
   env: Environment,
   userId: string,
-  alias: string,
-  targetUserId: string,
+  contactTag: string,
   nicknameCiphertext: string | null
 ): Promise<void> => {
   const result = await stub(env, userId).setLabel(
-    alias,
-    targetUserId,
+    contactTag,
     nicknameCiphertext
   );
 
@@ -276,20 +261,11 @@ export const setContactLabel = async (
   }
 };
 
-export const markInboxPointerReported = async (
-  env: Environment,
-  userId: string,
-  ticketHash: string
-): Promise<void> => {
-  await markInboxPointerStatus(env, userId, ticketHash, "reported");
-};
-
 export const purgeUserState = async (
   env: Environment,
   userId: string
-): Promise<string[]> => {
-  const result = await stub(env, userId).purge();
-  return result.ticketHashes ?? [];
+): Promise<void> => {
+  await stub(env, userId).purge();
 };
 
 export type ProfileSessionWire = {

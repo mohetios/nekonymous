@@ -1,4 +1,4 @@
-import type { RequestTicketStatus } from "./conversation-vault.types";
+import type { RequestTicketStatus } from "../../contracts/conversation/vault";
 
 const TERMINAL_REQUEST_STATUSES = new Set<RequestTicketStatus>([
   "accepted",

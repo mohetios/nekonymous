@@ -1,5 +1,5 @@
 import { webhookCallback } from "grammy";
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import {
   claimProcessedEvent,
   completeProcessedEvent,

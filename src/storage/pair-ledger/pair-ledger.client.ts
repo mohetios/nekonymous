@@ -1,6 +1,10 @@
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import { shardNameForLookupHash } from "../shard-routing";
-import type { PairStateRecord, UpsertPairStateInput } from "./pair-ledger.types";
+import type {
+  AcquirePairPendingResult,
+  PairStateRecord,
+  UpsertPairStateInput,
+} from "./pair-ledger.types";
 
 const stub = (env: Environment, pairTag: string) =>
   env.PAIR_LEDGER_DO.get(
@@ -67,10 +71,6 @@ export const upsertPairStateRecord = async (
 ): Promise<void> => {
   await stub(env, input.pairTag).upsertPairState(input);
 };
-
-export type AcquirePairPendingResult =
-  | { ok: true }
-  | { ok: false; reason: "blocked" };
 
 export const acquirePairPendingLock = async (
   env: Environment,

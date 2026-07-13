@@ -17,3 +17,7 @@ export type UpsertPairStateInput = {
   state: PairLedgerState;
   expiresAt: number | null;
 };
+
+export type AcquirePairPendingResult =
+  | { ok: true }
+  | { ok: false; reason: "blocked" };

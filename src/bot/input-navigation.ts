@@ -1,5 +1,5 @@
 import { Keyboard, type Context } from "grammy";
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import { INPUT_CANCELLED_MESSAGE } from "../i18n/messages";
 import {
   DRAFT_CANCEL_LABEL,

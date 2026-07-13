@@ -1,5 +1,5 @@
 import type { PairLedgerState, PairStateRecord } from "../../../storage/pair-ledger/pair-ledger.types";
-import type { CandidateProfile } from "./types.ts";
+import type { CandidateProfile } from "../../../contracts/conversation/retrieval";
 
 const BLOCKING_PAIR_STATES = new Set<PairLedgerState>([
   "pending",

@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import { createMessageKeyboard } from "../../bot/keyboards";
 import {
   buildDraftCancelKeyboard,
@@ -8,8 +8,8 @@ import {
 import {
   getContactLabelForSender,
   lookupContactLabel,
+  NICKNAME_DRAFT_TTL,
 } from "./contact";
-import { createBlockHash } from "./ticketing-service";
 import {
   HuhMessage,
   EXPIRED_TICKET_MESSAGE,
@@ -20,7 +20,6 @@ import {
   REPLY_TO_NICKNAME_MESSAGE,
   SELF_MESSAGE_DISABLE_MESSAGE,
   USER_BLOCKED_MESSAGE,
-  USER_IS_BLOCKED_MESSAGE,
   USER_UNBLOCKED_MESSAGE,
 } from "../../i18n/messages";
 import {
@@ -31,8 +30,6 @@ import {
 } from "../identity/identity-service";
 import {
   addBlock,
-  markInboxPointerBlocked,
-  markInboxPointerReported,
   removeBlock,
   setDraft,
 } from "../../storage/user-state-client";
@@ -41,9 +38,11 @@ import { recordBlockCreated, recordReportCreated } from "../../stats/product-eve
 import {
   resolveTicketAction,
   isExpiredTicketAction,
-  type TicketAction,
 } from "./resolve-ticket-action";
-import type { ResolveTicketActionResult } from "./resolve-ticket-action";
+import type {
+  ResolveTicketActionResult,
+  TicketActionKind,
+} from "../../contracts/ticketing/actions";
 import { createBlindReport } from "../moderation/create-blind-report";
 import {
   markTicketBlocked,
@@ -55,22 +54,17 @@ const ticketRefFromContext = (ctx: Context): string | null => {
   return typeof ref === "string" ? ref : null;
 };
 
-const isRecipientRoute = (
-  recipientRouteTag: string,
-  currentRouteTag: string
-): boolean => recipientRouteTag === currentRouteTag;
-
 const loadAction = async (
   ctx: Context,
   env: Environment,
-  action: TicketAction,
-  actorHash: string
+  action: TicketActionKind,
+  actor: { actorHash: string; actorUserId: string }
 ): Promise<ResolveTicketActionResult | null> => {
   const ticketRef = ticketRefFromContext(ctx);
   if (!ticketRef) {
     return null;
   }
-  return resolveTicketAction(ctx, env, action, ticketRef, actorHash);
+  return resolveTicketAction(ctx, env, action, ticketRef, actor);
 };
 
 const replyExpiredTicket = async (ctx: Context): Promise<void> => {
@@ -94,7 +88,7 @@ export const handleReplyAction = async (
       ctx,
       env,
       "reply",
-      d1User.telegram_user_hash
+      { actorHash: d1User.telegram_user_hash, actorUserId: d1User.id }
     );
 
     if (!resolved) {
@@ -109,25 +103,20 @@ export const handleReplyAction = async (
       return;
     }
 
-    if (!isRecipientRoute(resolved.route.recipientRouteTag, d1User.telegram_user_hash)) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
     if (!resolved.route.replyPolicy.canReply) {
       await ctx.reply(NoConversationFoundMessage);
       await ctx.answerCallbackQuery();
       return;
     }
 
-    if (resolved.route.senderRouteTag === d1User.telegram_user_hash) {
+    if (resolved.route.replyRouteTag === d1User.telegram_user_hash) {
       await ctx.reply(SELF_MESSAGE_DISABLE_MESSAGE);
       await ctx.answerCallbackQuery();
       return;
     }
 
     const senderD1 = await getUserByTelegramHash(
-      resolved.route.senderRouteTag,
+      resolved.route.replyRouteTag,
       env
     );
     if (!senderD1) {
@@ -143,33 +132,16 @@ export const handleReplyAction = async (
       return;
     }
 
-    const sender = await toBotUser(senderD1, env);
-    const replyBlockHash = await createBlockHash(
-      env.APP_HMAC_PEPPER,
-      senderD1.telegram_user_hash,
-      d1User.telegram_user_hash
+    const senderLabel = getContactLabelForSender(
+      user.contactLabels,
+      resolved.route.contactTag
     );
-    if (sender.blockedUserIds.includes(replyBlockHash)) {
-      await ctx.reply(USER_IS_BLOCKED_MESSAGE);
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    const senderLabel = resolved.route.senderAlias
-      ? getContactLabelForSender(
-          user.id,
-          senderD1.id,
-          user.contactLabels,
-          resolved.route.senderAlias
-        )
-      : undefined;
 
     await setDraft(env, user.id, {
       id: "primary",
       mode: "reply",
       toUserId: senderD1.id,
       linkSlug: senderSlug,
-      replyRef: resolved.ticketHash,
       parent_message_id: callbackMessageId,
       reply_to_message_id: resolved.route.parentMessageId,
     });
@@ -206,7 +178,7 @@ export const handleBlockAction = async (
       ctx,
       env,
       "block",
-      d1User.telegram_user_hash
+      { actorHash: d1User.telegram_user_hash, actorUserId: d1User.id }
     );
     if (!resolved) {
       await ctx.reply(HuhMessage);
@@ -220,33 +192,9 @@ export const handleBlockAction = async (
       return;
     }
 
-    if (!isRecipientRoute(resolved.route.recipientRouteTag, d1User.telegram_user_hash)) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    const senderD1 = await getUserByTelegramHash(
-      resolved.route.senderRouteTag,
-      env
-    );
-    if (!senderD1) {
-      await ctx.reply(NoConversationFoundMessage);
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    const blockHash = await createBlockHash(
-      env.APP_HMAC_PEPPER,
-      d1User.telegram_user_hash,
-      senderD1.telegram_user_hash
-    );
-
-    await addBlock(env, user.id, blockHash);
+    await addBlock(env, user.id, resolved.route.blockTag);
     await recordBlockCreated(env);
-    await Promise.all([
-      markInboxPointerBlocked(env, user.id, resolved.ticketHash),
-      markTicketBlocked(env, resolved.ticketHash),
-    ]);
+    await markTicketBlocked(env, resolved.ticketHash);
 
     await ctx.api.sendMessage(
       chatId,
@@ -281,7 +229,7 @@ export const handleUnblockAction = async (
       ctx,
       env,
       "unblock",
-      d1User.telegram_user_hash
+      { actorHash: d1User.telegram_user_hash, actorUserId: d1User.id }
     );
     if (!resolved) {
       await ctx.reply(HuhMessage);
@@ -295,34 +243,13 @@ export const handleUnblockAction = async (
       return;
     }
 
-    if (!isRecipientRoute(resolved.route.recipientRouteTag, d1User.telegram_user_hash)) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    const senderD1 = await getUserByTelegramHash(
-      resolved.route.senderRouteTag,
-      env
-    );
-    if (!senderD1) {
-      await ctx.reply(NoConversationFoundMessage);
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    const blockHash = await createBlockHash(
-      env.APP_HMAC_PEPPER,
-      d1User.telegram_user_hash,
-      senderD1.telegram_user_hash
-    );
-
-    if (!user.blockedUserIds.includes(blockHash)) {
+    if (!user.blockTags.includes(resolved.route.blockTag)) {
       await ctx.reply(HuhMessage);
       await ctx.answerCallbackQuery();
       return;
     }
 
-    await removeBlock(env, user.id, blockHash);
+    await removeBlock(env, user.id, resolved.route.blockTag);
 
     await ctx.api.sendMessage(
       chatId,
@@ -356,7 +283,7 @@ export const handleNicknameAction = async (
       ctx,
       env,
       "nickname",
-      d1User.telegram_user_hash
+      { actorHash: d1User.telegram_user_hash, actorUserId: d1User.id }
     );
     if (!resolved) {
       await ctx.reply(NoConversationFoundMessage);
@@ -370,25 +297,15 @@ export const handleNicknameAction = async (
       return;
     }
 
-    if (!isRecipientRoute(resolved.route.recipientRouteTag, d1User.telegram_user_hash)) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
-    if (!resolved.route.senderAlias) {
-      await ctx.reply(HuhMessage);
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
     const currentNick =
-      lookupContactLabel(user.contactLabels, resolved.route.senderAlias) ?? "-";
+      lookupContactLabel(user.contactLabels, resolved.route.contactTag) ?? "-";
 
     await setDraft(env, user.id, {
       id: "primary",
       mode: "nickname",
-      pendingNicknameAlias: resolved.route.senderAlias,
+      pendingNicknameContactTag: resolved.route.contactTag,
       parent_message_id: callbackMessageId,
+      expiresAt: Date.now() + NICKNAME_DRAFT_TTL,
     });
 
     await ctx.reply(
@@ -415,12 +332,11 @@ export const handleReportAction = async (
 
   try {
     const d1User = await resolveOrCreateUser(ctx, env);
-    const user = await toBotUser(d1User, env);
     const resolved = await loadAction(
       ctx,
       env,
       "report",
-      d1User.telegram_user_hash
+      { actorHash: d1User.telegram_user_hash, actorUserId: d1User.id }
     );
     if (!resolved) {
       await ctx.reply(NoConversationFoundMessage);
@@ -434,11 +350,6 @@ export const handleReportAction = async (
       return;
     }
 
-    if (!isRecipientRoute(resolved.route.recipientRouteTag, d1User.telegram_user_hash)) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
     await createBlindReport(env, {
       actorHash: d1User.telegram_user_hash,
       ticketHash: resolved.ticketHash,
@@ -446,10 +357,7 @@ export const handleReportAction = async (
       reasonCode: "inbox_report",
     });
     await recordReportCreated(env, "inbox_report");
-    await Promise.all([
-      markInboxPointerReported(env, user.id, resolved.ticketHash),
-      markTicketRecordReported(env, resolved.ticketHash),
-    ]);
+    await markTicketRecordReported(env, resolved.ticketHash);
     await ctx.reply(REPORT_SUBMITTED_MESSAGE, withHtml());
   } catch {
     await ctx.reply(HuhMessage);

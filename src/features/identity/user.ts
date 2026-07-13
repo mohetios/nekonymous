@@ -1,4 +1,4 @@
-import type { BotUser } from "../../types";
+import type { BotUser } from "../../contracts/identity/model";
 import {
   DISPLAY_NAME_EMPTY,
   DISPLAY_NAME_FALLBACK,

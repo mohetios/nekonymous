@@ -1,4 +1,4 @@
-import type { Environment } from "../../../types";
+import type { Environment } from "../../../contracts/runtime";
 
 /** Pair history reset is a no-op in V2 — pair state lives in PairLedgerShardDO. */
 export const countUserMatchHistory = (

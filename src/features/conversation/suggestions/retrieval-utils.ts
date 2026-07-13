@@ -3,13 +3,9 @@ import {
   RETRIEVAL_MAX_PROFILES_AFTER_DEDUPE,
   SUPPORTED_RETRIEVAL_LOCALES,
 } from "./constants.ts";
-import type {
-  ResolvedVectorHit,
-  RetrievalChannel,
-  VectorHit,
-} from "./types.ts";
-import type { ProfileLocale } from "../profile/types.ts";
-import type { VectorRouteRole } from "../../../storage/profile-vault/profile-vault.types";
+import type { ResolvedVectorHit, RetrievalChannel, VectorHit } from "../../../contracts/conversation/retrieval";
+import type { ProfileLocale } from "../../../contracts/conversation/profile";
+import type { VectorRouteRole } from "../../../contracts/conversation/profile-vault";
 
 const supportedLocales = new Set<ProfileLocale>(SUPPORTED_RETRIEVAL_LOCALES);
 

@@ -3,7 +3,7 @@ import type {
   ConversationDimension,
   ConversationProfile,
   ProfileLocale,
-} from "../profile/types.ts";
+} from "../../../contracts/conversation/profile";
 import {
   DIMENSION_FIT_ALIGNED,
   DIMENSION_FIT_DIFFERENCE,

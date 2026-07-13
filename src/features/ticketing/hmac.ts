@@ -2,24 +2,28 @@ import { bytesToBase64Url } from "./base64url.ts";
 
 const textEncoder = new TextEncoder();
 
-export const hmacBase64Url = async (
-  key: string,
-  input: string
-): Promise<string> => {
-  const cryptoKey = await crypto.subtle.importKey(
+const importHmacKey = (key: string): Promise<CryptoKey> =>
+  crypto.subtle.importKey(
     "raw",
     textEncoder.encode(key),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
   );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    cryptoKey,
-    textEncoder.encode(input)
-  );
+
+export const hmacBytesBase64Url = async (
+  key: string,
+  input: Uint8Array
+): Promise<string> => {
+  const cryptoKey = await importHmacKey(key);
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, input);
   return bytesToBase64Url(new Uint8Array(signature));
 };
+
+export const hmacBase64Url = async (
+  key: string,
+  input: string
+): Promise<string> => hmacBytesBase64Url(key, textEncoder.encode(input));
 
 export const constantTimeEqual = (left: string, right: string): boolean => {
   const leftBytes = textEncoder.encode(left);

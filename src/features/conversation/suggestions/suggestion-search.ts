@@ -7,14 +7,14 @@ import {
   consumeSuggestionSearchBudget,
   getActiveExposureTokenHashes,
 } from "../../../storage/user-state-client";
-import type { Environment } from "../../../types";
+import type { Environment } from "../../../contracts/runtime";
 import { rankCandidateProfiles } from "./ranking.ts";
 import type { RankedCandidate } from "./ranking-types.ts";
 import { retrieveConversationCandidates } from "./candidate-retrieval.ts";
 import { ELIGIBILITY_MAX_CONCURRENT_PAIR_LOOKUPS } from "./constants.ts";
 import { filterEligibleCandidates } from "./eligibility.ts";
 import { rerankWithExposure } from "./exposure-reranker.ts";
-import type { RetrievalRequest } from "./types.ts";
+import type { RetrievalRequest } from "../../../contracts/conversation/retrieval";
 import { logBotError } from "../../../utils/logs.ts";
 
 export type SuggestionSearchResult =

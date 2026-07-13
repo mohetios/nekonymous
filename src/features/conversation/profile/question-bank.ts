@@ -1,5 +1,5 @@
 import { CONVERSATION_DIMENSIONS, PROFILE_QUESTION_COUNT } from "./constants.ts";
-import type { ConversationDimension, ProfileQuestion } from "./types.ts";
+import type { ConversationDimension, ProfileQuestion } from "../../../contracts/conversation/profile";
 
 const selfText = (
   dimension: ConversationDimension,

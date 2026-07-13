@@ -1,11 +1,11 @@
 import type {
-  IndexJobRecord,
+  ProfileIndexJobRecord,
   ProfileVaultRecord,
-} from "../storage/profile-vault/profile-vault.types";
+} from "../contracts/conversation/profile-vault";
 
 /** Queue consumer must ack without side effects (at-least-once delivery). */
 export const shouldAckIndexJobEarly = (
-  jobRecord: IndexJobRecord | null,
+  jobRecord: ProfileIndexJobRecord | null,
   profile: ProfileVaultRecord | null,
   routeRevision: number,
   now: number

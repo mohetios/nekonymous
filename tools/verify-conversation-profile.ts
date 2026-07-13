@@ -24,7 +24,7 @@ import {
 import type {
   ConversationIntent,
   ProfileAnswers,
-} from "../src/features/conversation/profile/types.ts";
+} from "../src/contracts/conversation/profile";
 
 const fail = (message: string): never => {
   console.error(message);

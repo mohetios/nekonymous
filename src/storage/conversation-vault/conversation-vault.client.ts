@@ -1,15 +1,15 @@
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import { shardNameForLookupHash } from "../shard-routing";
 import type {
   ClaimRequestAcceptResult,
-  RequestTicketRecord,
+  ConversationRequestTicketRecord,
   RequestTicketStatus,
   SetRequestStatusResult,
   StoreRequestInput,
   StoreSuggestionInput,
-  SuggestionTicketRecord,
+  ConversationSuggestionTicketRecord,
   SuggestionTicketStatus,
-} from "./conversation-vault.types";
+} from "../../contracts/conversation/vault";
 
 const stub = (env: Environment, lookupHash: string) =>
   env.CONVERSATION_VAULT_DO.get(
@@ -28,7 +28,7 @@ export const storeSuggestionRecord = async (
 export const getSuggestionRecord = async (
   env: Environment,
   suggestionHash: string
-): Promise<SuggestionTicketRecord | null> =>
+): Promise<ConversationSuggestionTicketRecord | null> =>
   stub(env, suggestionHash).getSuggestion(suggestionHash);
 
 export const setSuggestionStatus = async (
@@ -57,7 +57,7 @@ export const storeRequestRecord = async (
 export const getRequestRecord = async (
   env: Environment,
   requestHash: string
-): Promise<RequestTicketRecord | null> =>
+): Promise<ConversationRequestTicketRecord | null> =>
   stub(env, requestHash).getRequest(requestHash);
 
 export const setRequestStatus = async (

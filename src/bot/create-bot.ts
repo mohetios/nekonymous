@@ -1,5 +1,5 @@
 import { Bot } from "grammy";
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import type { DeferWork, NekoContext } from "./context";
 import { registerHandlers } from "./register-handlers";
 import { createUserRateLimitMiddleware } from "./user-rate-limit";

@@ -9,17 +9,21 @@ import {
   isExpiredAt,
   terminalRequestStatuses,
   terminalSuggestionStatuses,
-  type IndexJobRecord,
   type IndexJobRouteCapsule,
   type ProfileRouteCapsule,
-  type ProfileVaultRecord,
   type RequestRouteCapsule,
-  type RequestTicketRecord,
   type SuggestionRouteCapsule,
-  type SuggestionTicketRecord,
   type VectorRouteCapsule,
-  type VectorRouteRecord,
 } from "./conversation-capabilities.ts";
+import type {
+  ProfileIndexJobRecord,
+  ProfileVaultRecord,
+  ProfileVectorRouteRecord,
+} from "../../contracts/conversation/profile-vault";
+import type {
+  ConversationRequestTicketRecord,
+  ConversationSuggestionTicketRecord,
+} from "../../contracts/conversation/vault";
 import {
   createConversationOwnerProofTag,
   createIndexJobLookupHash,
@@ -69,8 +73,8 @@ export type ResolveVectorInput = {
 export type ResolvedVectorRoute = {
   vectorHash: string;
   revision: number;
-  role: VectorRouteRecord["role"];
-  status: VectorRouteRecord["status"];
+  role: ProfileVectorRouteRecord["role"];
+  status: ProfileVectorRouteRecord["status"];
   route?: VectorRouteCapsule;
 };
 
@@ -82,7 +86,7 @@ export type ResolveIndexJobInput = {
 export type ResolvedIndexJob = {
   jobHash: string;
   revision: number;
-  status: IndexJobRecord["status"];
+  status: ProfileIndexJobRecord["status"];
   route?: IndexJobRouteCapsule;
 };
 
@@ -96,7 +100,7 @@ export type ResolveSuggestionInput = {
 export type ResolvedSuggestionCapability = {
   suggestionHash: string;
   pairTag: string;
-  status: SuggestionTicketRecord["status"];
+  status: ConversationSuggestionTicketRecord["status"];
   route?: SuggestionRouteCapsule;
   explanation?: string;
 };
@@ -106,12 +110,12 @@ export type ResolveRequestInput = {
   actorHash: string;
   decryptRoute?: boolean;
   decryptIntro?: boolean;
-  allowedTerminalStatuses?: readonly RequestTicketRecord["status"][];
+  allowedTerminalStatuses?: readonly ConversationRequestTicketRecord["status"][];
 };
 
 export type ResolvedRequestCapability = {
   requestHash: string;
-  status: RequestTicketRecord["status"];
+  status: ConversationRequestTicketRecord["status"];
   route?: RequestRouteCapsule;
   intro?: string;
 };
@@ -133,8 +137,8 @@ const verifyOwnerProof = async (
 };
 
 const isAllowedTerminalRequestStatus = (
-  status: RequestTicketRecord["status"],
-  allowedStatuses?: readonly RequestTicketRecord["status"][]
+  status: ConversationRequestTicketRecord["status"],
+  allowedStatuses?: readonly ConversationRequestTicketRecord["status"][]
 ): boolean => allowedStatuses?.includes(status) ?? false;
 
 export const resolveProfileCapability = async (
@@ -181,7 +185,7 @@ export const resolveProfileCapability = async (
 export const resolveVectorRoute = async (
   appMasterKey: string,
   input: ResolveVectorInput,
-  loadRecord: (lookupHash: string) => Promise<VectorRouteRecord | null>
+  loadRecord: (lookupHash: string) => Promise<ProfileVectorRouteRecord | null>
 ): Promise<ResolvedVectorRoute> => {
   const vectorRef = assertCapabilityRef(input.vectorRef, "vectorRef");
   const vectorHash = await createVectorLookupHash(appMasterKey, vectorRef);
@@ -216,7 +220,7 @@ export const resolveVectorRoute = async (
 export const resolveIndexJobCapability = async (
   appMasterKey: string,
   input: ResolveIndexJobInput,
-  loadRecord: (lookupHash: string) => Promise<IndexJobRecord | null>
+  loadRecord: (lookupHash: string) => Promise<ProfileIndexJobRecord | null>
 ): Promise<ResolvedIndexJob> => {
   const indexJobRef = assertCapabilityRef(input.indexJobRef, "indexJobRef");
   const jobHash = await createIndexJobLookupHash(appMasterKey, indexJobRef);
@@ -254,7 +258,7 @@ export const resolveIndexJobCapability = async (
 export const resolveSuggestionCapability = async (
   appMasterKey: string,
   input: ResolveSuggestionInput,
-  loadRecord: (lookupHash: string) => Promise<SuggestionTicketRecord | null>
+  loadRecord: (lookupHash: string) => Promise<ConversationSuggestionTicketRecord | null>
 ): Promise<ResolvedSuggestionCapability> => {
   const suggestionRef = assertCapabilityRef(input.suggestionRef, "suggestionRef");
   const suggestionHash = await createSuggestionLookupHash(
@@ -311,7 +315,7 @@ export const resolveSuggestionCapability = async (
 export const resolveRequestCapability = async (
   appMasterKey: string,
   input: ResolveRequestInput,
-  loadRecord: (lookupHash: string) => Promise<RequestTicketRecord | null>
+  loadRecord: (lookupHash: string) => Promise<ConversationRequestTicketRecord | null>
 ): Promise<ResolvedRequestCapability> => {
   const requestRef = assertCapabilityRef(input.requestRef, "requestRef");
   const requestHash = await createRequestLookupHash(appMasterKey, requestRef);
@@ -370,7 +374,7 @@ export const resolveRequestCapability = async (
 export const resolveRequestForCandidate = async (
   appMasterKey: string,
   input: ResolveRequestInput,
-  loadRecord: (lookupHash: string) => Promise<RequestTicketRecord | null>,
+  loadRecord: (lookupHash: string) => Promise<ConversationRequestTicketRecord | null>,
   loadProfile: (profileHash: string) => Promise<ProfileVaultRecord | null>
 ): Promise<ResolvedRequestCapability> => {
   const requestRef = assertCapabilityRef(input.requestRef, "requestRef");

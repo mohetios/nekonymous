@@ -1,6 +1,6 @@
 import type { Context } from "grammy";
-import type { Environment } from "../types";
-import type { BotUser } from "../types";
+import type { Environment } from "../contracts/runtime";
+import type { BotUser } from "../contracts/identity/model";
 import {
   OWNER_PAUSED_NOTE,
   USER_LINK_MESSAGE,

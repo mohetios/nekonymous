@@ -4,6 +4,11 @@ import {
   inboxCallbackQueryRegex,
   isCallbackRef,
 } from "../src/bot/callback-data.ts";
+import {
+  createTicketCapability,
+  encodeTicketCapability,
+  TICKET_CAPABILITY_CHARS,
+} from "../src/features/ticketing/ticket-capability.ts";
 import { MENU, isMainMenuLabel } from "../src/i18n/labels.ts";
 import {
   SUGGESTION_HUB_CALLBACK,
@@ -61,10 +66,12 @@ const FORBIDDEN_SOURCE_TOKENS = [
   "computeSafetyTier",
 ] as const;
 
-const callbackRef = "A".repeat(32);
+const callbackRef = encodeTicketCapability(createTicketCapability());
 
-assert(CALLBACK_REF_RE.test(callbackRef), "callback ref must accept 32-char base64url");
-assert(isCallbackRef(callbackRef), "isCallbackRef must accept valid callback ref");
+assert(CALLBACK_REF_RE.test(callbackRef), "callback ref must accept 43-char base64url");
+assert(!CALLBACK_REF_RE.test("A".repeat(32)), "callback ref must reject 32-char legacy refs");
+assert(!CALLBACK_REF_RE.test("A".repeat(44)), "callback ref must reject 44-char versioned refs");
+assert(isCallbackRef(callbackRef), "isCallbackRef must accept valid callback capability");
 assert(!isCallbackRef("abc"), "isCallbackRef must reject short callback ref");
 
 for (const callbackData of [
@@ -84,7 +91,6 @@ assert(
   inboxCallbackQueryRegex("reply").test(`r:${callbackRef}`),
   "reply callback regex must match r:<ref>"
 );
-
 const hubCallbackRegex = suggestionHubCallbackQueryRegex();
 assert(hubCallbackRegex.test("m:hub"), "hub callback regex must accept m:hub");
 assert(hubCallbackRegex.test("m:search"), "hub callback regex must accept m:search");
@@ -133,7 +139,6 @@ for (const action of ["reply", "block", "unblock", "nickname", "report"]) {
   );
 }
 
-assert(!handlersSource.includes("handleOpenTicketAction"), "dead o: open handler must be removed");
 assert(!handlersSource.includes('bot.command("match_system"'), "/match_system must not be registered");
 assert(!commandsSource.includes('"match_system"'), "match_system must not be in BOT_COMMANDS");
 assert(BOT_COMMANDS.length === 5, "public command list must contain exactly five commands");
@@ -156,6 +161,19 @@ assert(
 assert(
   handlersSource.includes('bot.callbackQuery(/.+/'),
   "unmatched callbacks must be answered by one generic catch-all"
+);
+assert(
+  !handlersSource.includes("handleInboxMoreCallback") &&
+    !handlersSource.includes("ib:m"),
+  "removed inbox pagination callbacks must not be registered"
+);
+assert(
+  handlersSource.includes("INBOX_MENU_CALLBACK.deliver") &&
+    !handlersSource.includes("INBOX_MENU_CALLBACK.next") &&
+    !handlersSource.includes("INBOX_MENU_CALLBACK.batch") &&
+    !handlersSource.includes("INBOX_MENU_CALLBACK.refresh") &&
+    !handlersSource.includes("INBOX_MENU_CALLBACK.open"),
+  "final unread inbox callback must be the single delivery action"
 );
 
 assert(
@@ -216,12 +234,19 @@ assert(!userSource.includes("isMenuLabel"), "display name validation must not re
 assert(labelsSource.includes('trimmed.startsWith("/")'), "display name validation must only forbid commands");
 
 assert(
-  inboxSource.includes("MAX_INBOX_DECRYPT_PER_REQUEST = 10"),
-  "render-inbox must keep decrypt cap at 10 per request"
+  inboxSource.includes("requestUnreadDelivery") &&
+    inboxSource.includes("claimNextUnreadItem") &&
+    inboxSource.includes('kind: "inbox-drain"') &&
+    !inboxSource.includes("claimUnreadBatch"),
+  "/inbox must enqueue one-item unread delivery drains"
 );
-assert(inboxSource.includes("buildInboxPaginationKeyboard"), "render-inbox must expose pagination keyboard");
+assert(
+  !inboxSource.includes(`listInbox${"Page"}`) &&
+    !inboxSource.includes("buildInboxPaginationKeyboard"),
+  "removed inbox page rendering must stay absent"
+);
 
-assert(resolveSource.includes("isCallbackRef(ticketRef)"), "resolve-ticket-action must validate callback ref format");
+assert(resolveSource.includes("parseTicketCapability(ticketRef)"), "resolve-ticket-action must validate callback capabilities centrally");
 assert(
   resolveSource.includes("constantTimeEqual(ownerProofCandidate, ticket.ownerProofTag)"),
   "resolve-ticket-action must verify owner proof"

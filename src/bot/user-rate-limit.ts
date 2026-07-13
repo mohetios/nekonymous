@@ -1,5 +1,5 @@
 import type { Context, NextFunction } from "grammy";
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import { resolveOrCreateUser } from "../features/identity/identity-service";
 import {
   RATE_LIMIT_CALLBACK_ALERT,

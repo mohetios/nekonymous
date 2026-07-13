@@ -1,4 +1,4 @@
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import type { StatsEventName } from "./events";
 
 const safeStatKey = (statKey?: string): string | undefined => {

@@ -9,9 +9,9 @@ import {
   shouldSkipVerifyForDiscoverableProfile,
 } from "../src/queues/profile-index-policy.ts";
 import type {
-  IndexJobRecord,
+  ProfileIndexJobRecord,
   ProfileVaultRecord,
-} from "../src/storage/profile-vault/profile-vault.types.ts";
+} from "../src/contracts/conversation/profile-vault";
 
 const fail = (message: string): never => {
   console.error(message);
@@ -20,7 +20,7 @@ const fail = (message: string): never => {
 
 const now = 1_700_000_000_000;
 
-const job = (overrides: Partial<IndexJobRecord>): IndexJobRecord => ({
+const job = (overrides: Partial<ProfileIndexJobRecord>): ProfileIndexJobRecord => ({
   jobHash: "job",
   routeEnc: "enc",
   revision: 2,

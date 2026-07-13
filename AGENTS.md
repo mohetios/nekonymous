@@ -21,7 +21,7 @@ Do not generate heavy abstractions, repository layers, generic service framework
 Capability-based anonymous routing is the current model. Do not reintroduce older conversation/ref patterns.
 
 - Telegram private chat buttons hold short routing capabilities; raw capabilities are request-only and must not be stored.
-- `TicketVaultDO` stores sealed route and payload capsules (encrypted at rest); `UserStateDO` holds inbox **pointers** only — not message bodies.
+- `TicketVaultDO` stores sealed route and payload capsules (encrypted at rest); `UserStateDO` holds blind ticket slots only — not message bodies or ticket hashes.
 - Anonymous messaging must not write a plain sender-recipient graph or message transcript to D1.
 - Keep the existing compact repository layout; do not create a parallel `core/` tree.
 - No KV inbox/conversation storage and no dual-read or migration fallbacks for removed storage paths.
@@ -34,7 +34,7 @@ Capability-based anonymous routing is the current model. Do not reintroduce olde
 - Read `README.md` and `docs/threat-model.md` before editing any user-facing or public copy.
 - Read `docs/conversation-suggestions.md` before touching profile, indexing, retrieval, ranking, suggestions, or requests.
 - Read `docs/sealed-ticketing.md` before touching inbox, ticketing, or sealed-ticket storage.
-- Read `docs/architecture.md` before touching commands, keyboards, menus, drafts, or callback routing (V2 callback prefixes in V2 architecture doc).
+- Read `docs/architecture.md` before touching commands, keyboards, menus, drafts, or callback routing.
 
 ### Docs source of truth
 
@@ -212,7 +212,7 @@ Webhook handling lives in `src/bot/webhook.ts`. Do not add a generic router or s
 
 Callback prefixes (keep short; capability suffix is base64url, under Telegram 64-byte limit):
 
-- `r:`, `b:`, `u:`, `n:`, `rp:` — inbox ticket actions
+- `o:`, `r:`, `b:`, `u:`, `n:`, `rp:` — ticket open/actions
 - `ib:` — inbox menu / pagination
 - `t:` — conversation profile questionnaire flow
 - `m:` — suggestion hub navigation (search, pending, profile, discoverability)
@@ -226,9 +226,10 @@ Core user flow:
 
 1. `/start` without payload → resolve/create D1 user + public link, show personal `t.me/...?start={slug}` link.
 2. `/start {slug}` → open compose draft to link owner (rate-limited, block-checked, pause-checked, no self-message).
-3. Sender sends message/media → seal ticket in `TicketVaultDO`, add inbox pointer in recipient `UserStateDO`, emit stats event, notify recipient via `neko-outbox` queue.
-4. `/inbox` → load active pointers from recipient `UserStateDO`, fetch/decrypt payload from `TicketVaultDO`, deliver to Telegram, clear `payload_enc`, keep `route_enc` for actions.
-5. Inline **پاسخ دادن** / **مسدود کردن** / **رفع مسدودی** / **نام خصوصی** / **گزارش کردن** → reply draft, block list, nickname, or report flow. Callback data holds short refs (`r:`, `b:`, `u:`, `n:`, `rp:` + base64url); never trust callback data alone — load ticket from vault + pointer and verify ownership.
+3. Sender sends message/media → seal ticket in `TicketVaultDO`, add blind slot in recipient `UserStateDO`, emit stats event, notify recipient via encrypted capability outbox job.
+4. `o:{TicketCapability}` → derive ticket hash from lookup nonce, verify actor/account owner proof, decrypt with key seed, deliver to Telegram, clear `payload_enc`, delete blind slot, keep `route_enc` for actions.
+5. `/inbox` → render the unread inbox control card and claim undelivered items.
+6. Inline **پاسخ دادن** / **مسدود کردن** / **رفع مسدودی** / **نام خصوصی** / **گزارش کردن** → reply draft, block list, nickname, or report flow. Callback data holds short refs/capabilities (`r:`, `b:`, `u:`, `n:`, `rp:` + base64url); never trust callback data alone — load ticket from vault and verify ownership.
 
 ### Account reset (پاک کردن حساب)
 
@@ -239,6 +240,7 @@ Core user flow:
 3. `createUserFromTelegram` — brand-new internal user id + new public link
 
 No soft-delete. `telegram_user_hash` UNIQUE is freed by hard delete.
+Ticket access is revoked immediately because the owner proof includes the old internal account id; old encrypted ticket records physically expire through the bounded ticket lifecycle. Do not add a replacement user-to-ticketHash registry for reset.
 
 Anonymous aggregate counters are **not** decremented on delete.
 
@@ -260,20 +262,20 @@ Read `docs/sealed-ticketing.md` and `src/features/ticketing/create-sealed-ticket
 
 | Concept                 | Role                                                                 |
 |-------------------------|----------------------------------------------------------------------|
-| `sealedTicketRef`       | Opaque ticket handle for vault lookup and callback refs              |
-| `ticketHash`            | Stable hash for inbox pointer indexing                             |
-| `capability` / callback ref | Short base64url token in Telegram buttons only (`r:`, `b:`, `u:`, `n:`, `rp:`) |
+| `TicketCapability`      | 43-character unpadded base64url capability with 16-byte lookup nonce + 16-byte key seed |
+| `ticketHash`            | Stable blind vault lookup hash derived from lookup nonce              |
+| `capability` / callback ref | Short base64url token in Telegram buttons only (`o:`, `r:`, `b:`, `u:`, `n:`, `rp:`) |
 | `route_enc`             | Encrypted route capsule in TicketVault (reply/block/report/nickname) |
-| `payload_enc`           | Encrypted message payload in TicketVault; cleared after delivery   |
+| `payload_enc`           | Encrypted message payload in TicketVault; cleared after successful Telegram delivery |
 | `APP_MASTER_KEY`        | Encryption IKM for sealed tickets and sensitive fields               |
 | `APP_HMAC_PEPPER`       | HMAC key for `telegram_user_hash` — never store raw Telegram ids in D1 |
 
 Flow:
 
-1. `createSealedTicket` encrypts route + payload capsules for `TicketVaultDO`.
-2. Recipient `UserStateDO` stores an `inbox_pointers` row — not the message body.
-3. On `/inbox` or open, decrypt payload from vault, deliver via `sendDecryptedMessage`, enqueue seen notification, clear `payload_enc`, keep `route_enc` until expiry.
-4. Callbacks resolve ticket via pointer + vault record; verify recipient ownership and block state before actions.
+1. `createSealedTicket` creates a ticket capability and encrypts route + payload capsules for `TicketVaultDO`.
+2. Recipient `UserStateDO` stores an `unread_inbox_items` row with only authenticated ciphertext capability material.
+3. `/inbox` or inbox controls claim unread rows, decrypt the capability in memory, deliver through `TelegramOutboxDO`, clear `payload_enc`, and delete the unread row after successful Telegram delivery.
+4. Delivered message action callbacks resolve tickets via capability + vault record; verify recipient ownership and block state before actions.
 5. Reports go to `ReportLedgerDO` with blind tags — no plaintext peer graph in D1.
 
 Ciphertext envelope: JSON `{ v: 1, kid, iv, ct }` with 12-byte GCM IV.

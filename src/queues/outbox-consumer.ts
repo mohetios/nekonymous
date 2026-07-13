@@ -1,6 +1,9 @@
-import type { Environment } from "../types";
-import type { TelegramOutboxJob } from "./telegram-outbox.types";
+import type { Environment } from "../contracts/runtime";
+import type { InboxDrainJob } from "../contracts/inbox/events";
+import type { OutboxQueueJob } from "../contracts/queues/events";
+import type { TelegramOutboxJob } from "../contracts/telegram/outbox";
 import { sendViaOutboxDo } from "../storage/telegram-outbox-client";
+import { drainUnreadInbox } from "../features/ticketing/inbox";
 
 const OUTBOX_CHAT_CONCURRENCY = 4;
 
@@ -62,17 +65,33 @@ const handleChatMessages = async (
 };
 
 export const handleOutboxBatch = async (
-  batch: MessageBatch<TelegramOutboxJob>,
+  batch: MessageBatch<OutboxQueueJob>,
   env: Environment
 ): Promise<void> => {
   const byChat = new Map<string, Message<TelegramOutboxJob>[]>();
+  const drainMessages: Message<InboxDrainJob>[] = [];
   for (const message of batch.messages) {
-    const messages = byChat.get(message.body.chatHash) ?? [];
-    messages.push(message);
-    byChat.set(message.body.chatHash, messages);
+    if (message.body.kind === "inbox-drain") {
+      drainMessages.push(message as Message<InboxDrainJob>);
+      continue;
+    }
+    const telegramMessage = message as Message<TelegramOutboxJob>;
+    const messages = byChat.get(telegramMessage.body.chatHash) ?? [];
+    messages.push(telegramMessage);
+    byChat.set(telegramMessage.body.chatHash, messages);
   }
 
-  await mapBounded([...byChat.values()], OUTBOX_CHAT_CONCURRENCY, (messages) =>
-    handleChatMessages(messages, env)
-  );
+  await Promise.all([
+    mapBounded([...byChat.values()], OUTBOX_CHAT_CONCURRENCY, (messages) =>
+      handleChatMessages(messages, env)
+    ),
+    mapBounded(drainMessages, OUTBOX_CHAT_CONCURRENCY, async (message) => {
+      try {
+        await drainUnreadInbox(env, message.body.userId);
+        message.ack();
+      } catch {
+        message.retry({ delaySeconds: 5 });
+      }
+    }),
+  ]);
 };

@@ -1,12 +1,11 @@
 import type {
   ProfileVaultRecordStatus,
   VectorRouteRole,
-  VectorRouteStatus,
-} from "../../storage/profile-vault/profile-vault.types";
+} from "../../contracts/conversation/profile-vault";
 import type {
   RequestTicketStatus,
   SuggestionTicketStatus,
-} from "../../storage/conversation-vault/conversation-vault.types";
+} from "../../contracts/conversation/vault";
 import { isCapabilityRef } from "./conversation-keys.ts";
 
 export const SUGGESTION_CAPABILITY_TTL_MS = 2 * 60 * 60 * 1000;
@@ -47,62 +46,6 @@ export type RequestRouteCapsule = {
   candidateProfileHash: string;
   requesterUserId: string;
   pairTag: string;
-};
-
-export type ProfileVaultRecord = {
-  profileHash: string;
-  ownerProofTag: string;
-  profileEnc: string;
-  routeEnc: string;
-  revision: number;
-  status: ProfileVaultRecordStatus;
-  createdAt: number;
-  updatedAt: number;
-};
-
-export type VectorRouteRecord = {
-  vectorHash: string;
-  vectorRouteEnc: string;
-  role: VectorRouteRole;
-  revision: number;
-  status: VectorRouteStatus;
-  createdAt: number;
-  updatedAt: number;
-};
-
-export type IndexJobRecord = {
-  jobHash: string;
-  routeEnc: string;
-  revision: number;
-  status: "pending" | "completed" | "expired";
-  createdAt: number;
-  expiresAt: number;
-};
-
-export type SuggestionTicketRecord = {
-  suggestionHash: string;
-  requesterProofTag: string;
-  candidateRouteEnc: string;
-  pairTag: string;
-  explanationEnc: string;
-  status: SuggestionTicketStatus;
-  createdAt: number;
-  expiresAt: number;
-};
-
-export type RequestTicketRecord = {
-  requestHash: string;
-  requesterProofTag: string;
-  candidateProofTag: string;
-  requesterRouteEnc: string;
-  candidateRouteEnc: string;
-  introEnc: string | null;
-  status: RequestTicketStatus;
-  acceptOperationId?: string | null;
-  acceptLeaseUntil?: number | null;
-  acceptedTicketHash?: string | null;
-  createdAt: number;
-  expiresAt: number;
 };
 
 export class CapabilityInvalidError extends Error {

@@ -1,15 +1,15 @@
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import { shardNameForLookupHash } from "../shard-routing";
 import type {
-  IndexJobRecord,
+  ProfileIndexJobRecord,
   IndexJobStatus,
   ProfileVaultRecord,
   ProfileVaultRecordStatus,
   StoreIndexJobInput,
   StoreProfileInput,
   StoreVectorRouteInput,
-  VectorRouteRecord,
-} from "./profile-vault.types";
+  ProfileVectorRouteRecord,
+} from "../../contracts/conversation/profile-vault";
 
 const stub = (env: Environment, lookupHash: string) =>
   env.PROFILE_VAULT_DO.get(
@@ -56,7 +56,7 @@ export const storeVectorRouteRecord = async (
 export const getVectorRouteRecord = async (
   env: Environment,
   vectorHash: string
-): Promise<VectorRouteRecord | null> =>
+): Promise<ProfileVectorRouteRecord | null> =>
   stub(env, vectorHash).getVectorRoute(vectorHash);
 
 export const storeIndexJobRecord = async (
@@ -69,7 +69,7 @@ export const storeIndexJobRecord = async (
 export const getIndexJobRecord = async (
   env: Environment,
   jobHash: string
-): Promise<IndexJobRecord | null> =>
+): Promise<ProfileIndexJobRecord | null> =>
   stub(env, jobHash).getIndexJob(jobHash);
 
 export const setIndexJobStatus = async (

@@ -151,7 +151,7 @@ assert(
 assert(
   !renderSource.includes("user-state-client") &&
     !renderSource.includes("ticket-vault") &&
-    !renderSource.includes("report-ledger"),
+    !renderSource.includes("safety-state"),
   "stats page render must not call DO storage clients"
 );
 
@@ -171,7 +171,6 @@ const productEventChecks: Array<{ event: string; marker: string }> = [
   { event: STAT_EVENTS.LINK_CREATED, marker: "recordLinkCreated" },
   { event: STAT_EVENTS.LINK_OPENED, marker: "recordLinkOpened" },
   { event: STAT_EVENTS.MESSAGE_CREATED, marker: "recordMessageCreated" },
-  { event: STAT_EVENTS.MESSAGE_EXPIRED, marker: "recordMessageExpired" },
   { event: STAT_EVENTS.INBOX_OPENED, marker: "recordInboxOpened" },
   { event: STAT_EVENTS.MESSAGE_DELIVERED, marker: "recordMessageDelivered" },
   { event: STAT_EVENTS.REPLY_SENT, marker: "recordReplySent" },
@@ -235,14 +234,14 @@ assert(
   "stats reader must count profile_completed for assessment totals"
 );
 
-// 13) deep link and inbox expiry stats must be wired
+// 13) deep link and inbox-open stats must be wired
 assert(
   messagingCommandsSource.includes("recordLinkOpened"),
   "deep link opens must record link_opened"
 );
 assert(
-  renderInboxSource.includes("recordMessageExpired"),
-  "inbox expiry cleanup must record message_expired"
+  renderInboxSource.includes("recordInboxOpened"),
+  "inbox opens must record inbox_opened"
 );
 
 assert(

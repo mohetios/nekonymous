@@ -1,5 +1,5 @@
-import type { ConversationProfile } from "../profile/types.ts";
-import type { CandidateProfile } from "./types.ts";
+import type { ConversationProfile } from "../../../contracts/conversation/profile";
+import type { CandidateProfile } from "../../../contracts/conversation/retrieval";
 import { computeDirectionalFit } from "./directional-fit.ts";
 import {
   buildSuggestionExplanation,

@@ -1,3 +1,18 @@
+export type ProfileVaultRecordStatus =
+  | "private"
+  | "indexing"
+  | "discoverable"
+  | "disabled"
+  | "index_failed"
+  | "invalidated"
+  | "restricted";
+
+export type VectorRouteRole = "self" | "desired";
+
+export type VectorRouteStatus = "pending" | "active" | "deleted";
+
+export type IndexJobStatus = "pending" | "completed" | "expired";
+
 export type ProfileVaultRecord = {
   profileHash: string;
   ownerProofTag: string;
@@ -26,7 +41,7 @@ export type StoreIndexJobInput = {
   expiresAt: number;
 };
 
-export type IndexJobRecord = {
+export type ProfileIndexJobRecord = {
   jobHash: string;
   routeEnc: string;
   revision: number;
@@ -44,7 +59,7 @@ export type StoreVectorRouteInput = {
   status: VectorRouteStatus;
 };
 
-export type VectorRouteRecord = {
+export type ProfileVectorRouteRecord = {
   vectorHash: string;
   vectorRouteEnc: string;
   role: VectorRouteRole;
@@ -53,18 +68,3 @@ export type VectorRouteRecord = {
   createdAt: number;
   updatedAt: number;
 };
-
-export type ProfileVaultRecordStatus =
-  | "private"
-  | "indexing"
-  | "discoverable"
-  | "disabled"
-  | "index_failed"
-  | "invalidated"
-  | "restricted";
-
-export type VectorRouteRole = "self" | "desired";
-
-export type VectorRouteStatus = "pending" | "active" | "deleted";
-
-export type IndexJobStatus = "pending" | "completed" | "expired";

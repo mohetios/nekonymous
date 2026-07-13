@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import {
   canTransitionRequestStatus,
   effectiveRequestStatus,
@@ -11,15 +11,15 @@ import {
 } from "./suggestion-transitions.ts";
 import type {
   RequestTicketStatus,
-  RequestTicketRecord,
+  ConversationRequestTicketRecord,
   ClaimRequestAcceptResult,
   SetRequestStatusResult,
   SetSuggestionStatusResult,
   StoreRequestInput,
   StoreSuggestionInput,
   SuggestionTicketStatus,
-  SuggestionTicketRecord,
-} from "./conversation-vault.types";
+  ConversationSuggestionTicketRecord,
+} from "../../contracts/conversation/vault";
 
 type SuggestionRow = {
   suggestion_hash: string;
@@ -40,13 +40,13 @@ const isSafeOperationId = (value: string): boolean =>
 
 const REQUEST_ACCEPT_LEASE_MS = 30 * 1000;
 
-const rowToSuggestion = (row: SuggestionRow): SuggestionTicketRecord => ({
+const rowToSuggestion = (row: SuggestionRow): ConversationSuggestionTicketRecord => ({
   suggestionHash: row.suggestion_hash,
   requesterProofTag: row.requester_proof_tag,
   candidateRouteEnc: row.candidate_route_enc,
   pairTag: row.pair_tag,
   explanationEnc: row.explanation_enc,
-  status: row.status as SuggestionTicketRecord["status"],
+  status: row.status as ConversationSuggestionTicketRecord["status"],
   createdAt: row.created_at,
   expiresAt: row.expires_at,
 });
@@ -66,14 +66,14 @@ type RequestRow = {
   expires_at: number;
 };
 
-const rowToRequest = (row: RequestRow): RequestTicketRecord => ({
+const rowToRequest = (row: RequestRow): ConversationRequestTicketRecord => ({
   requestHash: row.request_hash,
   requesterProofTag: row.requester_proof_tag,
   candidateProofTag: row.candidate_proof_tag,
   requesterRouteEnc: row.requester_route_enc,
   candidateRouteEnc: row.candidate_route_enc,
   introEnc: row.intro_enc,
-  status: row.status as RequestTicketRecord["status"],
+  status: row.status as ConversationRequestTicketRecord["status"],
   acceptOperationId: row.accept_operation_id,
   acceptLeaseUntil: row.accept_lease_until,
   acceptedTicketHash: row.accepted_ticket_hash,
@@ -198,7 +198,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
     );
   }
 
-  getSuggestion(suggestionHash: string): SuggestionTicketRecord | null {
+  getSuggestion(suggestionHash: string): ConversationSuggestionTicketRecord | null {
     if (!isSafeHash(suggestionHash)) {
       return null;
     }
@@ -252,7 +252,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
     }
 
     const current = effectiveSuggestionStatus(
-      row.status as SuggestionTicketRecord["status"],
+      row.status as ConversationSuggestionTicketRecord["status"],
       row.expires_at
     );
     const next = status;
@@ -328,7 +328,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
     );
   }
 
-  getRequest(requestHash: string): RequestTicketRecord | null {
+  getRequest(requestHash: string): ConversationRequestTicketRecord | null {
     if (!isSafeHash(requestHash)) {
       return null;
     }
@@ -390,7 +390,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
     }
 
     const current = effectiveRequestStatus(
-      row.status as RequestTicketRecord["status"],
+      row.status as ConversationRequestTicketRecord["status"],
       row.expires_at
     );
     const next = status;
@@ -458,7 +458,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
     }
 
     const current = effectiveRequestStatus(
-      row.status as RequestTicketRecord["status"],
+      row.status as ConversationRequestTicketRecord["status"],
       row.expires_at,
       now
     );
@@ -541,7 +541,7 @@ export class ConversationVaultShardDurableObject extends DurableObject<Environme
       return { ok: false, error: "not_found" };
     }
 
-    const current = row.status as RequestTicketRecord["status"];
+    const current = row.status as ConversationRequestTicketRecord["status"];
     if (current === "accepted") {
       if (
         row.accepted_ticket_hash &&

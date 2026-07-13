@@ -1,15 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Environment, UserDraft } from "../types";
-import type {
-  InboxPointerStatus,
-  UserDraftMode,
-} from "../status";
-import { isInboxPointerTransition } from "../status";
+import type { Environment } from "../contracts/runtime";
+import type { UserDraft } from "../contracts/user-state/model";
+import type { UserDraftMode } from "../contracts/user-state/model";
 import { resolveProcessedEventClaim } from "./processed-events-policy";
+import { INBOX_MAX_UNREAD } from "../features/ticketing/inbox-constants";
 
-const INBOX_MAX_TICKETS = 50;
-const INBOX_PAGE_SIZE = 10;
 const INBOX_CLEANUP_LIMIT = 10;
+const UNREAD_DELIVERY_LEASE_MS = 60 * 1000;
 /** Minimum gap between user actions (messages, commands, inline buttons). */
 const RATE_LIMIT_MS = 1000;
 const RATE_LIMIT_SCOPE = "user_action";
@@ -41,26 +38,13 @@ type DraftRow = {
   mode: string;
   to_user_id: string | null;
   link_slug: string | null;
-  reply_ref: string | null;
   parent_message_id: number | null;
   reply_to_message_id: number | null;
-  pending_nickname_alias: string | null;
+  pending_nickname_contact_tag: string | null;
   pending_settings: string | null;
   created_at: number;
   updated_at: number;
   expires_at: number | null;
-};
-
-type InboxPointerRow = {
-  ticket_hash: string;
-  sealed_ref_enc: string;
-  display_number: string;
-  status: InboxPointerStatus;
-  created_bucket: number;
-  created_at: number;
-  expires_at: number;
-  delivered_at: number | null;
-  dedupe_key: string | null;
 };
 
 type ProcessedEventRow = {
@@ -86,26 +70,50 @@ type ProfileSessionRow = {
   expires_at: number | null;
 };
 
+type UnreadInboxItemRow = {
+  item_id: string;
+  sealed_capability_enc: string;
+  dedupe_tag: string;
+  delivery_state: "active" | "delivering";
+  delivery_attempt_id: string | null;
+  delivery_lease_until: number | null;
+  created_at: number;
+  expires_at: number;
+};
+
+
+type UnreadInboxSummary = {
+  unreadCount: number;
+};
+
+type UnreadDeliveryClaim = {
+  itemId: string;
+  sealedCapabilityEnc: string;
+  dedupeTag: string;
+  deliveryAttemptId: string;
+  expiresAt: number;
+};
+
 const rowToDraft = (row: DraftRow): UserDraft => ({
   id: row.id,
   mode: row.mode as UserDraftMode,
   ...(row.to_user_id ? { toUserId: row.to_user_id } : {}),
   ...(row.link_slug ? { linkSlug: row.link_slug } : {}),
-  ...(row.reply_ref ? { replyRef: row.reply_ref } : {}),
   ...(row.parent_message_id !== null
     ? { parent_message_id: row.parent_message_id }
     : {}),
   ...(row.reply_to_message_id !== null
     ? { reply_to_message_id: row.reply_to_message_id }
     : {}),
-  ...(row.pending_nickname_alias
-    ? { pendingNicknameAlias: row.pending_nickname_alias }
+  ...(row.pending_nickname_contact_tag
+    ? { pendingNicknameContactTag: row.pending_nickname_contact_tag }
     : {}),
   ...(row.pending_settings
     ? {
         pendingSettings: row.pending_settings as UserDraft["pendingSettings"],
       }
     : {}),
+  ...(row.expires_at !== null ? { expiresAt: row.expires_at } : {}),
 });
 
 export class UserStateDurableObject extends DurableObject<Environment> {
@@ -140,10 +148,9 @@ export class UserStateDurableObject extends DurableObject<Environment> {
         mode TEXT NOT NULL,
         to_user_id TEXT,
         link_slug TEXT,
-        reply_ref TEXT,
         parent_message_id INTEGER,
         reply_to_message_id INTEGER,
-        pending_nickname_alias TEXT,
+        pending_nickname_contact_tag TEXT,
         pending_settings TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
@@ -152,39 +159,30 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
       CREATE INDEX IF NOT EXISTS idx_drafts_updated ON drafts(updated_at);
 
-      CREATE TABLE IF NOT EXISTS inbox_pointers (
-        ticket_hash TEXT PRIMARY KEY,
-        sealed_ref_enc TEXT NOT NULL,
-        display_number TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'active',
-        created_bucket INTEGER NOT NULL,
+      CREATE TABLE IF NOT EXISTS unread_inbox_items (
+        item_id TEXT PRIMARY KEY,
+        sealed_capability_enc BLOB NOT NULL,
+        dedupe_tag TEXT NOT NULL UNIQUE,
+        delivery_state TEXT NOT NULL,
+        delivery_attempt_id TEXT,
+        delivery_lease_until INTEGER,
         created_at INTEGER NOT NULL,
-        delivered_at INTEGER,
-        replied_at INTEGER,
-        blocked_at INTEGER,
-        reported_at INTEGER,
-        deleted_at INTEGER,
-        expires_at INTEGER NOT NULL,
-        dedupe_key TEXT UNIQUE
+        expires_at INTEGER NOT NULL
       );
 
-      CREATE INDEX IF NOT EXISTS idx_inbox_status_created
-        ON inbox_pointers(status, created_at);
+      CREATE INDEX IF NOT EXISTS idx_unread_inbox_items_state_created
+        ON unread_inbox_items(delivery_state, created_at, item_id);
 
-      CREATE INDEX IF NOT EXISTS idx_inbox_created
-        ON inbox_pointers(created_at);
-
-      CREATE INDEX IF NOT EXISTS idx_inbox_expires
-        ON inbox_pointers(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_unread_inbox_items_expires
+        ON unread_inbox_items(expires_at);
 
       CREATE TABLE IF NOT EXISTS blocks (
-        blocked_user_id TEXT PRIMARY KEY,
+        block_tag TEXT PRIMARY KEY,
         created_at INTEGER NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS contact_labels (
-        alias TEXT PRIMARY KEY,
-        target_user_id TEXT NOT NULL,
+        contact_tag TEXT PRIMARY KEY,
         nickname_ciphertext TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
@@ -304,10 +302,9 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     discoverable: boolean;
     profileCapabilityEnc: string | null;
     draft: UserDraft | null;
-    blockedUserIds: string[];
+    blockTags: string[];
     labels: Array<{
-      alias: string;
-      target_user_id: string;
+      contact_tag: string;
       nickname_ciphertext: string;
     }>;
     lastMessageAt?: number;
@@ -327,18 +324,17 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       .toArray();
 
     const blocks = this.ctx.storage.sql
-      .exec<{ blocked_user_id: string }>(
-        "SELECT blocked_user_id FROM blocks ORDER BY created_at ASC"
+      .exec<{ block_tag: string }>(
+        "SELECT block_tag FROM blocks ORDER BY created_at ASC"
       )
       .toArray()
-      .map((row) => row.blocked_user_id);
+      .map((row) => row.block_tag);
 
     const labels = this.ctx.storage.sql
       .exec<{
-        alias: string;
-        target_user_id: string;
+        contact_tag: string;
         nickname_ciphertext: string;
-      }>("SELECT alias, target_user_id, nickname_ciphertext FROM contact_labels")
+      }>("SELECT contact_tag, nickname_ciphertext FROM contact_labels")
       .toArray();
 
     const rateRow = this.ctx.storage.sql
@@ -354,7 +350,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       discoverable: !!state.discoverable,
       profileCapabilityEnc: state.profile_capability_enc,
       draft: draftRows[0] ? rowToDraft(draftRows[0]) : null,
-      blockedUserIds: blocks,
+      blockTags: blocks,
       labels,
       lastMessageAt: rateRow?.last_at,
     };
@@ -386,20 +382,20 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
     this.ctx.storage.sql.exec(
       `INSERT INTO drafts (
-        id, mode, to_user_id, link_slug, reply_ref,
+        id, mode, to_user_id, link_slug,
         parent_message_id, reply_to_message_id,
-        pending_nickname_alias, pending_settings,
-        created_at, updated_at
+        pending_nickname_contact_tag, pending_settings,
+        expires_at, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       draftId,
       body.mode,
       body.toUserId ?? null,
       body.linkSlug ?? null,
-      body.replyRef ?? null,
       body.parent_message_id ?? null,
       body.reply_to_message_id ?? null,
-      body.pendingNicknameAlias ?? null,
+      body.pendingNicknameContactTag ?? null,
       body.pendingSettings ?? null,
+      body.expiresAt ?? null,
       now,
       now
     );
@@ -416,7 +412,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     this.ctx.storage.sql.exec("DELETE FROM drafts");
   }
 
-  checkCanReceive(senderUserId: string): { ok: boolean; reason?: string } {
+  checkCanReceive(blockTag: string): { ok: boolean; reason?: string } {
     const state = this.ctx.storage.sql
       .exec<UserStateRow>("SELECT paused FROM user_state LIMIT 1")
       .toArray()[0];
@@ -426,9 +422,9 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     }
 
     const blocked = this.ctx.storage.sql
-      .exec<{ blocked_user_id: string }>(
-        "SELECT blocked_user_id FROM blocks WHERE blocked_user_id = ?",
-        senderUserId
+      .exec<{ block_tag: string }>(
+        "SELECT block_tag FROM blocks WHERE block_tag = ?",
+        blockTag
       )
       .toArray();
 
@@ -582,28 +578,77 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     );
   }
 
-  addInboxPointer(body: {
-      ticketHash: string;
-      sealedTicketRef: string;
-      displayNumber: string;
-      createdBucket: number;
-      createdAt: number;
-      expiresAt: number;
-      dedupeKey: string;
-    }): {
-      ok: boolean;
-      reason?: "full" | "invalid";
-      pendingCount?: number;
-      duplicate?: boolean;
-      ticketHash?: string;
-      evictedTicketHashes?: string[];
-    } {
+  private recoverExpiredUnreadLeases(now = Date.now()): void {
+    this.ctx.storage.sql.exec(
+      `UPDATE unread_inbox_items
+       SET delivery_state = 'active',
+           delivery_attempt_id = NULL,
+           delivery_lease_until = NULL
+       WHERE delivery_state = 'delivering'
+         AND delivery_lease_until IS NOT NULL
+         AND delivery_lease_until <= ?`,
+      now
+    );
+  }
 
+  cleanupExpiredUnreadItems(): { deleted: number; summary: UnreadInboxSummary } {
+    const now = Date.now();
+    const rows = this.ctx.storage.sql
+      .exec<{ item_id: string }>(
+        `SELECT item_id FROM unread_inbox_items
+         WHERE expires_at <= ?
+         ORDER BY expires_at ASC
+         LIMIT ${INBOX_CLEANUP_LIMIT}`,
+        now
+      )
+      .toArray();
+    if (rows.length > 0) {
+      const placeholders = rows.map(() => "?").join(",");
+      this.ctx.storage.sql.exec(
+        `DELETE FROM unread_inbox_items WHERE item_id IN (${placeholders})`,
+        ...rows.map((row) => row.item_id)
+      );
+    }
+    this.recoverExpiredUnreadLeases(now);
+    return { deleted: rows.length, summary: this.getUnreadSummary() };
+  }
+
+  private activeUnreadCount(): number {
+    this.recoverExpiredUnreadLeases();
+    return this.ctx.storage.sql
+      .exec<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM unread_inbox_items
+         WHERE expires_at > ?
+           AND delivery_state IN ('active', 'delivering')`,
+        Date.now()
+      )
+      .one().count;
+  }
+
+  getUnreadSummary(): UnreadInboxSummary {
+    return {
+      unreadCount: this.activeUnreadCount(),
+    };
+  }
+
+  addUnreadItem(body: {
+    itemId: string;
+    sealedCapabilityEnc: string;
+    dedupeTag: string;
+    createdAt: number;
+    expiresAt: number;
+  }): {
+    ok: boolean;
+    reason?: "full" | "invalid";
+    unreadCount?: number;
+    duplicate?: boolean;
+  } {
     if (
-      !body.ticketHash ||
-      !body.sealedTicketRef ||
-      !body.displayNumber ||
-      !Number.isSafeInteger(body.createdBucket) ||
+      !body.itemId ||
+      body.itemId.length > 80 ||
+      !body.sealedCapabilityEnc ||
+      !body.dedupeTag ||
+      body.dedupeTag.length > 86 ||
       !Number.isSafeInteger(body.createdAt) ||
       !Number.isSafeInteger(body.expiresAt) ||
       body.expiresAt <= body.createdAt
@@ -611,218 +656,198 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       return { ok: false, reason: "invalid" };
     }
 
-    if (body.dedupeKey) {
-      const existing = this.ctx.storage.sql
-        .exec<{ ticket_hash: string }>(
-          "SELECT ticket_hash FROM inbox_pointers WHERE dedupe_key = ?",
-          body.dedupeKey
-        )
-        .toArray();
-      if (existing.length > 0) {
-        const pending = this.unreadInboxCount();
-        return {
-          ok: true,
-          duplicate: true,
-          pendingCount: pending,
-          ticketHash: existing[0]?.ticket_hash,
-        };
-      }
-    }
-
-    const evictedTicketHashes = this.cleanupExpiredPointers();
-
-    const active = this.unreadInboxCount();
-    if (active >= INBOX_MAX_TICKETS) {
-      return { ok: false, reason: "full" };
-    }
-
-    const total = this.ctx.storage.sql
-      .exec<{ count: number }>("SELECT COUNT(*) AS count FROM inbox_pointers")
-      .one().count;
-
-    if (total >= INBOX_MAX_TICKETS) {
-      const removable = this.ctx.storage.sql
-        .exec<{ ticket_hash: string }>(
-          `SELECT ticket_hash FROM inbox_pointers
-           WHERE status != 'active'
-           ORDER BY created_at ASC
-           LIMIT ?`,
-          total - INBOX_MAX_TICKETS + 1
-        )
-        .toArray();
-      evictedTicketHashes.push(...removable.map((row) => row.ticket_hash));
-      this.ctx.storage.sql.exec(
-        `DELETE FROM inbox_pointers
-         WHERE ticket_hash IN (
-           SELECT ticket_hash FROM inbox_pointers
-           WHERE status != 'active'
-           ORDER BY created_at ASC
-           LIMIT ?
-         )`,
-        total - INBOX_MAX_TICKETS + 1
-      );
-    }
-
-    const now = Date.now();
-    try {
-      this.ctx.storage.sql.exec(
-        `INSERT INTO inbox_pointers (
-          ticket_hash, sealed_ref_enc, display_number, status,
-          created_bucket, created_at, expires_at, dedupe_key
-        ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?)`,
-        body.ticketHash,
-        body.sealedTicketRef,
-        body.displayNumber,
-        body.createdBucket,
-        body.createdAt || now,
-        body.expiresAt,
-        body.dedupeKey
-      );
-    } catch {
-      const existing = body.dedupeKey
-        ? this.ctx.storage.sql
-            .exec<{ ticket_hash: string }>(
-              "SELECT ticket_hash FROM inbox_pointers WHERE dedupe_key = ?",
-              body.dedupeKey
-            )
-            .toArray()[0]
-        : undefined;
-      const pendingAfter = this.unreadInboxCount();
+    this.cleanupExpiredUnreadItems();
+    const existing = this.ctx.storage.sql
+      .exec<{ item_id: string }>(
+        "SELECT item_id FROM unread_inbox_items WHERE dedupe_tag = ?",
+        body.dedupeTag
+      )
+      .toArray()[0];
+    if (existing) {
+      const summary = this.getUnreadSummary();
       return {
         ok: true,
         duplicate: true,
-        pendingCount: pendingAfter,
-        ticketHash: existing?.ticket_hash,
+        unreadCount: summary.unreadCount,
       };
     }
 
+    const active = this.activeUnreadCount();
+    if (active >= INBOX_MAX_UNREAD) {
+      return { ok: false, reason: "full" };
+    }
+
+    try {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO unread_inbox_items (
+          item_id, sealed_capability_enc, dedupe_tag, delivery_state,
+          delivery_attempt_id, delivery_lease_until, created_at, expires_at
+        ) VALUES (?, ?, ?, 'active', NULL, NULL, ?, ?)`,
+        body.itemId,
+        body.sealedCapabilityEnc,
+        body.dedupeTag,
+        body.createdAt,
+        body.expiresAt
+      );
+    } catch {
+      const summary = this.getUnreadSummary();
+      return {
+        ok: true,
+        duplicate: true,
+        unreadCount: summary.unreadCount,
+      };
+    }
+
+    const summary = this.getUnreadSummary();
     return {
       ok: true,
-      pendingCount: this.unreadInboxCount(),
-      evictedTicketHashes,
+      unreadCount: summary.unreadCount,
     };
   }
 
-  private unreadInboxCount(): number {
-    return this.ctx.storage.sql
-      .exec<{ count: number }>(
-        "SELECT COUNT(*) AS count FROM inbox_pointers WHERE status = 'active' AND expires_at > ?",
-        Date.now()
-      )
-      .one().count;
-  }
-
-  private cleanupExpiredPointers(): string[] {
+  private claimUnreadRows(limit: number): UnreadDeliveryClaim[] {
+    const cappedLimit = Math.min(5, Math.max(1, Math.floor(limit)));
     const now = Date.now();
+    this.cleanupExpiredUnreadItems();
+    this.recoverExpiredUnreadLeases(now);
     const rows = this.ctx.storage.sql
-      .exec<{ ticket_hash: string }>(
-        `SELECT ticket_hash FROM inbox_pointers
-         WHERE expires_at <= ?
-         ORDER BY expires_at ASC
-         LIMIT ${INBOX_CLEANUP_LIMIT}`,
-        now
+      .exec<UnreadInboxItemRow>(
+        `SELECT item_id, sealed_capability_enc, dedupe_tag, delivery_state,
+                delivery_attempt_id, delivery_lease_until, created_at, expires_at
+         FROM unread_inbox_items
+         WHERE delivery_state = 'active'
+           AND expires_at > ?
+         ORDER BY created_at ASC, item_id ASC
+         LIMIT ?`,
+        now,
+        cappedLimit
       )
       .toArray();
 
-    if (rows.length === 0) {
-      return [];
+    const claims: UnreadDeliveryClaim[] = [];
+    for (const row of rows) {
+      const attemptId = crypto.randomUUID();
+      const leaseUntil = now + UNREAD_DELIVERY_LEASE_MS;
+      this.ctx.storage.sql.exec(
+        `UPDATE unread_inbox_items
+         SET delivery_state = 'delivering',
+             delivery_attempt_id = ?,
+             delivery_lease_until = ?
+         WHERE item_id = ?
+           AND delivery_state = 'active'`,
+        attemptId,
+        leaseUntil,
+        row.item_id
+      );
+      const updated = this.ctx.storage.sql
+        .exec<UnreadInboxItemRow>(
+          `SELECT item_id, sealed_capability_enc, dedupe_tag, delivery_state,
+                  delivery_attempt_id, delivery_lease_until, created_at, expires_at
+           FROM unread_inbox_items
+           WHERE item_id = ?
+             AND delivery_attempt_id = ?`,
+          row.item_id,
+          attemptId
+        )
+        .toArray()[0];
+      if (updated) {
+        claims.push({
+          itemId: updated.item_id,
+          sealedCapabilityEnc: updated.sealed_capability_enc,
+          dedupeTag: updated.dedupe_tag,
+          deliveryAttemptId: attemptId,
+          expiresAt: updated.expires_at,
+        });
+      }
     }
+    return claims;
+  }
 
-    const placeholders = rows.map(() => "?").join(",");
+  claimNextUnreadItem(): UnreadDeliveryClaim | null {
+    return this.claimUnreadRows(1)[0] ?? null;
+  }
+
+  completeUnreadDelivery(body: {
+    itemId: string;
+    deliveryAttemptId: string;
+  }): { ok: boolean; summary: UnreadInboxSummary } {
+    if (!body.itemId || !body.deliveryAttemptId) {
+      return { ok: false, summary: this.getUnreadSummary() };
+    }
     this.ctx.storage.sql.exec(
-      `DELETE FROM inbox_pointers WHERE ticket_hash IN (${placeholders})`,
-      ...rows.map((row) => row.ticket_hash)
+      `DELETE FROM unread_inbox_items
+       WHERE item_id = ?
+         AND delivery_attempt_id = ?`,
+      body.itemId,
+      body.deliveryAttemptId
     );
-    return rows.map((row) => row.ticket_hash);
+    return { ok: true, summary: this.getUnreadSummary() };
   }
 
-  inboxPage(offset = 0): {
-    pointers: Array<{
-      ticketHash: string;
-      sealedTicketRef: string;
-      displayNumber: string;
-      status: InboxPointerStatus;
-      createdBucket: number;
-      createdAt: number;
-      expiresAt: number;
-    }>;
-    nextOffset?: number;
-    expiredTicketHashes: string[];
-  } {
-    const normalizedOffset = Math.max(0, Number(offset) || 0);
-    const expiredTicketHashes = this.cleanupExpiredPointers();
-    const rows = this.ctx.storage.sql
-      .exec<InboxPointerRow>(
-        `SELECT ticket_hash, sealed_ref_enc, display_number, status,
-                created_bucket, created_at, expires_at, delivered_at, dedupe_key
-         FROM inbox_pointers
-         WHERE expires_at > ?
-           AND status = 'active'
-         ORDER BY created_at ASC
-         LIMIT ${INBOX_PAGE_SIZE + 1}
-         OFFSET ?`,
-        Date.now(),
-        normalizedOffset
+  releaseUnreadDelivery(body: {
+    itemId: string;
+    deliveryAttemptId: string;
+  }): { ok: boolean } {
+    if (!body.itemId || !body.deliveryAttemptId) {
+      return { ok: false };
+    }
+    this.ctx.storage.sql.exec(
+      `UPDATE unread_inbox_items
+       SET delivery_state = 'active',
+           delivery_attempt_id = NULL,
+           delivery_lease_until = NULL
+       WHERE item_id = ?
+         AND delivery_attempt_id = ?`,
+      body.itemId,
+      body.deliveryAttemptId
+    );
+    return { ok: true };
+  }
+
+  purgeUnreadInbox(): { ok: boolean; summary: UnreadInboxSummary } {
+    this.ctx.storage.sql.exec("DELETE FROM unread_inbox_items");
+    return { ok: true, summary: this.getUnreadSummary() };
+  }
+
+  listUnreadItemsForReset(): Array<{
+    itemId: string;
+    sealedCapabilityEnc: string;
+    dedupeTag: string;
+  }> {
+    return this.ctx.storage.sql
+      .exec<UnreadInboxItemRow>(
+        `SELECT item_id, sealed_capability_enc, dedupe_tag, delivery_state,
+                delivery_attempt_id, delivery_lease_until, created_at, expires_at
+         FROM unread_inbox_items`
       )
-      .toArray();
-
-    const pageRows = rows.slice(0, INBOX_PAGE_SIZE);
-    const nextOffset =
-      rows.length > INBOX_PAGE_SIZE
-        ? normalizedOffset + INBOX_PAGE_SIZE
-        : undefined;
-
-    return {
-      pointers: pageRows.map((row) => ({
-        ticketHash: row.ticket_hash,
-        sealedTicketRef: row.sealed_ref_enc,
-        displayNumber: row.display_number,
-        status: row.status,
-        createdBucket: row.created_bucket,
-        createdAt: row.created_at,
-        expiresAt: row.expires_at,
-      })),
-      ...(nextOffset !== undefined ? { nextOffset } : {}),
-      expiredTicketHashes,
-    };
+      .toArray()
+      .map((row) => ({
+        itemId: row.item_id,
+        sealedCapabilityEnc: row.sealed_capability_enc,
+        dedupeTag: row.dedupe_tag,
+      }));
   }
 
-  markInboxStatus(ticketHash: string, status: string): void {
-    if (!isInboxPointerTransition(status)) {
+  deleteUnreadItem(itemId: string): void {
+    if (!itemId || itemId.length > 80) {
       return;
     }
-    const now = Date.now();
-    const timestampColumn =
-      status === "viewed"
-        ? "delivered_at"
-        : status === "replied"
-          ? "replied_at"
-          : status === "blocked"
-            ? "blocked_at"
-            : "reported_at";
-    this.ctx.storage.sql.exec(
-      `UPDATE inbox_pointers
-       SET status = ?, ${timestampColumn} = ?
-       WHERE ticket_hash = ?`,
-      status,
-      now,
-      ticketHash
-    );
+    this.ctx.storage.sql.exec("DELETE FROM unread_inbox_items WHERE item_id = ?", itemId);
   }
 
-  addBlock(blockedUserId: string): void {
+  addBlock(blockTag: string): void {
     const now = Date.now();
     this.ctx.storage.sql.exec(
-      `INSERT OR IGNORE INTO blocks (blocked_user_id, created_at) VALUES (?, ?)`,
-      blockedUserId,
+      `INSERT OR IGNORE INTO blocks (block_tag, created_at) VALUES (?, ?)`,
+      blockTag,
       now
     );
   }
 
-  removeBlock(blockedUserId: string): void {
+  removeBlock(blockTag: string): void {
     this.ctx.storage.sql.exec(
-      "DELETE FROM blocks WHERE blocked_user_id = ?",
-      blockedUserId
+      "DELETE FROM blocks WHERE block_tag = ?",
+      blockTag
     );
   }
 
@@ -831,16 +856,15 @@ export class UserStateDurableObject extends DurableObject<Environment> {
   }
 
   setLabel(
-    alias: string,
-    targetUserId: string,
+    contactTag: string,
     nicknameCiphertext: string | null
   ): { ok: boolean; limited?: boolean } {
     const now = Date.now();
 
     if (!nicknameCiphertext) {
       this.ctx.storage.sql.exec(
-        "DELETE FROM contact_labels WHERE alias = ?",
-        alias
+        "DELETE FROM contact_labels WHERE contact_tag = ?",
+        contactTag
       );
       return { ok: true };
     }
@@ -850,9 +874,9 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       .one().count;
 
     const exists = this.ctx.storage.sql
-      .exec<{ alias: string }>(
-        "SELECT alias FROM contact_labels WHERE alias = ?",
-        alias
+      .exec<{ contact_tag: string }>(
+        "SELECT contact_tag FROM contact_labels WHERE contact_tag = ?",
+        contactTag
       )
       .toArray();
 
@@ -861,13 +885,12 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     }
 
     this.ctx.storage.sql.exec(
-      `INSERT INTO contact_labels (alias, target_user_id, nickname_ciphertext, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(alias) DO UPDATE SET
+      `INSERT INTO contact_labels (contact_tag, nickname_ciphertext, created_at, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(contact_tag) DO UPDATE SET
          nickname_ciphertext = excluded.nickname_ciphertext,
          updated_at = excluded.updated_at`,
-      alias,
-      targetUserId,
+      contactTag,
       nicknameCiphertext,
       now,
       now
@@ -1122,18 +1145,13 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     };
   }
 
-  async purge(): Promise<{ ok: boolean; ticketHashes: string[] }> {
-    const ticketHashes = this.ctx.storage.sql
-      .exec<{ ticket_hash: string }>("SELECT ticket_hash FROM inbox_pointers")
-      .toArray()
-      .map((row) => row.ticket_hash);
-
+  async purge(): Promise<{ ok: boolean }> {
     this.ctx.storage.sql.exec(`
       DELETE FROM processed_events;
       DELETE FROM rate_limits;
       DELETE FROM contact_labels;
       DELETE FROM blocks;
-      DELETE FROM inbox_pointers;
+      DELETE FROM unread_inbox_items;
       DELETE FROM drafts;
       DELETE FROM profile_sessions;
       DELETE FROM exposure_tokens;
@@ -1141,6 +1159,6 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     `);
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
-    return { ok: true, ticketHashes };
+    return { ok: true };
   }
 }

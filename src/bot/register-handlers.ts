@@ -1,6 +1,6 @@
 import type { Bot, Context } from "grammy";
 import type { Message } from "grammy/types";
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import { EXPIRED_CALLBACK_MESSAGE, UNKNOWN_COMMAND_MESSAGE } from "../i18n/messages";
 import { mainMenu } from "./keyboards";
 import {
@@ -12,10 +12,12 @@ import {
 } from "../features/ticketing/actions";
 import {
   handleInboxCommand,
-  handleInboxMoreCallback,
   handleMessage,
   handleStartCommand,
 } from "../features/ticketing/handlers";
+import {
+  handleInboxDeliverCallback,
+} from "../features/ticketing/inbox";
 import { handleSettingsCommand, handleSettingsCallback } from "../features/settings/settings-handlers";
 import {
   handleAssessmentCallback,
@@ -103,21 +105,7 @@ export const registerHandlers = (bot: Bot, env: Environment): void => {
   bot.callbackQuery(inboxCallbackQueryRegex("nickname"), onInboxCallback(handleNicknameAction));
   bot.callbackQuery(inboxCallbackQueryRegex("report"), onInboxCallback(handleReportAction));
 
-  bot.callbackQuery(INBOX_MENU_CALLBACK.open, async (ctx) => {
-    try {
-      await handleInboxCommand(ctx, env);
-    } finally {
-      await ctx.answerCallbackQuery();
-    }
-  });
-
-  bot.callbackQuery(/^ib:m:\d+$/, async (ctx) => {
-    try {
-      await handleInboxMoreCallback(ctx, env);
-    } finally {
-      await ctx.answerCallbackQuery();
-    }
-  });
+  bot.callbackQuery(INBOX_MENU_CALLBACK.deliver, onInboxCallback(handleInboxDeliverCallback));
 
   bot.callbackQuery(/^t:/, (ctx) => handleAssessmentCallback(ctx, env));
 

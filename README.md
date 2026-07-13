@@ -12,7 +12,7 @@ It runs as a single Cloudflare Worker. Telegram is the product surface: the Work
 
 - Creates a personal anonymous deep link: `t.me/{bot}?start={slug}`
 - Relays anonymous text messages through sealed tickets
-- Provides a bounded inbox with anonymous replies
+- Delivers anonymous messages through direct ticket buttons with anonymous replies
 - Supports block, report, private nickname, and pause/resume
 - Builds a conversation profile from 25 questions across 8 dimensions
 - Offers opt-in conversation suggestions with deterministic reciprocal ranking
@@ -45,7 +45,7 @@ Main reply keyboard:
 Personal link
   → anonymous message
   → sealed ticket
-  → recipient inbox
+  → Telegram ticket button
   → reply / nickname / block / report
   → ticket expiry
 ```
@@ -103,7 +103,7 @@ Telegram Bot API
 |---|---|
 | Worker | `POST /bot`, grammY handlers, queue dispatch, Durable Object exports |
 | D1 | users, public links, and aggregate product statistics |
-| UserState DO | inbox pointers, drafts, blocks, labels, rate limits, profile sessions, exposure state |
+| UserState DO | blind ticket slots, drafts, blocks, labels, rate limits, profile sessions, exposure state |
 | TicketVault DO | encrypted ticket routes and temporary encrypted payloads |
 | ProfileVault DO | encrypted conversation profiles and Vectorize routing data |
 | ConversationVault DO | sealed suggestions, requests, and encrypted request intros |
@@ -121,16 +121,18 @@ D1 does not store anonymous message bodies or a plaintext anonymous sender-recip
 An anonymous message is represented as a recipient-scoped sealed ticket capability:
 
 ```text
-ticketRef
+TicketCapability
+  → lookupNonce + keySeed
   → blind ticketHash
-  → actor-bound owner proof
-  → encrypted route capsule
-  → temporary encrypted payload
-  → TicketVault
-  → sealed inbox pointer
+  → actor/account-bound owner proof
+  → encrypted route and temporary payload
+  → TicketVault + blind UserState slot
+  → Telegram-owned open button
 ```
 
-The raw `ticketRef` is sent through Telegram callback data but is not stored as a database key. The payload is cleared after successful first inbox delivery. The encrypted route remains only until ticket expiry so reply, block, report, and private nickname actions can still work.
+Telegram chat history holds the ticket capability after notification delivery. Nekonymous stores the encrypted ticket material but does not retain a recoverable per-user ticket index. Possession of the capability and the correct Telegram actor are both required for ticket actions.
+
+Deleting the Telegram notification or chat history can permanently remove the user's ability to access that ticket. Telegram and the Worker still see plaintext while processing. This is not E2EE, zero-knowledge, or perfect anonymity.
 
 See [Sealed Ticketing](./docs/sealed-ticketing.md).
 

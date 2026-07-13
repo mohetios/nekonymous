@@ -1,4 +1,7 @@
-import type { PairStateRecord } from "./pair-ledger.types";
+import type {
+  AcquirePairPendingResult,
+  PairStateRecord,
+} from "./pair-ledger.types";
 
 const BLOCKING_PAIR_STATES = new Set<PairStateRecord["state"]>([
   "pending",
@@ -23,10 +26,6 @@ export const isActiveBlockingPairState = (
   }
   return BLOCKING_PAIR_STATES.has(record.state);
 };
-
-export type AcquirePairPendingResult =
-  | { ok: true }
-  | { ok: false; reason: "blocked" };
 
 export const evaluateAcquirePairPending = (
   record: PairStateRecord | null | undefined,

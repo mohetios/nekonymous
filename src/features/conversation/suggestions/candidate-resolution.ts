@@ -11,21 +11,16 @@ import {
   getProfileRecord,
   getVectorRouteRecord,
 } from "../../../storage/profile-vault/profile-vault.client";
-import type { Environment } from "../../../types";
-import type { ConversationProfile, ProfileLocale } from "../profile/types.ts";
+import type { Environment } from "../../../contracts/runtime";
+import type { ConversationProfile, ProfileLocale } from "../../../contracts/conversation/profile";
 import { RETRIEVAL_MAX_CONCURRENT_VAULT_RESOLVES } from "./constants.ts";
 import {
   dedupeResolvedHits,
   passesRetrievalFilter,
   roleMatchesChannel,
 } from "./retrieval-utils.ts";
-import type {
-  CandidateProfile,
-  ResolvedVectorHit,
-  RetrievalChannel,
-  VectorHit,
-} from "./types.ts";
-import type { VectorRouteRole } from "../../../storage/profile-vault/profile-vault.types";
+import type { CandidateProfile, ResolvedVectorHit, RetrievalChannel, VectorHit } from "../../../contracts/conversation/retrieval";
+import type { VectorRouteRole } from "../../../contracts/conversation/profile-vault";
 
 export type ResolveCandidatesInput = {
   requesterProfileHash: string;

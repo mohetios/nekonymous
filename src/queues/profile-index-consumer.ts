@@ -1,11 +1,11 @@
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import {
   shouldAckIndexJobEarly,
   shouldSkipUpsertForDiscoverableProfile,
   shouldSkipVerifyForDiscoverableProfile,
 } from "./profile-index-policy.ts";
-import { PROFILE_INDEX_SCHEMA_VERSION } from "./profile-index.types";
-import type { ProfileIndexJob } from "./profile-index.types";
+import { PROFILE_INDEX_SCHEMA_VERSION } from "../contracts/conversation/profile-index";
+import type { ProfileIndexJob } from "../contracts/conversation/profile-index";
 import { recordProfileIndexed, recordProfileIndexFailed } from "../stats/product-events";
 import {
   createIndexJobLookupHash,
@@ -37,11 +37,11 @@ import {
   updateProfileRouteEnc,
 } from "../storage/profile-vault/profile-vault.client";
 import type {
-  IndexJobRecord,
+  ProfileIndexJobRecord,
   ProfileVaultRecord,
   VectorRouteRole,
-} from "../storage/profile-vault/profile-vault.types";
-import type { ConversationProfile } from "../features/conversation/profile/types.ts";
+} from "../contracts/conversation/profile-vault";
+import type { ConversationProfile } from "../contracts/conversation/profile";
 import {
   namespaceFor,
   padVectorForIndex,
@@ -155,7 +155,7 @@ const runUpsert = async (
   env: Environment,
   job: ProfileIndexJob,
   jobHash: string,
-  jobRecord: IndexJobRecord,
+  jobRecord: ProfileIndexJobRecord,
   profile: ProfileVaultRecord
 ): Promise<JobOutcome> => {
   if (shouldSkipUpsertForDiscoverableProfile(profile.status)) {
@@ -234,7 +234,7 @@ const runUpsert = async (
 const runVerify = async (
   env: Environment,
   jobHash: string,
-  jobRecord: IndexJobRecord,
+  jobRecord: ProfileIndexJobRecord,
   profile: ProfileVaultRecord,
   deliveryAttempt: number
 ): Promise<JobOutcome> => {
@@ -285,7 +285,7 @@ const runVerify = async (
 const runDelete = async (
   env: Environment,
   jobHash: string,
-  jobRecord: IndexJobRecord,
+  jobRecord: ProfileIndexJobRecord,
   profile: ProfileVaultRecord
 ): Promise<JobOutcome> => {
   if (jobRecord.vectorsEnc) {

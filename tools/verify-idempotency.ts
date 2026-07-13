@@ -2,7 +2,6 @@ import {
   resolveProcessedEventClaim,
   type ProcessedEventSnapshot,
 } from "../src/storage/processed-events-policy.ts";
-import { messageCreatedOutboxEventKey } from "../src/features/ticketing/outbox-event-key.ts";
 
 const assert = (condition: boolean, message: string): void => {
   if (!condition) {
@@ -58,15 +57,18 @@ assert(
 );
 
 // 5) two different outbox events to same recipient can both send
-const eventKeyA = messageCreatedOutboxEventKey("ticket_hash_a");
-const eventKeyB = messageCreatedOutboxEventKey("ticket_hash_b");
+const ticketDeliveryEventKey = (ticketHash: string): string =>
+  `ticket-delivery:${ticketHash}`;
+
+const eventKeyA = ticketDeliveryEventKey("ticket_hash_a");
+const eventKeyB = ticketDeliveryEventKey("ticket_hash_b");
 assert(
   eventKeyA !== eventKeyB,
   "different source events must generate distinct outbox keys"
 );
 
 // 6) same outbox event key sends only once (same stable key)
-const eventKeyARepeat = messageCreatedOutboxEventKey("ticket_hash_a");
+const eventKeyARepeat = ticketDeliveryEventKey("ticket_hash_a");
 assert(
   eventKeyA === eventKeyARepeat,
   "same source event must generate same outbox key"

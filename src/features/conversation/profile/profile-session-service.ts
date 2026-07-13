@@ -8,7 +8,7 @@ import {
   startProfileSessionWire,
   updateProfileSessionWire,
 } from "../../../storage/user-state-client";
-import type { Environment } from "../../../types";
+import type { Environment } from "../../../contracts/runtime";
 import {
   PROFILE_QUESTION_COUNT,
   PROFILE_SCHEMA_VERSION,
@@ -16,7 +16,7 @@ import {
 } from "./constants.ts";
 import { PROFILE_QUESTIONS } from "./question-bank.ts";
 import { countAnsweredQuestions, hasCompleteAnswers } from "./validation.ts";
-import type { ProfileAnswers, ProfileSession, ProfileSessionStatus, ConversationIntent } from "./types.ts";
+import type { ProfileAnswers, ProfileSession, ProfileSessionStatus, ConversationIntent } from "../../../contracts/conversation/profile";
 
 const sessionScope = (userId: string): string => `profile-session:v2:${userId}`;
 

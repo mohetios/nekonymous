@@ -1,4 +1,4 @@
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import { encryptDisplayName } from "./ticketing-service";
 import {
   buildDeliveryHeader,
@@ -7,8 +7,9 @@ import {
 } from "./contact-display";
 import { setContactLabel as setLabelInDo } from "../../storage/user-state-client";
 
-const CONTACT_LABELS_MAX = 200;
-const NICKNAME_MAX_CHARS = 32;
+export const NICKNAME_MAX_COUNT = 200;
+export const NICKNAME_MAX_LENGTH = 32;
+export const NICKNAME_DRAFT_TTL = 10 * 60 * 1000;
 
 export {
   buildDeliveryHeaderLine,
@@ -22,20 +23,18 @@ export const sanitizeNickname = (input: string): string => {
     return "";
   }
 
-  return [...cleaned].slice(0, NICKNAME_MAX_CHARS).join("");
+  return [...cleaned].slice(0, NICKNAME_MAX_LENGTH).join("");
 };
 
 export const lookupContactLabel = (
   labels: Record<string, string> | undefined,
-  alias: string
-): string | undefined => labels?.[alias];
+  contactTag: string
+): string | undefined => labels?.[contactTag];
 
 export const getContactLabelForSender = (
-  _recipientUserId: string,
-  _senderUserId: string,
   labels: Record<string, string> | undefined,
-  senderAlias: string
-): string | undefined => lookupContactLabel(labels, senderAlias);
+  contactTag: string
+): string | undefined => lookupContactLabel(labels, contactTag);
 
 export class ContactLabelLimitError extends Error {
   constructor() {
@@ -47,16 +46,15 @@ export class ContactLabelLimitError extends Error {
 export const setContactLabel = async (
   env: Environment,
   recipientUserId: string,
-  senderAlias: string,
-  targetUserId: string,
+  contactTag: string,
   nickname: string,
   existingLabels: Record<string, string>
 ): Promise<void> => {
-  const isUpdate = senderAlias in existingLabels;
+  const isUpdate = contactTag in existingLabels;
   if (
     nickname &&
     !isUpdate &&
-    Object.keys(existingLabels).length >= CONTACT_LABELS_MAX
+    Object.keys(existingLabels).length >= NICKNAME_MAX_COUNT
   ) {
     throw new ContactLabelLimitError();
   }
@@ -69,8 +67,7 @@ export const setContactLabel = async (
     await setLabelInDo(
       env,
       recipientUserId,
-      senderAlias,
-      targetUserId,
+      contactTag,
       nicknameCiphertext
     );
   } catch (error) {

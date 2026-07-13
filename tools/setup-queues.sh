@@ -52,4 +52,4 @@ echo "  neko-outbox        -> neko-outbox-dlq"
 echo "  neko-stats         -> neko-stats-dlq"
 echo "  neko-profile-index -> neko-profile-index-dlq"
 echo
-echo "Legacy shared queue neko-dlq is no longer used."
+echo "Removed shared queue neko-dlq is no longer used."

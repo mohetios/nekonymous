@@ -1,4 +1,4 @@
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import { emitStat } from "./emit-stat";
 import { STAT_EVENTS } from "./events";
 
@@ -31,11 +31,6 @@ export const recordMessageCreated = (
 
 export const recordMessageDelivered = (env: Environment): Promise<void> =>
   emitStat(env, STAT_EVENTS.MESSAGE_DELIVERED);
-
-export const recordMessageExpired = (
-  env: Environment,
-  count = 1
-): Promise<void> => emitCount(env, STAT_EVENTS.MESSAGE_EXPIRED, count);
 
 export const recordInboxOpened = (env: Environment): Promise<void> =>
   emitStat(env, STAT_EVENTS.INBOX_OPENED);

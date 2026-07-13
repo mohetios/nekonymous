@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import {
   DRAFT_CANCEL_LABEL,
   buildDraftCancelKeyboard,
@@ -34,10 +34,9 @@ import {
   setContactLabel,
 } from "./contact";
 import { messageToPayload } from "./payload";
-import { createBlockHash } from "./ticketing-service";
+import { createBlockTag } from "./blind-tags";
 import {
   hasDeliverablePayload,
-  notifyRecipientInbox,
   sendAnonymousMessage,
 } from "./service";
 import {
@@ -51,12 +50,8 @@ import {
   checkCanReceive,
   clearDraft,
   getDraft,
-  markInboxPointerReplied,
   setDraft,
 } from "../../storage/user-state-client";
-import {
-  markTicketReplied,
-} from "../../storage/ticket-vault/ticket-vault.client";
 import { escapeHtml, replyHtml, withHtml } from "../../utils/text";
 import { buildUserDeepLink, isUserLinkId, publicDisplayName } from "../identity/user";
 import { renderInbox } from "./inbox";
@@ -64,7 +59,7 @@ import { handleDisplayNameInput } from "../settings/settings-handlers";
 import { handleConversationIntroInput } from "../conversation/suggestions/suggestion-handlers";
 import { mainMenu } from "../../bot/keyboards";
 import { hmacTelegramUserId } from "./ticketing-service";
-import type { UserDraft } from "../../types";
+import type { UserDraft } from "../../contracts/user-state/model";
 import { recordLinkOpened, recordReplySent } from "../../stats/product-events";
 
 const isTextInputDraft = (draft: UserDraft | undefined): boolean => {
@@ -127,13 +122,13 @@ export const handleStartCommand = async (
 
     const recipient = await toBotUser(recipientD1, env);
 
-    const startBlockHash = await createBlockHash(
+    const startBlockTag = await createBlockTag(
       env.APP_HMAC_PEPPER,
-      recipientD1.telegram_user_hash,
+      recipientD1.id,
       d1User.telegram_user_hash
     );
 
-    if (recipient.blockedUserIds.includes(startBlockHash)) {
+    if (recipient.blockTags.includes(startBlockTag)) {
       await ctx.reply(USER_IS_BLOCKED_MESSAGE);
       return;
     }
@@ -241,7 +236,7 @@ export const handleMessage = async (
         return;
       }
 
-      if (draft?.pendingNicknameAlias) {
+      if (draft?.pendingNicknameContactTag) {
         if (!message.text) {
           await ctx.reply(
             NICKNAME_TEXT_ONLY_MESSAGE,
@@ -257,8 +252,7 @@ export const handleMessage = async (
           await setContactLabel(
             env,
             user.id,
-            draft.pendingNicknameAlias,
-            "",
+            draft.pendingNicknameContactTag,
             nickname,
             user.contactLabels
           );
@@ -309,19 +303,19 @@ export const handleMessage = async (
         return;
       }
 
-      const blockHash = await createBlockHash(
+      const blockTag = await createBlockTag(
         env.APP_HMAC_PEPPER,
-        recipientD1.telegram_user_hash,
+        recipientD1.id,
         d1User.telegram_user_hash
       );
 
-      if (recipient.blockedUserIds.includes(blockHash)) {
+      if (recipient.blockTags.includes(blockTag)) {
         await ctx.reply(USER_IS_BLOCKED_MESSAGE, { reply_markup: mainMenu });
         await clearDraft(env, user.id);
         return;
       }
 
-      const canReceive = await checkCanReceive(env, recipientD1.id, blockHash);
+      const canReceive = await checkCanReceive(env, recipientD1.id, blockTag);
       if (!canReceive.ok && !isThreadReply) {
         if (canReceive.reason === "blocked") {
           await ctx.reply(USER_IS_BLOCKED_MESSAGE, { reply_markup: mainMenu });
@@ -374,29 +368,8 @@ export const handleMessage = async (
         reply_markup: mainMenu,
       });
 
-      if (result.notify && result.pendingCount) {
-        try {
-          const sourceEventId = result.ticketHash ?? `fallback:${Date.now()}`;
-          await notifyRecipientInbox(
-            env,
-            recipientD1,
-            result.pendingCount,
-            sourceEventId
-          );
-        } catch (error) {
-          logBotError("handleMessage:notify", error);
-        }
-      }
-
       if (draft?.mode === "reply") {
         await recordReplySent(env);
-      }
-
-      if (draft?.mode === "reply" && draft.replyRef) {
-        await Promise.all([
-          markInboxPointerReplied(env, user.id, draft.replyRef),
-          markTicketReplied(env, draft.replyRef),
-        ]).catch((error) => logBotError("handleMessage:mark-replied", error));
       }
 
       await clearDraft(env, user.id);
@@ -418,17 +391,5 @@ export const handleInboxCommand = async (
   ctx: Context,
   env: Environment
 ): Promise<void> => {
-  await renderInbox(ctx, env, 0);
-};
-
-export const handleInboxMoreCallback = async (
-  ctx: Context,
-  env: Environment
-): Promise<void> => {
-  const data = ctx.callbackQuery?.data;
-  const offset = Number(data?.split(":")[2] ?? "0");
-  if (!Number.isFinite(offset) || offset < 0) {
-    return;
-  }
-  await renderInbox(ctx, env, offset);
+  await renderInbox(ctx, env);
 };

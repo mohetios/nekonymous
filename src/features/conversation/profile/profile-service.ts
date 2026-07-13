@@ -16,7 +16,7 @@ import {
   randomProfileRef,
 } from "../../ticketing/conversation-keys";
 import { encryptEnvelope } from "../../ticketing/envelope";
-import { PROFILE_INDEX_SCHEMA_VERSION } from "../../../queues/profile-index.types";
+import { PROFILE_INDEX_SCHEMA_VERSION } from "../../../contracts/conversation/profile-index";
 import {
   getProfileRecord,
   setProfileStatus,
@@ -29,15 +29,15 @@ import {
   setDiscoverable as setUserDiscoverable,
   setProfileCapabilityEnc as setUserProfileCapabilityEnc,
 } from "../../../storage/user-state-client";
-import type { Environment } from "../../../types";
+import type { Environment } from "../../../contracts/runtime";
 import { INDEX_JOB_CAPABILITY_TTL_MS } from "../../ticketing/conversation-capabilities";
 import type { ProfileRouteCapsule } from "../../ticketing/conversation-capabilities";
 import { decryptEnvelope } from "../../ticketing/envelope";
-import type { ProfileVaultRecordStatus } from "../../../storage/profile-vault/profile-vault.types";
+import type { ProfileVaultRecordStatus } from "../../../contracts/conversation/profile-vault";
 import { buildConversationProfile, profileHasSafetyState } from "./profile-builder.ts";
 import { clearProfileSession, getProfileSession } from "./profile-session-service.ts";
 import { hasCompleteAnswers } from "./validation.ts";
-import type { ConversationProfile, ProfileLocale } from "./types.ts";
+import type { ConversationProfile, ProfileLocale } from "../../../contracts/conversation/profile";
 import {
   recordDiscoverabilityEnabled,
   recordDiscoverabilityDisabled,

@@ -1,5 +1,5 @@
-import type { Environment } from "../../../types";
-import type { ConversationProfile } from "../profile/types.ts";
+import type { Environment } from "../../../contracts/runtime";
+import type { ConversationProfile } from "../../../contracts/conversation/profile";
 import {
   namespaceFor,
   projectDesiredVector,
@@ -12,11 +12,7 @@ import {
   expectedRoleForChannel,
   mergeVectorHits,
 } from "./retrieval-utils.ts";
-import type {
-  RetrievalRequest,
-  RetrievalResult,
-  VectorHit,
-} from "./types.ts";
+import type { RetrievalRequest, RetrievalResult, VectorHit } from "../../../contracts/conversation/retrieval";
 
 const queryChannel = async (
   env: Environment,

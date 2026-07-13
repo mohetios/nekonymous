@@ -24,7 +24,7 @@ import {
 } from "../../../storage/conversation-vault/conversation-vault.client";
 import { upsertPairStateRecord } from "../../../storage/pair-ledger/pair-ledger.client";
 import { recordExposureTokenHash } from "../../../storage/user-state-client";
-import type { Environment } from "../../../types";
+import type { Environment } from "../../../contracts/runtime";
 import { recordSuggestionDismissed } from "../../../stats/product-events";
 import type { RankedCandidate } from "./ranking-types.ts";
 import { PAIR_DISMISS_COOLDOWN_MS } from "./constants.ts";

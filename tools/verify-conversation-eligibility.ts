@@ -7,7 +7,7 @@ import type { PairStateRecord } from "../src/storage/pair-ledger/pair-ledger.typ
 import { MIN_RECIPROCAL_SCORE } from "../src/features/conversation/suggestions/ranking-constants.ts";
 import type { RankedCandidate } from "../src/features/conversation/suggestions/ranking-types.ts";
 import { buildConversationProfile } from "../src/features/conversation/profile/profile-builder.ts";
-import type { ConversationIntent, ProfileAnswers } from "../src/features/conversation/profile/types.ts";
+import type { ConversationIntent, ProfileAnswers } from "../src/contracts/conversation/profile";
 import { CONVERSATION_DIMENSIONS } from "../src/features/conversation/profile/constants.ts";
 import {
   filterEligibleCandidates,

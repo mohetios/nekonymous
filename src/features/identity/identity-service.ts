@@ -1,6 +1,7 @@
 import type { Context } from "grammy";
-import type { BotUser, D1User, Environment } from "../../types";
-import type { D1UserStatus } from "../../status";
+import type { BotUser, D1User } from "../../contracts/identity/model";
+import type { Environment } from "../../contracts/runtime";
+import type { D1UserStatus } from "../../contracts/identity/model";
 import {
   decryptDisplayName,
   decryptTelegramChatId,
@@ -9,10 +10,18 @@ import {
   generateOpaqueId,
   hmacTelegramUserId,
 } from "../ticketing/ticketing-service";
-import { getUserState, initUserState, purgeUserState } from "../../storage/user-state-client";
+import {
+  getUserState,
+  initUserState,
+  listUnreadItemsForReset,
+  purgeUserState,
+} from "../../storage/user-state-client";
 import { isDurableObjectCallError } from "../../storage/durable-object-call-error";
-import { expireTicketRecord } from "../../storage/ticket-vault/ticket-vault.client";
 import { invalidateUserConversationProfile } from "../conversation/profile/profile-service";
+import { deleteTicketRecord } from "../../storage/ticket-vault/ticket-vault.client";
+import { createTicketHash } from "../ticketing/keys";
+import { openUnreadCapability } from "../ticketing/unread-capability";
+import { parseTicketCapability } from "../ticketing/ticket-capability";
 import {
   recordLinkCreated,
   recordUserCreated,
@@ -377,12 +386,28 @@ export const clearUserAccountAndRecreate = async (
   env: Environment
 ): Promise<D1User> => {
   await invalidateUserConversationProfile(env, userId).catch(() => undefined);
-  const ticketHashes = await purgeUserState(env, userId);
+  const unreadItems = await listUnreadItemsForReset(env, userId).catch(() => []);
   await Promise.all(
-    ticketHashes.map((ticketHash) =>
-      expireTicketRecord(env, ticketHash).catch(() => undefined)
-    )
+    unreadItems.map(async (item) => {
+      try {
+        const encoded = await openUnreadCapability(
+          env.APP_MASTER_KEY,
+          userId,
+          item.itemId,
+          item.dedupeTag,
+          item.sealedCapabilityEnc
+        );
+        const ticketHash = await createTicketHash(
+          env.APP_HMAC_PEPPER,
+          parseTicketCapability(encoded)
+        );
+        await deleteTicketRecord(env, ticketHash);
+      } catch {
+        // UserState purge still removes the unread row; account rotation invalidates callbacks.
+      }
+    })
   );
+  await purgeUserState(env, userId);
   await hardDeleteUserAccount(userId, env);
   return createUserFromTelegram(ctx, env);
 };
@@ -415,7 +440,7 @@ export const toBotUser = async (
   const contactLabels: Record<string, string> = {};
   for (const label of state.labels) {
     try {
-      contactLabels[label.alias] = await decryptDisplayName(
+      contactLabels[label.contact_tag] = await decryptDisplayName(
         label.nickname_ciphertext,
         env.APP_MASTER_KEY
       );
@@ -429,7 +454,7 @@ export const toBotUser = async (
     slug,
     displayName,
     paused: state.paused,
-    blockedUserIds: state.blockedUserIds,
+    blockTags: state.blockTags,
     contactLabels,
     draft: state.draft ?? undefined,
     pendingSettings: state.draft?.pendingSettings,

@@ -1,5 +1,5 @@
-import type { ConversationProfile } from "../profile/types.ts";
-import type { RetrievalChannel } from "./types.ts";
+import type { ConversationProfile } from "../../../contracts/conversation/profile";
+import type { RetrievalChannel } from "../../../contracts/conversation/retrieval";
 
 export type RankedCandidate = {
   profileHash: string;

@@ -2,9 +2,9 @@
 
 **Status:** canonical specification for anonymous message routing and inbox behavior.
 
-Sealed ticketing is the core Nekonymous relay model. Anonymous messages are not stored as normal sender-recipient rows. Each message becomes a recipient-scoped capability backed by blind lookup keys and encrypted capsules.
+Sealed ticketing is the core Nekonymous relay model. Anonymous messages are not stored as normal sender-recipient rows. Each new message becomes a recipient-scoped capability backed by blind lookup keys and encrypted capsules.
 
-## Design goals
+## Design Goals
 
 - Hide users from each other in normal product flows.
 - Avoid a plaintext anonymous sender-recipient graph.
@@ -16,118 +16,134 @@ Sealed ticketing is the core Nekonymous relay model. Anonymous messages are not 
 
 This model does not hide plaintext from Telegram or the Worker while a message is processed.
 
-## Ticket model
+## Ticket Model
 
 ```text
-ticketRef
-  → ticketHash
-  → ownerProofTag
-  → route_enc
-  → payload_enc
-  → TicketVault
-  → sealed inbox pointer
+TicketCapability
+  -> lookupNonce + keySeed
+  -> ticketHash
+  -> ownerProofTag
+  -> route_enc
+  -> payload_enc
+  -> TicketVault
+  -> unread UserState item
+  -> inbox claim
+  -> delivered Telegram message with action buttons
 ```
 
-### `ticketRef`
+### `TicketCapability`
 
-A random base64url capability reference placed in Telegram callback data.
+A 32-byte binary capability encoded with unpadded base64url:
+
+```text
+lookupNonce = 16 random bytes
+keySeed = 16 random bytes
+encoded length = 43 characters
+```
 
 Examples:
 
 ```text
-r:{ticketRef}
-b:{ticketRef}
-u:{ticketRef}
-n:{ticketRef}
-rp:{ticketRef}
+o:{ticketCapability}
+r:{ticketCapability}
+b:{ticketCapability}
+u:{ticketCapability}
+n:{ticketCapability}
+rp:{ticketCapability}
 ```
 
 Rules:
 
-- the raw value is not stored as a database key;
+- the raw value is not stored as a database key or recoverable inbox pointer;
 - it contains no user ID, chat ID, locale, or message text;
-- handlers validate length and character set before cryptographic work;
-- possession is not sufficient: actor ownership must also be verified.
+- handlers validate exact length, canonical base64url encoding, and callback size before cryptographic work;
+- possession is not sufficient: actor ownership must also be verified;
+- after successful Telegram notification delivery, Telegram chat history is the persistent ticket index.
 
 ### `ticketHash`
 
 A blind lookup key derived with a domain-separated HMAC:
 
 ```text
-ticketHash = HMAC(K_TICKET_LOOKUP, ticketRef)
+ticketHash = HMAC(K_TICKET_LOOKUP, "nekonymous:ticket:lookup" || lookupNonce)
 ```
 
-TicketVault uses this hash for lookup and sharding.
+TicketVault uses this hash for lookup and sharding. `keySeed` must not affect `ticketHash`.
 
 ### `ownerProofTag`
 
 An actor-bound proof derived from the current actor and ticket:
 
 ```text
-ownerProofTag = HMAC(K_OWNER_PROOF, actorHash || ticketHash)
+ownerProofTag = HMAC(
+  K_OWNER_PROOF,
+  "nekonymous:ticket:owner" || actorHash || currentInternalAccountId || ticketHash
+)
 ```
 
-The Worker recomputes the proof during a callback or inbox operation and compares it in constant time with the stored value.
+The Worker recomputes the proof during a callback and compares it in constant time with the stored value. Hard account reset creates a new internal account id, so old capabilities fail owner proof immediately even though old ciphertext physically expires through the normal ticket lifecycle.
 
-### Route capsule
+### Ticket Keys
 
-`route_enc` is one compact AES-GCM envelope containing only the routing material required for:
+Route, payload, and metadata keys require the capability `keySeed`:
 
-- anonymous reply;
-- block and unblock;
-- report;
-- private nickname;
-- action policy and expiry checks.
-
-It is encrypted with a per-ticket key derived through HKDF. Route data is not duplicated into inbox pointers, D1, KV, logs, or callback data.
-
-### Payload capsule
-
-`payload_enc` contains the message body and minimal payload metadata.
-
-For the current release:
-
-```ts
-type PayloadCapsule = {
-  type: "text";
-  text: string;
-  createdAt: number;
-};
+```text
+ticketRootKey = HKDF-SHA-256(
+  ikm = APP_MASTER_KEY,
+  salt = ticketHash || keySeed,
+  info = "nekonymous:ticket:root"
+)
 ```
 
-The payload is encrypted at rest and exists only until the first successful inbox delivery.
+Separate route, payload, and metadata keys are derived from that root. `APP_MASTER_KEY` plus `ticketHash` alone is intentionally insufficient to decrypt a ticket.
 
-## Storage boundaries
+AAD values:
+
+```text
+nekonymous:ticket:{ticketHash}:route
+nekonymous:ticket:{ticketHash}:payload
+nekonymous:ticket:{ticketHash}:meta
+```
+
+## Capsules
+
+`route_enc` is one compact AES-GCM envelope containing only the routing material required for anonymous reply, block, unblock, report, private nickname, action policy, and expiry checks.
+
+`payload_enc` contains the message body and minimal payload metadata. It is encrypted at rest and exists only until the first successful Telegram delivery.
+
+Route data is not duplicated into UserState, D1, KV, logs, or callback data.
+
+## Storage Boundaries
 
 | Plane | Stores | Does not store |
 |---|---|---|
 | D1 | users, public links, aggregate statistics | anonymous body, ticket route, sender-recipient message edge |
-| TicketVault DO | blind ticket hash, owner proof, encrypted route, temporary encrypted payload, status and expiry | raw ticket reference or plaintext capsule |
-| UserState DO | sealed inbox pointer, display reference, local status and expiry | message body or plaintext route |
+| TicketVault DO | blind ticket hash, owner proof, encrypted route, temporary encrypted payload, status and expiry | raw capability or plaintext capsule |
+| UserState DO | unread item id, sealed capability ciphertext, blind dedupe tag, delivery lease metadata | message body, plaintext route, ticket hash, or raw capability |
 | KV | optional routing/cache data | ticket, inbox, report, or message authority |
 | ReportLedger DO | blind abuse and reporter tags | reversible sender-recipient relation |
 | Telegram | callback capability and delivered message | application-controlled storage guarantees |
 
-## Message creation
+## Message Creation
 
 ```text
 1. Resolve the recipient from the public deep link.
 2. Validate sender state, recipient pause state, blocks, limits, and message length.
 3. Claim the stable operation/dedupe identity.
-4. Generate ticketRef.
-5. Derive ticketHash and ownerProofTag.
+4. Generate TicketCapability.
+5. Derive ticketHash from lookupNonce and ownerProofTag from actor/account/ticketHash.
 6. Build compact route and payload capsules.
-7. Derive per-ticket encryption key.
-8. Encrypt route and payload.
+7. Derive route/payload/meta keys from APP_MASTER_KEY, ticketHash, and keySeed.
+8. Encrypt route, payload, and meta.
 9. Store the TicketVault record.
-10. Store a sealed inbox pointer in recipient UserState.
-11. Notify the recipient without including message content.
+10. Seal the encoded capability as authenticated ciphertext in a recipient unread item.
+11. Queue an aggregated unread notice without the capability or message body.
 12. Emit best-effort aggregate statistics.
 ```
 
-If pointer creation fails after vault storage, compensation or later cleanup removes the orphaned ticket. Repeating the same operation must not create multiple durable tickets.
+If unread item creation fails after vault storage, compensation removes the orphaned ticket. Repeating the same operation must not create multiple durable tickets.
 
-## Inbox lifecycle
+## Inbox Lifecycle
 
 Maximum retention:
 
@@ -135,13 +151,7 @@ Maximum retention:
 30 days
 ```
 
-Maximum unseen payload decryptions per inbox request:
-
-```text
-10
-```
-
-### Unseen ticket
+### Unseen Ticket
 
 ```text
 status: active
@@ -149,19 +159,21 @@ route_enc: present
 payload_enc: present
 ```
 
-The inbox:
+The inbox claim flow:
 
-1. opens and verifies the sealed pointer;
-2. resolves the ticket;
-3. verifies owner proof and expiry;
-4. decrypts the payload;
-5. sends the complete message through Telegram;
-6. clears the payload only after Telegram confirms successful delivery;
-7. marks the ticket and pointer viewed.
+1. claims an unread item from UserState;
+2. decrypts the sealed capability in memory;
+3. derives `ticketHash` from `lookupNonce` and loads TicketVault;
+4. resolves the current Telegram actor and internal account id;
+5. verifies owner proof and expiry;
+6. derives keys from `keySeed` and decrypts route/payload;
+7. sends the complete message through Telegram;
+8. clears the payload only after Telegram confirms successful delivery;
+9. marks the ticket viewed and deletes the unread row.
 
 A failed Telegram send does not clear the payload.
 
-### Viewed ticket
+### Viewed Ticket
 
 ```text
 status: viewed / replied / reported / blocked
@@ -169,19 +181,11 @@ route_enc: present
 payload_enc: absent
 ```
 
-The inbox renders a compact shell without decrypting a payload. The shell can retain only actions allowed by the current state.
+The original Telegram-delivered message remains the primary message view. Re-opening the direct button can render a compact shell without decrypting a payload. The shell can retain only actions allowed by the current state.
 
-Example:
+### Expired Ticket
 
-```text
-پیام #NQ-7KFP قبلاً نمایش داده شده است.
-```
-
-The message body remains visible only in the Telegram message that originally delivered it.
-
-### Expired or evicted ticket
-
-After expiry or pointer eviction:
+After expiry:
 
 ```text
 route_enc: removed
@@ -192,17 +196,17 @@ callback: unavailable
 
 The TicketVault record is deleted, or only a bounded non-sensitive tombstone is retained when required for idempotency. Sensitive route and payload material never remains as an expired archive.
 
-TicketVault alarms and opportunistic pointer cleanup are bounded and idempotent because Durable Object alarms may run more than once.
+TicketVault alarms are bounded and idempotent because Durable Object alarms may run more than once.
 
-## State transitions
+## State Transitions
 
 The exact state list is defined in code. The product transition policy is:
 
 ```text
 active
-  → viewed
-  → replied / reported / blocked
-  → expired or deleted
+  -> viewed
+  -> replied / reported / blocked
+  -> expired or deleted
 ```
 
 Valid direct transitions can also occur from `active`, for example a block or report before a reply.
@@ -215,29 +219,21 @@ Rules:
 - SQL compare-and-set conditions enforce the current state;
 - a stale callback cannot overwrite a newer terminal action.
 
-Examples of forbidden regressions:
-
-```text
-reported → viewed
-blocked  → replied
-expired  → active
-```
-
-## Action resolution
+## Action Resolution
 
 All ticket actions follow one resolver boundary:
 
 ```text
 callback data
-  → validate action and ticketRef
-  → derive actorHash
-  → derive ticketHash
-  → load TicketVault record
-  → constant-time owner-proof check
-  → reject expiry or illegal state
-  → derive ticket key
-  → decrypt and validate route capsule
-  → execute action
+  -> validate action and parse capability
+  -> derive actorHash and current internal account id
+  -> derive ticketHash
+  -> load TicketVault record
+  -> constant-time owner-proof check
+  -> reject expiry or illegal state
+  -> derive route key from keySeed
+  -> decrypt and validate route capsule
+  -> execute action
 ```
 
 `payload_enc` is not decrypted for reply, nickname, block, or normal report routing.
@@ -246,11 +242,11 @@ Decrypted capsules are runtime-validated. TypeScript types alone are not accepte
 
 ## Replies
 
-A reply uses the route capsule to create another sealed ticket for the other participant. It follows the same creation, payload, inbox, delivery, and expiry rules as the original message.
+A reply uses the route capsule to create another sealed ticket for the other participant. It follows the same creation, payload, direct-open delivery, and expiry rules as the original message. The parent capability is not reused.
 
 The bot does not create a persistent conversation transcript.
 
-## Block and private nickname
+## Block And Private Nickname
 
 Block state and private nicknames are recipient-local.
 
@@ -277,49 +273,53 @@ ReportLedger stores structured abuse signals and reason codes, not message bodie
 
 ## Idempotency
 
-### Telegram webhook
+### Telegram Webhook
 
 Telegram updates use a sharded two-phase processed-event claim:
 
 ```text
 new
-  → processing with lease
-  → done
+  -> processing with lease
+  -> done
 ```
 
 A duplicate completed update returns safely. A duplicate update observed while the original claim is still `processing` returns a retryable non-2xx response, so Telegram can retry if the original execution crashes before completion. A crashed processing lease can be reclaimed after expiry.
 
-### Ticket creation
+### Ticket Creation
 
 Stable operation keys prevent a retried webhook or accepted conversation request from creating duplicate tickets.
 
-### Telegram outbox
+### Telegram Outbox
 
 Outbox delivery uses:
 
 ```text
 idempotency key
-  → atomic lease claim
-  → Telegram call
-  → lease-guarded finalize
+  -> atomic lease claim
+  -> Telegram call
+  -> lease-guarded finalize
 ```
 
 A duplicate with a valid active lease does not call Telegram. A stale lease owner cannot overwrite a newer attempt.
 
-## Cryptographic boundaries
+Unread notices are ordinary Telegram outbox jobs. They carry no capability, ticket hash, unread count authority, or message plaintext. The inbox control card reloads authoritative state from UserState.
+
+After Telegram confirms success, the queue message is acknowledged and the Durable Object retains only bounded delivery metadata. If Telegram delivery fails, the encrypted capability remains in the queue message for retry; no raw capability is logged or stored in durable outbox state.
+
+## Cryptographic Boundaries
 
 Primitive operations use Web Crypto:
 
 - HMAC for blind lookups and proofs;
 - HKDF for domain-separated derived keys;
 - AES-GCM for route, payload, profile, and request envelopes;
-- cryptographically secure random bytes for capability references.
+- cryptographically secure random bytes for capability material.
 
 Rules:
 
 - use explicit HKDF domain strings;
 - do not reuse stable actor tags across storage planes;
-- do not log keys, plaintext capsules, ciphertext envelopes, callback references, or Telegram IDs;
+- do not log keys, plaintext capsules, ciphertext envelopes, raw capabilities, callback data, or Telegram IDs;
 - use compact envelopes with version and key identifier fields;
 - validate supported envelope versions before decryption or use.
 
@@ -329,57 +329,15 @@ This design reduces stored joinability. It does not protect data if application 
 
 Allowed operational fields:
 
-```text
-operation
-safe status
-stable error code
-retryable flag
-bounded hash prefix where explicitly permitted
-```
+- high-level status names;
+- bounded counts;
+- generic action names;
+- non-sensitive queue and alarm states.
 
-Never log:
+Forbidden operational fields:
 
-```text
-ticketRef
-Telegram user or chat ID
-message text
-decrypted route
-decrypted payload
-full callback data
-bot token
-request body
-full Telegram response
-```
-
-## Source map
-
-The current implementation is primarily in:
-
-```text
-src/features/ticketing/
-src/storage/ticket-vault/
-src/storage/user-state-do.ts
-src/storage/user-state-client.ts
-src/storage/report-ledger/
-src/storage/telegram-outbox-do.ts
-src/bot/callback-data.ts
-src/queues/outbox-consumer.ts
-```
-
-This feature directory forms the sealed-ticketing domain: cryptographic capability primitives, creation, inbox rendering, actions, and Telegram-facing flow.
-
-## Verification
-
-Relevant checks include:
-
-```bash
-pnpm test:ticketing
-pnpm test:idempotency
-pnpm test:bot-flow
-pnpm test:conversation-requests
-pnpm test:release-hardening
-pnpm audit:ticket-storage
-pnpm run check
-```
-
-The storage audit must fail if it detects raw ticket references, anonymous message bodies in D1, plaintext routes, user IDs in callback data, or other forbidden ticket storage patterns.
+- Telegram user IDs or chat IDs;
+- raw ticket capabilities;
+- message bodies;
+- decrypted route or payload capsules;
+- app secrets or derived key material.

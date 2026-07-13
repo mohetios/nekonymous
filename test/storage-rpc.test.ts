@@ -10,6 +10,10 @@ import {
   getRequestRecord,
   storeRequestRecord,
 } from "../src/storage/conversation-vault/conversation-vault.client";
+import {
+  operatorClearSanction,
+  refreshExpiredSanction,
+} from "../src/storage/safety-state/safety-state.client";
 
 const safeTicketHash = "a".repeat(43);
 
@@ -35,7 +39,7 @@ describe("UserState typed RPC", () => {
     const state = await stub.getState();
     expect(state).not.toBeNull();
     expect(state?.paused).toBe(false);
-    expect(state?.blockedUserIds).toEqual([]);
+    expect(state?.blockTags).toEqual([]);
   });
 
   it("enforces the global action rate limit", async () => {
@@ -48,6 +52,60 @@ describe("UserState typed RPC", () => {
     const second = await stub.consumeRateLimit();
     expect(first.limited).toBe(false);
     expect(second.limited).toBe(true);
+  });
+
+  it("stores unread inbox items and dedupes retries", async () => {
+    const stub = env.USER_STATE_DO.get(
+      env.USER_STATE_DO.idFromName("vitest-unread-item")
+    );
+    await stub.initState("vitest-unread-item");
+    const now = Date.now();
+
+    const added = await stub.addUnreadItem({
+      itemId: "item-vitest-1",
+      sealedCapabilityEnc: "sealed-capability-ciphertext",
+      dedupeTag: "dedupe-tag-vitest-1234567890",
+      createdAt: now,
+      expiresAt: now + 60_000,
+    });
+    expect(added.ok).toBe(true);
+    expect(added.unreadCount).toBe(1);
+
+    const duplicate = await stub.addUnreadItem({
+      itemId: "item-vitest-duplicate",
+      sealedCapabilityEnc: "other-sealed-capability-ciphertext",
+      dedupeTag: "dedupe-tag-vitest-1234567890",
+      createdAt: now,
+      expiresAt: now + 60_000,
+    });
+    expect(duplicate.ok).toBe(true);
+    expect(duplicate.duplicate).toBe(true);
+    expect(duplicate.unreadCount).toBe(1);
+
+    const claim = await stub.claimNextUnreadItem();
+    expect(claim?.itemId).toBe("item-vitest-1");
+    expect(claim?.sealedCapabilityEnc).toBe("sealed-capability-ciphertext");
+    expect(claim?.dedupeTag).toBe("dedupe-tag-vitest-1234567890");
+
+    const parallelClaim = await stub.claimNextUnreadItem();
+    expect(parallelClaim).toBeNull();
+
+    if (!claim) {
+      throw new Error("missing claim");
+    }
+    const staleRelease = await stub.releaseUnreadDelivery({
+      itemId: claim.itemId,
+      deliveryAttemptId: "stale",
+    });
+    expect(staleRelease.ok).toBe(true);
+    expect(await stub.claimNextUnreadItem()).toBeNull();
+
+    const completed = await stub.completeUnreadDelivery({
+      itemId: claim.itemId,
+      deliveryAttemptId: claim.deliveryAttemptId,
+    });
+    expect(completed.ok).toBe(true);
+    expect(completed.summary.unreadCount).toBe(0);
   });
 });
 
@@ -86,26 +144,36 @@ describe("TicketVault typed RPC", () => {
   });
 });
 
-describe("ReportLedger typed RPC", () => {
+describe("SafetyState typed RPC", () => {
   it("records a report once and treats duplicates as ok", async () => {
-    const tag = "sender-abuse-tag-12345678";
-    const stub = env.REPORT_LEDGER.get(
-      env.REPORT_LEDGER.idFromName(tag.slice(0, 8))
+    const tag = "abuse-subject-tag-12345678";
+    const stub = env.SAFETY_STATE_DO.get(
+      env.SAFETY_STATE_DO.idFromName(`safety:${tag.slice(0, 4)}`)
     );
     const event = {
-      reportId: "report-vitest-1",
-      senderAbuseTag: tag,
-      reporterProofTag: "reporter-proof-tag-123456",
+      eventTag: "report-event-tag-123456",
+      reporterSubjectTag: "reporter-subject-tag-123456",
       reasonCode: "spam",
       createdAt: Date.now(),
+      expiresAt: Date.now() + 60_000,
     };
 
-    const first = await stub.createReport(event);
-    const second = await stub.createReport(event);
+    const first = await stub.submitReport(event);
+    const second = await stub.submitReport(event);
     expect(first.ok).toBe(true);
     expect(first.duplicate).toBe(false);
     expect(second.ok).toBe(true);
     expect(second.duplicate).toBe(true);
+  });
+
+  it("exposes refresh and operator clear APIs", async () => {
+    const tag = "abuse-subject-client-12345678";
+    const refreshed = await refreshExpiredSanction(env, tag);
+    expect(refreshed.status).toBe("clear");
+
+    const cleared = await operatorClearSanction(env, tag);
+    expect(cleared.status).toBe("clear");
+    expect(cleared.allowed).toBe(true);
   });
 });
 

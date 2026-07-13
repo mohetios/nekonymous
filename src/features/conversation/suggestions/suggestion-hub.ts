@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import type { Environment } from "../../../types";
+import type { Environment } from "../../../contracts/runtime";
 import { renderScreen } from "../../../bot/render-screen";
 import { formatSuggestionHubMessage } from "../../../i18n/matching";
 import { buildSuggestionHubKeyboard } from "./keyboards";

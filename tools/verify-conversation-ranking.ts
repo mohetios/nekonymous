@@ -8,7 +8,7 @@ import { buildConversationProfile } from "../src/features/conversation/profile/p
 import type {
   ConversationIntent,
   ProfileAnswers,
-} from "../src/features/conversation/profile/types.ts";
+} from "../src/contracts/conversation/profile";
 import { computeDirectionalFit } from "../src/features/conversation/suggestions/directional-fit.ts";
 import {
   buildSuggestionExplanation,

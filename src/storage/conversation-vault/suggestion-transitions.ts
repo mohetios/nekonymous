@@ -1,4 +1,4 @@
-import type { SuggestionTicketStatus } from "./conversation-vault.types";
+import type { SuggestionTicketStatus } from "../../contracts/conversation/vault";
 
 const TERMINAL_SUGGESTION_STATUSES = new Set<SuggestionTicketStatus>([
   "dismissed",

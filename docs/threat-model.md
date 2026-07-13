@@ -26,7 +26,7 @@ Telegram and the Worker see plaintext while processing messages.
 - Telegram user and chat identities
 - anonymous message payloads
 - encrypted ticket routes
-- inbox pointers and local labels
+- ticket capabilities, blind slots, and local labels
 - finalized conversation profiles
 - request intros and suggestion/request capabilities
 - pair state and abuse reports
@@ -69,9 +69,10 @@ Application-layer encryption primarily protects stored exports and accidental cr
 | Telegram user ID | HMAC-derived identity in D1; raw value not stored there |
 | Telegram chat ID | encrypted at rest where required for delivery |
 | public link slug | D1 and routing cache |
-| anonymous message body | encrypted TicketVault payload; cleared after successful first inbox delivery |
+| anonymous message body | encrypted TicketVault payload; cleared after successful Telegram delivery |
 | anonymous route | encrypted TicketVault route; removed at expiry |
-| inbox entry | sealed UserState pointer and local status |
+| ticket capability | Telegram callback button after notification delivery; encrypted queue payload until delivery succeeds |
+| inbox entry | blind UserState slot |
 | private nickname | recipient-local encrypted/local state |
 | block state | blinded/local route state |
 | report | blind tags and structured reason in ReportLedger |
@@ -119,14 +120,15 @@ Vectorize does not receive Telegram IDs, display names, answers, or message text
 
 **Controls:**
 
-- cryptographically random base64url references;
-- blind HMAC lookup keys;
-- actor-bound owner proofs;
+- cryptographically random base64url capabilities;
+- blind HMAC lookup keys derived from lookup nonces;
+- actor/account-bound owner proofs;
+- decryption keys that require the capability keySeed;
 - strict callback format and action validation;
 - expiration and state checks;
-- raw capabilities not stored in D1/KV.
+- raw capabilities not stored in D1, KV, UserState, or TicketVault after successful notification delivery.
 
-**Residual risk:** a capability visible on a compromised Telegram account can be replayed by that account until expiry and allowed-state checks reject it.
+**Residual risk:** a capability visible on a compromised Telegram account can be replayed by that account until expiry and allowed-state checks reject it. Deleting the Telegram notification or chat history can permanently remove the user's ability to access that ticket.
 
 ### Storage export
 
@@ -140,9 +142,10 @@ Vectorize does not receive Telegram IDs, display names, answers, or message text
 - no message body or relay graph in D1;
 - no identity metadata in Vectorize;
 - temporary payload and bounded route retention;
+- encrypted ticket material is not decryptable from storage plus `APP_MASTER_KEY` without the Telegram-held capability keySeed;
 - blind reports and aggregate statistics.
 
-**Residual risk:** ciphertext, timing, counts, status, and coarse vectors can still provide metadata. Compromise of application encryption keys can expose protected capsules.
+**Residual risk:** ciphertext, timing, counts, status, and coarse vectors can still provide metadata. Compromise of application encryption keys can expose non-ticket encrypted records; ticket payloads and routes also require the corresponding ticket capability.
 
 ### Worker or secret compromise
 
@@ -229,9 +232,10 @@ This is a high-impact residual risk. Nekonymous does not claim protection from t
 
 ### Message tickets
 
-- payload: until first successful inbox delivery, or ticket expiry;
+- payload: until first successful Telegram delivery, or ticket expiry;
 - route: until ticket expiry;
-- inbox pointer: at most 30 days;
+- blind slot: until successful open, terminal invalidation, or ticket expiry;
+- raw capability: not retained by Nekonymous storage after successful notification delivery;
 - expired/evicted ticket: sensitive route, payload, and metadata removed;
 - outbox idempotency records: bounded operational retention.
 
@@ -254,12 +258,14 @@ Hard reset creates a new internal identity and public link after attempting to r
 Current reset behavior covers:
 
 - public link and D1 identity;
-- UserState data and known inbox tickets;
+- UserState data and blind ticket slots;
 - profile vault state;
 - known Vectorize routes;
 - suggestion/request capabilities;
 - new identity and link creation;
 - rejection of stale profile-index work.
+
+Ticket access revocation is immediate because old callbacks no longer satisfy the owner proof after the internal account id changes. Physical ciphertext removal is bounded by the existing ticket expiry lifecycle; reset does not require a replacement user-to-ticketHash registry.
 
 Known migration limitation:
 

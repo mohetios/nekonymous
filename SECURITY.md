@@ -39,6 +39,10 @@ Telegram sees message plaintext while users send and receive messages. The Worke
 
 Sensitive stored data is encrypted at rest where implemented. Raw Telegram user IDs are not stored in D1, KV, or Vectorize metadata. Anonymous message bodies and routes are not stored as plaintext D1 rows.
 
+Telegram chat history holds the ticket capability after notification delivery. Nekonymous stores encrypted ticket material but does not retain a recoverable per-user ticket index. Possession of the capability and the correct Telegram actor are both required for ticket actions.
+
+Deleting the Telegram notification or chat history can permanently remove the user's ability to access that ticket. Telegram and the Worker still see plaintext while processing. This is not E2EE, zero-knowledge, or perfect anonymity.
+
 Read the full [Threat Model](./docs/threat-model.md).
 
 ## Documented limitations, not vulnerabilities

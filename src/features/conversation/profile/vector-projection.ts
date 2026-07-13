@@ -2,8 +2,8 @@ import { CONVERSATION_DIMENSIONS } from "./constants.ts";
 import type {
   ConversationProfile,
   ProfileLocale,
-} from "./types.ts";
-import type { VectorRouteRole } from "../../../storage/profile-vault/profile-vault.types";
+} from "../../../contracts/conversation/profile";
+import type { VectorRouteRole } from "../../../contracts/conversation/profile-vault";
 
 export const VECTOR_DIMENSION = 8;
 /** Vectorize platform minimum ([32, 1536]); semantic values occupy dims 0..7. */

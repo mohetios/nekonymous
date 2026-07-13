@@ -73,11 +73,12 @@
     "audit:d1": "./tools/audit-d1.sh",
     "audit:d1:local": "./tools/audit-d1.sh --local",
     "audit:ticket-storage": "./tools/audit-ticket-storage.sh",
+    "audit:types": "node --experimental-strip-types tools/audit-types.ts",
     "flush:remote": "./tools/flush-remote.sh",
     "flush:remote:local": "./tools/flush-remote.sh --local",
     "bot:profile": "./tools/set-telegram-bot-profile.sh",
     "test": "pnpm run test:ticketing && pnpm run test:idempotency && pnpm run test:stats && pnpm run test:bot-flow && pnpm run test:d1-schema && pnpm run test:profile-index-idempotency && pnpm run test:conversation-v2-resources && pnpm run test:conversation-capabilities && pnpm run test:conversation-privacy && pnpm run test:conversation-profile && pnpm run test:conversation-index && pnpm run test:conversation-retrieval && pnpm run test:conversation-ranking && pnpm run test:conversation-eligibility && pnpm run test:conversation-suggestions && pnpm run test:conversation-requests && pnpm run test:release-hardening && pnpm run test:workers",
-    "check": "pnpm run types:check && pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test && pnpm run audit:ticket-storage"
+    "check": "pnpm run types:check && pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test && pnpm run audit:ticket-storage && pnpm run audit:types"
   },
   "dependencies": {
     "grammy": "^1.44.0"

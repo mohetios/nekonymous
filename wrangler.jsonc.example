@@ -96,8 +96,8 @@
         "class_name": "TicketVaultDurableObjectV4"
       },
       {
-        "name": "REPORT_LEDGER",
-        "class_name": "ReportLedgerDurableObjectV4"
+        "name": "SAFETY_STATE_DO",
+        "class_name": "SafetyStateDurableObjectV4"
       },
       {
         "name": "PROFILE_VAULT_DO",
@@ -129,7 +129,7 @@
       "tag": "v3-sealed-ticket-routing",
       "new_sqlite_classes": [
         "TicketVaultDurableObject",
-        "ReportLedgerDurableObject"
+        "SafetyStateDurableObject"
       ]
     },
     {
@@ -138,7 +138,7 @@
         "UserStateDurableObjectV2",
         "TelegramOutboxDurableObjectV2",
         "TicketVaultDurableObjectV2",
-        "ReportLedgerDurableObjectV2"
+        "SafetyStateDurableObjectV2"
       ]
     },
     {
@@ -147,7 +147,7 @@
         "UserStateDurableObject",
         "TelegramOutboxDurableObject",
         "TicketVaultDurableObject",
-        "ReportLedgerDurableObject"
+        "SafetyStateDurableObject"
       ]
     },
     {
@@ -156,7 +156,7 @@
         "UserStateDurableObjectV3",
         "TelegramOutboxDurableObjectV3",
         "TicketVaultDurableObjectV3",
-        "ReportLedgerDurableObjectV3"
+        "SafetyStateDurableObjectV3"
       ]
     },
     {
@@ -165,7 +165,7 @@
         "UserStateDurableObjectV2",
         "TelegramOutboxDurableObjectV2",
         "TicketVaultDurableObjectV2",
-        "ReportLedgerDurableObjectV2"
+        "SafetyStateDurableObjectV2"
       ]
     },
     {
@@ -182,7 +182,7 @@
         "UserStateDurableObjectV4",
         "TelegramOutboxDurableObjectV4",
         "TicketVaultDurableObjectV4",
-        "ReportLedgerDurableObjectV4",
+        "SafetyStateDurableObjectV4",
         "ProfileVaultShardDurableObjectV2",
         "ConversationVaultShardDurableObjectV2",
         "PairLedgerShardDurableObjectV2"
@@ -194,11 +194,16 @@
         "UserStateDurableObjectV3",
         "TelegramOutboxDurableObjectV3",
         "TicketVaultDurableObjectV3",
-        "ReportLedgerDurableObjectV3",
+        "SafetyStateDurableObjectV3",
         "ProfileVaultShardDurableObject",
         "ConversationVaultShardDurableObject",
         "PairLedgerShardDurableObject"
       ]
+    },
+    {
+      "tag": "v11-safety-state-replace-report-ledger-v4",
+      "new_sqlite_classes": ["SafetyStateDurableObjectV4"],
+      "deleted_classes": ["ReportLedgerDurableObjectV4"]
     }
   ],
   "vectorize": [

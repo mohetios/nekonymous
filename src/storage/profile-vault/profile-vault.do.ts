@@ -1,15 +1,15 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import type {
-  IndexJobRecord,
+  ProfileIndexJobRecord,
   IndexJobStatus,
   ProfileVaultRecord,
   ProfileVaultRecordStatus,
   StoreIndexJobInput,
   StoreProfileInput,
   StoreVectorRouteInput,
-  VectorRouteRecord,
-} from "./profile-vault.types";
+  ProfileVectorRouteRecord,
+} from "../../contracts/conversation/profile-vault";
 
 type ProfileRow = {
   profile_hash: string;
@@ -56,22 +56,22 @@ const rowToProfile = (row: ProfileRow): ProfileVaultRecord => ({
   updatedAt: row.updated_at,
 });
 
-const rowToIndexJob = (row: IndexJobRow): IndexJobRecord => ({
+const rowToIndexJob = (row: IndexJobRow): ProfileIndexJobRecord => ({
   jobHash: row.job_hash,
   routeEnc: row.route_enc,
   revision: row.revision,
-  status: row.status as IndexJobRecord["status"],
+  status: row.status as ProfileIndexJobRecord["status"],
   vectorsEnc: row.vectors_enc ?? null,
   createdAt: row.created_at,
   expiresAt: row.expires_at,
 });
 
-const rowToVectorRoute = (row: VectorRouteRow): VectorRouteRecord => ({
+const rowToVectorRoute = (row: VectorRouteRow): ProfileVectorRouteRecord => ({
   vectorHash: row.vector_hash,
   vectorRouteEnc: row.vector_route_enc,
-  role: row.role as VectorRouteRecord["role"],
+  role: row.role as ProfileVectorRouteRecord["role"],
   revision: row.revision,
-  status: row.status as VectorRouteRecord["status"],
+  status: row.status as ProfileVectorRouteRecord["status"],
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -274,7 +274,7 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
     );
   }
 
-  getVectorRoute(vectorHash: string): VectorRouteRecord | null {
+  getVectorRoute(vectorHash: string): ProfileVectorRouteRecord | null {
     if (!isSafeHash(vectorHash)) {
       return null;
     }
@@ -321,7 +321,7 @@ export class ProfileVaultShardDurableObject extends DurableObject<Environment> {
     );
   }
 
-  getIndexJob(jobHash: string): IndexJobRecord | null {
+  getIndexJob(jobHash: string): ProfileIndexJobRecord | null {
     if (!isSafeHash(jobHash)) {
       return null;
     }

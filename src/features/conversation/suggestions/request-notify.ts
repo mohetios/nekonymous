@@ -1,4 +1,5 @@
-import type { D1User, Environment } from "../../../types";
+import type { D1User } from "../../../contracts/identity/model";
+import type { Environment } from "../../../contracts/runtime";
 import { REQUEST_CALLBACK } from "./constants.ts";
 import {
   MATCH_INCOMING_ACCEPT_NOTE,

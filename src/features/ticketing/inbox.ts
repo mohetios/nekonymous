@@ -1,213 +1,367 @@
 import type { Context } from "grammy";
-import type { Environment } from "../../types";
-import { createMessageKeyboard, buildInboxPaginationKeyboard, mainMenu } from "../../bot/keyboards";
+import type { D1User } from "../../contracts/identity/model";
+import type { Environment } from "../../contracts/runtime";
+import type { MessagePayload } from "../../contracts/telegram/delivery";
+import { createMessageKeyboard, mainMenu } from "../../bot/keyboards";
 import {
-  EMPTY_INBOX_MESSAGE,
   HuhMessage,
-  INBOX_HAS_MORE_MESSAGE,
+  INBOX_DELIVERY_REQUESTED_MESSAGE,
+  INBOX_EMPTY_MESSAGE,
 } from "../../i18n/messages";
-import { createBlockHash } from "./ticketing-service";
-import { replyHtml, withHtml } from "../../utils/text";
 import { logBotError } from "../../utils/logs";
-import { sendDecryptedMessage } from "../../bot/sender";
-import { getUserByTelegramHash, resolveOrCreateUser, toBotUser } from "../identity/identity-service";
-import { openInboxTicketRef } from "./inbox-pointer";
+import {
+  getUserById,
+  resolveOrCreateUser,
+  toBotUser,
+} from "../identity/identity-service";
 import {
   deliveryContextFromResolvedTicket,
   hasDeliverablePayload,
   markResolvedTicketViewed,
-  notifyMessageSeen,
-  toTicketDeliveryConversation,
+  notifyMessageSeenRoute,
 } from "./service";
 import {
   isExpiredTicketAction,
   resolveTicketAction,
 } from "./resolve-ticket-action";
-import { expireTicketRecord } from "../../storage/ticket-vault/ticket-vault.client";
-import { listInboxPage, markInboxPointerViewed } from "../../storage/user-state-client";
-import { recordInboxOpened, recordMessageDelivered, recordMessageExpired } from "../../stats/product-events";
+import {
+  claimNextUnreadItem,
+  cleanupExpiredUnreadItems,
+  completeUnreadDelivery,
+  getUnreadSummary,
+  releaseUnreadDelivery,
+} from "../../storage/user-state-client";
+import type { UnreadDeliveryClaim } from "../../contracts/inbox/model";
+import { sendViaOutboxDo } from "../../storage/telegram-outbox-client";
+import type { TelegramOutboxJob } from "../../contracts/telegram/outbox";
+import { recordInboxOpened, recordMessageDelivered } from "../../stats/product-events";
+import { openUnreadCapability } from "./unread-capability";
+import { createTicketHash } from "./keys";
+import { parseTicketCapability } from "./ticket-capability";
+import { buildDeliveryHeader } from "./contact";
+import {
+  TELEGRAM_CAPTION_MAX,
+  TELEGRAM_MESSAGE_TEXT_MAX,
+  truncateUtf8,
+} from "../../bot/telegram-limits";
+import { INBOX_DELIVERY_LIMIT } from "./inbox-constants";
 
-const MAX_INBOX_DECRYPT_PER_REQUEST = 10;
-
-const expireTicketsBestEffort = async (
-  env: Environment,
-  ticketHashes: string[]
-): Promise<number> => {
-  if (ticketHashes.length === 0) {
-    return 0;
+const textWithLabel = (
+  payload: MessagePayload,
+  senderLabel: string | undefined
+): string | undefined => {
+  if (payload.message_type !== "text" || !payload.message_text) {
+    return undefined;
   }
-
-  const results = await Promise.all(
-    ticketHashes.map((ticketHash) =>
-      expireTicketRecord(env, ticketHash)
-        .then(() => true)
-        .catch((error) => {
-          logBotError("renderInbox:expire", error);
-          return false;
-        })
-    )
-  );
-
-  return results.filter(Boolean).length;
+  const text = senderLabel
+    ? `${buildDeliveryHeader(senderLabel)}${payload.message_text}`
+    : payload.message_text;
+  return truncateUtf8(text, TELEGRAM_MESSAGE_TEXT_MAX);
 };
 
-const deliverInboxPage = async (
-  ctx: Context,
-  env: Environment,
-  offset: number
-): Promise<{ shown: number; failed: number; hasMore: boolean }> => {
-  const from = ctx.from;
-  if (!from) {
-    return { shown: 0, failed: 0, hasMore: false };
+const captionWithLabel = (
+  payload: MessagePayload,
+  senderLabel: string | undefined
+): string | undefined => {
+  const caption = payload.caption ?? "";
+  if (!senderLabel && !caption) {
+    return undefined;
   }
+  const text = senderLabel ? `${buildDeliveryHeader(senderLabel)}${caption}` : caption;
+  return truncateUtf8(text, TELEGRAM_CAPTION_MAX);
+};
 
-  const d1User = await resolveOrCreateUser(ctx, env);
+const deliveryJobForPayload = (
+  chatCiphertext: string,
+  chatHash: string,
+  ticketHash: string,
+  capability: string,
+  payload: MessagePayload,
+  isBlocked: boolean,
+  senderLabel?: string
+): TelegramOutboxJob | null => {
+  const replyMarkup = createMessageKeyboard(capability, isBlocked);
+  const base = {
+    idempotencyKey: `ticket-delivery:${ticketHash}`,
+    kind: "telegram" as const,
+    chatCiphertext,
+    chatHash,
+    priority: "normal" as const,
+    createdAt: Date.now(),
+  };
+
+  switch (payload.message_type) {
+    case "text":
+      return {
+        ...base,
+        method: "sendMessage",
+        payload: {
+          text: textWithLabel(payload, senderLabel),
+          reply_markup: replyMarkup,
+        },
+      };
+    case "photo":
+      return {
+        ...base,
+        method: "sendPhoto",
+        payload: {
+          photo: payload.photo_id,
+          caption: captionWithLabel(payload, senderLabel),
+          reply_markup: replyMarkup,
+        },
+      };
+    case "video":
+      return {
+        ...base,
+        method: "sendVideo",
+        payload: {
+          video: payload.video_id,
+          caption: captionWithLabel(payload, senderLabel),
+          reply_markup: replyMarkup,
+        },
+      };
+    case "animation":
+      return {
+        ...base,
+        method: "sendAnimation",
+        payload: {
+          animation: payload.animation_id,
+          caption: captionWithLabel(payload, senderLabel),
+          reply_markup: replyMarkup,
+        },
+      };
+    case "document":
+      return {
+        ...base,
+        method: "sendDocument",
+        payload: {
+          document: payload.document_id,
+          caption: captionWithLabel(payload, senderLabel),
+          reply_markup: replyMarkup,
+        },
+      };
+    case "voice":
+      return {
+        ...base,
+        method: "sendVoice",
+        payload: {
+          voice: payload.voice_id,
+          caption: captionWithLabel(payload, senderLabel),
+          reply_markup: replyMarkup,
+        },
+      };
+    case "audio":
+      return {
+        ...base,
+        method: "sendAudio",
+        payload: {
+          audio: payload.audio_id,
+          caption: captionWithLabel(payload, senderLabel),
+          reply_markup: replyMarkup,
+        },
+      };
+    case "sticker":
+      return {
+        ...base,
+        method: "sendSticker",
+        payload: {
+          sticker: payload.sticker_id,
+          reply_markup: replyMarkup,
+        },
+      };
+    case "video_note":
+      return {
+        ...base,
+        method: "sendVideoNote",
+        payload: {
+          video_note: payload.video_note_id,
+          reply_markup: replyMarkup,
+        },
+      };
+    default:
+      return null;
+  }
+};
+
+const completeOrphan = async (
+  env: Environment,
+  userId: string,
+  claim: UnreadDeliveryClaim
+): Promise<void> => {
+  await completeUnreadDelivery(env, userId, {
+    itemId: claim.itemId,
+    deliveryAttemptId: claim.deliveryAttemptId,
+  });
+};
+
+const deliverClaim = async (
+  env: Environment,
+  d1User: D1User,
+  claim: UnreadDeliveryClaim
+): Promise<"delivered" | "unavailable" | "retryable-failure"> => {
   const user = await toBotUser(d1User, env);
-  const page = await listInboxPage(env, user.id, offset);
-  const expiredCount = await expireTicketsBestEffort(env, page.expiredTicketHashes);
-  if (expiredCount > 0) {
-    await recordMessageExpired(env, expiredCount);
+
+  let capability: string;
+  try {
+    capability = await openUnreadCapability(
+      env.APP_MASTER_KEY,
+      d1User.id,
+      claim.itemId,
+      claim.dedupeTag,
+      claim.sealedCapabilityEnc
+    );
+  } catch {
+    await completeOrphan(env, d1User.id, claim);
+    return "unavailable";
   }
 
-  if (page.pointers.length === 0 && offset === 0) {
-    await ctx.reply(EMPTY_INBOX_MESSAGE, withHtml({ reply_markup: mainMenu }));
-    return { shown: 0, failed: 0, hasMore: false };
+  let ticketHash: string;
+  try {
+    ticketHash = await createTicketHash(
+      env.APP_HMAC_PEPPER,
+      parseTicketCapability(capability)
+    );
+  } catch {
+    await completeOrphan(env, d1User.id, claim);
+    return "unavailable";
   }
 
-  let shown = 0;
-  let failed = 0;
-  let decryptedCount = 0;
+  const resolved = await resolveTicketAction(null, env, "open", capability, {
+    actorHash: d1User.telegram_user_hash,
+    actorUserId: d1User.id,
+  });
 
-  for (const pointer of page.pointers) {
-    if (decryptedCount >= MAX_INBOX_DECRYPT_PER_REQUEST) {
-      break;
-    }
-
-    const ticketRef = await openInboxTicketRef(env, pointer);
-    if (!ticketRef) {
-      await markInboxPointerViewed(env, user.id, pointer.ticketHash).catch((error) =>
-        logBotError("renderInbox:drop-pointer", error)
-      );
-      failed += 1;
-      continue;
-    }
-
-    try {
-      const resolved = await resolveTicketAction(
-        ctx,
-        env,
-        "open",
-        ticketRef,
-        d1User.telegram_user_hash
-      );
-
-      if (!resolved) {
-        await markInboxPointerViewed(env, user.id, pointer.ticketHash).catch((error) =>
-          logBotError("renderInbox:drop-pointer", error)
-        );
-        failed += 1;
-        continue;
-      }
-
-      if (isExpiredTicketAction(resolved)) {
-        await Promise.all([
-          expireTicketRecord(env, pointer.ticketHash),
-          markInboxPointerViewed(env, user.id, pointer.ticketHash),
-        ]).catch((error) => logBotError("renderInbox:expire-pointer", error));
-        continue;
-      }
-
-      const senderD1 = await getUserByTelegramHash(
-        resolved.route.senderRouteTag,
-        env
-      );
-      const isBlocked = senderD1
-        ? user.blockedUserIds.includes(
-            await createBlockHash(
-              env.APP_HMAC_PEPPER,
-              d1User.telegram_user_hash,
-              senderD1.telegram_user_hash
-            )
-          )
-        : false;
-      const keyboard = createMessageKeyboard(ticketRef, isBlocked);
-
-      if (resolved.ticket.status === "active" && resolved.ticket.payloadEnc) {
-        decryptedCount += 1;
-        const delivery = await deliveryContextFromResolvedTicket(
-          resolved,
-          user.contactLabels
-        );
-        if (!hasDeliverablePayload(delivery.payload)) {
-          await markResolvedTicketViewed(env, user.id, resolved.ticketHash);
-          failed += 1;
-          continue;
-        }
-
-        await sendDecryptedMessage(
-          ctx,
-          toTicketDeliveryConversation(
-            resolved.route,
-            delivery.payload,
-            0,
-            0
-          ),
-          { reply_markup: keyboard },
-          delivery.senderLabel
-        );
-        await markResolvedTicketViewed(env, user.id, resolved.ticketHash);
-        await recordMessageDelivered(env);
-
-        if (senderD1) {
-          await notifyMessageSeen(
-            env,
-            senderD1,
-            resolved.route.parentMessageId
-          ).catch((error) => logBotError("renderInbox:seen", error));
-        }
-
-        shown += 1;
-        continue;
-      }
-
-      await markResolvedTicketViewed(env, user.id, resolved.ticketHash);
-    } catch (error) {
-      failed += 1;
-      logBotError("renderInbox:item", error);
-    }
+  if (!resolved || isExpiredTicketAction(resolved)) {
+    await completeOrphan(env, d1User.id, claim);
+    return "unavailable";
   }
 
-  const hasMore = typeof page.nextOffset === "number";
-  if (hasMore && page.nextOffset !== undefined) {
-    await ctx.reply(INBOX_HAS_MORE_MESSAGE, {
-      reply_markup: buildInboxPaginationKeyboard(page.nextOffset),
+  if (resolved.ticket.status !== "active" || !resolved.ticket.payloadEnc) {
+    await completeOrphan(env, d1User.id, claim);
+    return "unavailable";
+  }
+
+  const isBlocked = user.blockTags.includes(resolved.route.blockTag);
+
+  const delivery = await deliveryContextFromResolvedTicket(
+    resolved,
+    user.contactLabels
+  );
+  if (!hasDeliverablePayload(delivery.payload)) {
+    await completeOrphan(env, d1User.id, claim);
+    return "unavailable";
+  }
+
+  const job = deliveryJobForPayload(
+    d1User.telegram_chat_ciphertext,
+    d1User.telegram_user_hash,
+    ticketHash,
+    capability,
+    delivery.payload,
+    isBlocked,
+    delivery.senderLabel
+  );
+  if (!job) {
+    await completeOrphan(env, d1User.id, claim);
+    return "unavailable";
+  }
+
+  const sendResult = await sendViaOutboxDo(env, job);
+  if (!sendResult.ok || sendResult.retryable || sendResult.permanentFailure) {
+    await releaseUnreadDelivery(env, d1User.id, {
+      itemId: claim.itemId,
+      deliveryAttemptId: claim.deliveryAttemptId,
     });
+    return "retryable-failure";
   }
 
-  return { shown, failed, hasMore };
+  await markResolvedTicketViewed(env, user.id, resolved);
+  await completeUnreadDelivery(env, user.id, {
+    itemId: claim.itemId,
+    deliveryAttemptId: claim.deliveryAttemptId,
+  });
+  await recordMessageDelivered(env);
+
+  await notifyMessageSeenRoute(
+    env,
+    resolved.route.senderChatRoute,
+    resolved.route.replyRouteTag,
+    `seen:${resolved.ticketHash}:${resolved.route.parentMessageId ?? "none"}`,
+    resolved.route.parentMessageId
+  ).catch((error) => logBotError("inbox:seen", error));
+
+  return "delivered";
 };
 
-export const renderInbox = async (
-  ctx: Context,
+export const drainUnreadInbox = async (
   env: Environment,
-  offset = 0
+  userId: string
+): Promise<void> => {
+  const d1User = await getUserById(userId, env);
+  if (!d1User) {
+    return;
+  }
+  for (let delivered = 0; delivered < INBOX_DELIVERY_LIMIT; delivered += 1) {
+    const claim = await claimNextUnreadItem(env, d1User.id);
+    if (!claim) {
+      return;
+    }
+    const result = await deliverClaim(env, d1User, claim);
+    if (result === "retryable-failure") {
+      return;
+    }
+  }
+};
+
+export const requestUnreadDelivery = async (
+  ctx: Context,
+  env: Environment
 ): Promise<void> => {
   if (!ctx.from) {
     return;
   }
+  const d1User = await resolveOrCreateUser(ctx, env);
+  await cleanupExpiredUnreadItems(env, d1User.id);
+  const summary = await getUnreadSummary(env, d1User.id);
+  if (summary.unreadCount <= 0) {
+    await ctx.reply(INBOX_EMPTY_MESSAGE, { reply_markup: mainMenu });
+    return;
+  }
 
+  const requestId = crypto.randomUUID();
+  await env.NEKO_OUTBOX_QUEUE.send(
+    {
+      kind: "inbox-drain",
+      idempotencyKey: `inbox-drain:${d1User.id}:${requestId}`,
+      userId: d1User.id,
+      requestId,
+      createdAt: Date.now(),
+    },
+    { contentType: "json" }
+  );
+  await ctx.reply(INBOX_DELIVERY_REQUESTED_MESSAGE, { reply_markup: mainMenu });
+};
+
+export const handleInboxDeliverCallback = async (
+  ctx: Context,
+  env: Environment
+): Promise<void> => {
   try {
-    if (offset === 0) {
-      await recordInboxOpened(env);
-    }
+    await ctx.answerCallbackQuery();
+    await requestUnreadDelivery(ctx, env);
+  } catch (error) {
+    logBotError("inbox:deliver", error);
+    await ctx.reply(HuhMessage, { reply_markup: mainMenu });
+  }
+};
 
-    const { shown, failed } = await deliverInboxPage(ctx, env, offset);
-
-    if (shown === 0 && offset === 0 && failed > 0) {
-      await ctx.reply(HuhMessage, { reply_markup: mainMenu });
-    } else if (shown === 0 && offset > 0) {
-      await replyHtml(ctx, EMPTY_INBOX_MESSAGE, { reply_markup: mainMenu });
-    }
+export const renderInbox = async (
+  ctx: Context,
+  env: Environment
+): Promise<void> => {
+  try {
+    await recordInboxOpened(env);
+    await requestUnreadDelivery(ctx, env);
   } catch (error) {
     logBotError("renderInbox", error);
     await ctx.reply(HuhMessage, { reply_markup: mainMenu });

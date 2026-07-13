@@ -11,11 +11,11 @@ import {
   INDEX_JOB_CAPABILITY_TTL_MS,
   REQUEST_CAPABILITY_TTL_MS,
   SUGGESTION_CAPABILITY_TTL_MS,
-  type IndexJobRecord,
+  type ProfileIndexJobRecord,
   type ProfileVaultRecord,
-  type RequestTicketRecord,
-  type SuggestionTicketRecord,
-  type VectorRouteRecord,
+  type ConversationRequestTicketRecord,
+  type ConversationSuggestionTicketRecord,
+  type ProfileVectorRouteRecord,
 } from "../src/features/ticketing/conversation-capabilities.ts";
 import {
   createConversationOwnerProofTag,
@@ -150,7 +150,7 @@ const vectorRouteEnc = await encryptEnvelope(
   }),
   vectorRouteAad(vectorHash)
 );
-const vectorRecord: VectorRouteRecord = {
+const vectorRecord: ProfileVectorRouteRecord = {
   vectorHash,
   vectorRouteEnc,
   role: "self",
@@ -177,7 +177,7 @@ const indexJobRouteEnc = await encryptEnvelope(
   JSON.stringify({ revision: 1, profileHash }),
   indexJobRouteAad(jobHash)
 );
-const indexJobRecord: IndexJobRecord = {
+const indexJobRecord: ProfileIndexJobRecord = {
   jobHash,
   routeEnc: indexJobRouteEnc,
   revision: 1,
@@ -195,7 +195,7 @@ if (indexResolved.route?.profileHash !== profileHash) {
   fail("index job route decrypt failed");
 }
 
-const expiredIndexJob: IndexJobRecord = {
+const expiredIndexJob: ProfileIndexJobRecord = {
   ...indexJobRecord,
   expiresAt: now - 1,
 };
@@ -223,7 +223,7 @@ const explanationEnc = await encryptEnvelope(
   JSON.stringify("چرا این گزینه"),
   suggestionExplanationAad(suggestionHash)
 );
-const suggestionRecord: SuggestionTicketRecord = {
+const suggestionRecord: ConversationSuggestionTicketRecord = {
   suggestionHash,
   requesterProofTag: await createConversationOwnerProofTag(
     appMasterKey,
@@ -271,7 +271,7 @@ const introEnc = await encryptEnvelope(
   JSON.stringify("سلام"),
   requestIntroAad(requestHash)
 );
-const requestRecord: RequestTicketRecord = {
+const requestRecord: ConversationRequestTicketRecord = {
   requestHash,
   requesterProofTag: await createConversationOwnerProofTag(
     appMasterKey,
@@ -305,7 +305,7 @@ if (requestResolved.intro !== "سلام") {
   fail("request intro decrypt failed");
 }
 
-const expiredRequest: RequestTicketRecord = {
+const expiredRequest: ConversationRequestTicketRecord = {
   ...requestRecord,
   expiresAt: now - 1,
 };

@@ -59,9 +59,12 @@ for (const source of schemaSources) {
   scanSqlColumns(source, content);
 }
 
-const queueTypes = readFileSync(`${root}/src/queues/profile-index.types.ts`, "utf8");
+const queueTypes = readFileSync(
+  `${root}/src/contracts/conversation/profile-index.ts`,
+  "utf8"
+);
 if (/userId|profileRef|telegram/i.test(queueTypes)) {
-  fail("profile-index.types.ts must not name user or raw profile refs");
+  fail("profile-index contract must not name user or raw profile refs");
 }
 
 const fixtureSamples = [

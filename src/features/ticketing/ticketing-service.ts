@@ -1,21 +1,19 @@
-import type { CipherEnvelope } from "../../types";
+import type { CipherEnvelope } from "../../contracts/crypto";
 import { bytesToBase64Url, base64UrlToBytes } from "./base64url.ts";
-import { deriveAesGcmKey, getHkdfKeyMaterial } from "./hkdf.ts";
+import { deriveAesGcmKey } from "./hkdf.ts";
 import { hmacBase64Url } from "./hmac.ts";
 
 /**
  * Product ticketing helpers: Telegram chat sealing, scoped payloads,
- * display names, dedupe/block HMACs, and opaque ids.
+ * display names, dedupe HMACs, and opaque ids.
  */
 const GCM_IV_BYTES = 12;
-const SENDER_ALIAS_BITS = 128;
 const MASTER_KID = "master:v1";
 
 const AES_INFO = new TextEncoder().encode("nekonymous:aes:v1");
 const CHAT_INFO = new TextEncoder().encode("nekonymous:chat:v1");
 const HMAC_INFO = new TextEncoder().encode("nekonymous:tg-user:v1");
 const DEDUPE_INFO = "dedupe:v1:";
-const BLOCK_INFO = "block:v1:";
 
 const textEncoder = new TextEncoder();
 
@@ -130,13 +128,6 @@ export const createMessageDedupeKey = (
     `${DEDUPE_INFO}${senderHash}:${recipientHash}:${telegramMessageId}`
   );
 
-export const createBlockHash = (
-  lookupSecret: string,
-  ownerHash: string,
-  peerHash: string
-): Promise<string> =>
-  hmacBase64Url(lookupSecret, `${BLOCK_INFO}${ownerHash}:${peerHash}`);
-
 const scopedPayloadSalt = (scopeId: string): Uint8Array =>
   textEncoder.encode(scopeId);
 
@@ -164,26 +155,6 @@ const decryptScopedPayload = async (
 ): Promise<string> => {
   const aesKey = await deriveScopedPayloadKey(scopeId, appMasterKey);
   return openEnvelope(wireToEnvelope(ciphertext), aesKey);
-};
-
-/** Opaque per-recipient sender handle for contact labels. */
-export const getSenderAlias = async (
-  recipientUserId: string,
-  senderUserId: string,
-  appMasterKey: string
-): Promise<string> => {
-  const material = await getHkdfKeyMaterial(appMasterKey);
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "HKDF",
-      hash: "SHA-256",
-      salt: textEncoder.encode(recipientUserId),
-      info: textEncoder.encode(`nekonymous:label:v1:${senderUserId}`),
-    },
-    material,
-    SENDER_ALIAS_BITS
-  );
-  return bytesToBase64Url(new Uint8Array(bits));
 };
 
 export const encryptMatchIntro = async (

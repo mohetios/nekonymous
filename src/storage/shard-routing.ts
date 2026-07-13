@@ -1,7 +1,7 @@
 /** Bounded prefix length for vault shard routing from blind lookup hashes. */
 export const SHARD_PREFIX_LENGTH = 4;
 
-export type VaultPlane = "profile" | "conversation" | "pair";
+export type VaultPlane = "profile" | "conversation" | "pair" | "safety";
 
 export const shardNameForLookupHash = (
   plane: VaultPlane,

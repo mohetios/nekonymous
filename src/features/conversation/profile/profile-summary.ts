@@ -1,5 +1,5 @@
 import { CONVERSATION_DIMENSIONS } from "./constants.ts";
-import type { ConversationProfile, ProfileLocale } from "./types.ts";
+import type { ConversationProfile, ProfileLocale } from "../../../contracts/conversation/profile";
 
 const INTENT_LABELS_FA: Record<ConversationProfile["currentIntent"], string> = {
   light: "گفت‌وگوی سبک و ساده",

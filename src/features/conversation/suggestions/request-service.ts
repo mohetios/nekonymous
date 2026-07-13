@@ -25,7 +25,6 @@ import {
   getUserById,
 } from "../../identity/identity-service.ts";
 import { createSealedTicket } from "../../ticketing/create-sealed-ticket.ts";
-import { notifyRecipientInbox } from "../../ticketing/service.ts";
 import {
   claimRequestAccept,
   completeRequestAccept,
@@ -40,7 +39,8 @@ import {
   releasePairPendingLock,
   upsertPairStateRecord,
 } from "../../../storage/pair-ledger/pair-ledger.client";
-import type { D1User, Environment } from "../../../types";
+import type { D1User } from "../../../contracts/identity/model";
+import type { Environment } from "../../../contracts/runtime";
 import {
   recordRequestSent,
   recordRequestCanceled,
@@ -392,19 +392,6 @@ export const acceptConversationRequest = async (
       state: "accepted_cooldown",
       expiresAt: Date.now() + PAIR_ACCEPTED_COOLDOWN_MS,
     });
-
-    if (
-      !ticketResult.duplicate &&
-      typeof ticketResult.pendingCount === "number" &&
-      ticketResult.pendingCount > 0
-    ) {
-      await notifyRecipientInbox(
-        env,
-        candidateUser,
-        ticketResult.pendingCount,
-        operationId
-      );
-    }
 
     await notifyRequesterAccepted(env, requester, resolved.requestHash);
     await recordRequestAccepted(env);

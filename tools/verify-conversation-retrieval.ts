@@ -15,10 +15,7 @@ import {
   passesRetrievalFilter,
   roleMatchesChannel,
 } from "../src/features/conversation/suggestions/retrieval-utils.ts";
-import type {
-  ResolvedVectorHit,
-  VectorHit,
-} from "../src/features/conversation/suggestions/types.ts";
+import type { ResolvedVectorHit, VectorHit } from "../src/contracts/conversation/retrieval";
 
 const fail = (message: string): never => {
   console.error(message);

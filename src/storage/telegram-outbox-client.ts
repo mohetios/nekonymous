@@ -1,8 +1,8 @@
-import type { Environment } from "../types";
+import type { Environment } from "../contracts/runtime";
 import type {
   TelegramOutboxJob,
   TelegramOutboxSendResult,
-} from "../queues/telegram-outbox.types";
+} from "../contracts/telegram/outbox";
 
 export const enqueueTelegramOutbox = async (
   env: Environment,

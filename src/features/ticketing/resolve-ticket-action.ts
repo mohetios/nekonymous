@@ -1,10 +1,10 @@
 import type { Context } from "grammy";
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import { decryptEnvelope } from "./envelope";
 import {
   createOwnerProofTag,
   createTicketHash,
-  deriveTicketKey,
+  deriveTicketKeys,
   routeAad,
 } from "./keys";
 import { constantTimeEqual } from "./hmac";
@@ -13,35 +13,13 @@ import {
   getTicketRecord,
   TicketExpiredError,
 } from "../../storage/ticket-vault/ticket-vault.client";
-import type { TicketVaultRecord } from "../../storage/ticket-vault/ticket-vault.types";
-import type { RouteCapsule } from "./create-sealed-ticket";
-import { isCallbackRef } from "../../bot/callback-data";
-
-export type TicketAction =
-  | "open"
-  | "reply"
-  | "block"
-  | "unblock"
-  | "report"
-  | "nickname";
-
-export type ResolvedTicketAction = {
-  action: TicketAction;
-  ticketRef: string;
-  ticketHash: string;
-  actorHash: string;
-  ticket: TicketVaultRecord;
-  ticketKey: CryptoKey;
-  route: RouteCapsule;
-};
-
-export type ExpiredTicketAction = {
-  expired: true;
-};
-
-export type ResolveTicketActionResult =
-  | ResolvedTicketAction
-  | ExpiredTicketAction;
+import type { RouteCapsule } from "../../contracts/ticketing/model";
+import { parseTicketCapability } from "./ticket-capability";
+import type {
+  ExpiredTicketAction,
+  ResolveTicketActionResult,
+  TicketActionKind,
+} from "../../contracts/ticketing/actions";
 
 export const isExpiredTicketAction = (
   value: ResolveTicketActionResult | null
@@ -55,15 +33,13 @@ const isRouteCapsule = (value: unknown): value is RouteCapsule => {
   if (!isRecord(value)) {
     return false;
   }
-  const reportSeeds = value.reportSeeds;
   const replyPolicy = value.replyPolicy;
   return (
-    typeof value.senderRouteTag === "string" &&
-    typeof value.recipientRouteTag === "string" &&
-    typeof value.pairTag === "string" &&
-    isRecord(reportSeeds) &&
-    typeof reportSeeds.senderAbuseSeed === "string" &&
-    typeof reportSeeds.pairAbuseSeed === "string" &&
+    typeof value.senderChatRoute === "string" &&
+    typeof value.replyRouteTag === "string" &&
+    typeof value.contactTag === "string" &&
+    typeof value.blockTag === "string" &&
+    typeof value.abuseSubjectTag === "string" &&
     isRecord(replyPolicy) &&
     typeof replyPolicy.canReply === "boolean" &&
     typeof replyPolicy.maxChars === "number"
@@ -71,23 +47,37 @@ const isRouteCapsule = (value: unknown): value is RouteCapsule => {
 };
 
 export const resolveTicketAction = async (
-  ctx: Context,
+  ctx: Context | null,
   env: Environment,
-  action: TicketAction,
+  action: TicketActionKind,
   ticketRef: string,
-  actorHash?: string
+  actor?: { actorHash?: string; actorUserId?: string }
 ): Promise<ResolveTicketActionResult | null> => {
-  const from = ctx.from;
-  if (!from || !isCallbackRef(ticketRef)) {
+  const from = ctx?.from;
+
+  let capability;
+  try {
+    capability = parseTicketCapability(ticketRef);
+  } catch {
     return null;
   }
 
+  const actorUserId = actor?.actorUserId;
+  if (!actorUserId) {
+    return null;
+  }
   const resolvedActorHash =
-    actorHash ?? (await hmacTelegramUserId(env.APP_HMAC_PEPPER, from.id));
-  const ticketHash = await createTicketHash(env.APP_HMAC_PEPPER, ticketRef);
+    actor?.actorHash ??
+    (from ? await hmacTelegramUserId(env.APP_HMAC_PEPPER, from.id) : null);
+  if (!resolvedActorHash) {
+    return null;
+  }
+  const ticketHash = await createTicketHash(env.APP_HMAC_PEPPER, capability);
+
   const ownerProofCandidate = await createOwnerProofTag(
     env.APP_HMAC_PEPPER,
     resolvedActorHash,
+    actorUserId,
     ticketHash
   );
 
@@ -112,9 +102,9 @@ export const resolveTicketAction = async (
     return { expired: true };
   }
 
-  const ticketKey = await deriveTicketKey(env.APP_MASTER_KEY, ticketHash);
+  const keys = await deriveTicketKeys(env.APP_MASTER_KEY, ticketHash, capability);
   const route = await decryptEnvelope<unknown>(
-    ticketKey,
+    keys.routeKey,
     ticket.routeEnc,
     routeAad(ticketHash)
   );
@@ -128,8 +118,11 @@ export const resolveTicketAction = async (
     ticketRef,
     ticketHash,
     actorHash: resolvedActorHash,
+    actorUserId,
     ticket,
-    ticketKey,
+    routeKey: keys.routeKey,
+    payloadKey: keys.payloadKey,
+    metaKey: keys.metaKey,
     route,
   };
 };

@@ -1,9 +1,9 @@
-import type { Environment } from "../../types";
+import type { Environment } from "../../contracts/runtime";
 import type {
   StoreTicketInput,
   TicketTransitionStatus,
   TicketVaultRecord,
-} from "./ticket-vault.types";
+} from "../../contracts/ticketing/storage";
 
 export class TicketExpiredError extends Error {
   constructor() {
@@ -53,9 +53,6 @@ const markTicketStatus = async (
 export const markTicketViewed = (env: Environment, ticketHash: string) =>
   markTicketStatus(env, ticketHash, "viewed");
 
-export const markTicketReplied = (env: Environment, ticketHash: string) =>
-  markTicketStatus(env, ticketHash, "replied");
-
 export const markTicketBlocked = (env: Environment, ticketHash: string) =>
   markTicketStatus(env, ticketHash, "blocked");
 
@@ -64,13 +61,6 @@ export const markTicketRecordReported = async (
   ticketHash: string
 ): Promise<void> => {
   await markTicketStatus(env, ticketHash, "reported");
-};
-
-export const expireTicketRecord = async (
-  env: Environment,
-  ticketHash: string
-): Promise<void> => {
-  await stub(env, ticketHash).expireTicket(ticketHash);
 };
 
 export const deleteTicketRecord = async (

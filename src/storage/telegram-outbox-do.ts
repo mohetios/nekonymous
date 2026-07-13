@@ -1,10 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Environment } from "../types";
-import type { TelegramOutboxSendStatus } from "../status";
+import type { Environment } from "../contracts/runtime";
 import type {
   TelegramOutboxJob,
   TelegramOutboxSendResult,
-} from "../queues/telegram-outbox.types";
+  TelegramOutboxSendStatus,
+} from "../contracts/telegram/outbox";
 import { decryptTelegramChatId } from "../features/ticketing/ticketing-service";
 
 type SentRow = {
@@ -60,12 +60,21 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isOutboxJob = (value: unknown): value is TelegramOutboxJob =>
   isRecord(value) &&
   typeof value.idempotencyKey === "string" &&
-  value.idempotencyKey.length <= 160 &&
+    value.idempotencyKey.length <= 160 &&
+  (value.kind === undefined || value.kind === "telegram") &&
   typeof value.chatCiphertext === "string" &&
   typeof value.chatHash === "string" &&
   (value.method === "sendMessage" ||
-    value.method === "editMessageText" ||
+    value.method === "sendPhoto" ||
+    value.method === "sendVideo" ||
+    value.method === "sendAnimation" ||
+    value.method === "sendDocument" ||
+    value.method === "sendSticker" ||
+    value.method === "sendVoice" ||
+    value.method === "sendVideoNote" ||
+    value.method === "sendAudio" ||
     value.method === "answerCallbackQuery") &&
+  isRecord(value.payload) &&
   Number.isSafeInteger(value.createdAt);
 
 export class TelegramOutboxDurableObject extends DurableObject<Environment> {
@@ -388,23 +397,39 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
       return { messageId: String(body.result?.message_id ?? "") };
     }
 
-    if (job.method === "editMessageText") {
-      const response = await fetch(`${base}/editMessageText`, {
+    const mediaMethodField: Partial<Record<TelegramOutboxJob["method"], string>> = {
+      sendPhoto: "photo",
+      sendVideo: "video",
+      sendAnimation: "animation",
+      sendDocument: "document",
+      sendSticker: "sticker",
+      sendVoice: "voice",
+      sendVideoNote: "video_note",
+      sendAudio: "audio",
+    };
+    const mediaField = mediaMethodField[job.method];
+    if (mediaField) {
+      const fileId = job.payload[mediaField as keyof typeof job.payload];
+      if (typeof fileId !== "string" || !fileId) {
+        throw new TelegramApiError("Missing media file id", true);
+      }
+      const response = await fetch(`${base}/${job.method}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          message_id: job.payload.message_id,
-          text: job.payload.text,
+          [mediaField]: fileId,
+          caption: job.payload.caption,
           parse_mode: job.payload.parse_mode,
           reply_markup: job.payload.reply_markup,
+          reply_to_message_id: job.payload.reply_to_message_id,
         }),
       });
       const body = await this.readTelegramResponse(response);
       if (!response.ok || !body.ok) {
-        throw this.toTelegramError(response.status, body, "editMessageText failed");
+        throw this.toTelegramError(response.status, body, `${job.method} failed`);
       }
-      return {};
+      return { messageId: String(body.result?.message_id ?? "") };
     }
 
     if (job.method === "answerCallbackQuery") {
