@@ -10,7 +10,7 @@ import {
   payloadAad,
   routeAad,
 } from "./keys";
-import { createTicketCapability, encodeTicketCapability } from "./ticket-capability";
+import { createTicketCapability, createDeterministicTicketCapability, encodeTicketCapability } from "./ticket-capability";
 import { ensureUserStateInitialized } from "../identity/identity-service";
 import {
   addUnreadItem,
@@ -72,7 +72,12 @@ export const createSealedTicket = async (
 ): Promise<CreateSealedTicketResult> => {
   const now = Date.now();
   const expiresAt = ticketExpiresAt(now);
-  const capability = createTicketCapability();
+  const capability = input.dedupeKey
+    ? await createDeterministicTicketCapability(
+        env.APP_MASTER_KEY,
+        input.dedupeKey
+      )
+    : createTicketCapability();
   const ticketCapability = encodeTicketCapability(capability);
   const ticketHash = await createTicketHash(env.APP_HMAC_PEPPER, capability);
   const ownerProofTag = await createOwnerProofTag(
@@ -119,21 +124,19 @@ export const createSealedTicket = async (
     createdAt: now,
   } satisfies TicketMetadata;
 
-  // Canonical receive gate (skip for in-thread replies that already passed recipient).
-  if (!input.isThreadReply) {
-    const canReceive = await checkCanReceive(env, input.recipient.id, blockTag);
-    if (!canReceive.ok) {
-      return {
-        ok: false,
-        status: 403,
-        reason:
-          canReceive.reason === "blocked"
-            ? "blocked"
-            : canReceive.reason === "paused"
-              ? "paused"
-              : "blocked",
-      };
-    }
+  // Always enforce receive gate — block/pause may change after the parent ticket.
+  const canReceive = await checkCanReceive(env, input.recipient.id, blockTag);
+  if (!canReceive.ok) {
+    return {
+      ok: false,
+      status: 403,
+      reason:
+        canReceive.reason === "blocked"
+          ? "blocked"
+          : canReceive.reason === "paused"
+            ? "paused"
+            : "blocked",
+    };
   }
 
   const routeSize = new TextEncoder().encode(JSON.stringify(route)).length;
@@ -218,6 +221,7 @@ export const createSealedTicket = async (
         status: 200,
         duplicate: true,
         pendingCount: inboxResult.unreadCount,
+        ticketHash,
       };
     }
 

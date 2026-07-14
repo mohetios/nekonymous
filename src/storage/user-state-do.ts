@@ -338,7 +338,10 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
     const draftRows = this.ctx.storage.sql
       .exec<DraftRow>(
-        "SELECT * FROM drafts ORDER BY updated_at DESC LIMIT 1"
+        `SELECT * FROM drafts
+         WHERE expires_at IS NULL OR expires_at > ?
+         ORDER BY updated_at DESC LIMIT 1`,
+        Date.now()
       )
       .toArray();
 

@@ -55,6 +55,7 @@ export type InboxDrainResult = Readonly<
 
 export type InboxDeliveryPrefs = Readonly<{
   blockTags: ReadonlySet<string>;
+  labelCache: Map<string, string | undefined>;
 }>;
 
 export type InboxDeliverClaimResult = Readonly<

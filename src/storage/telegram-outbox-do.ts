@@ -20,6 +20,8 @@ class TelegramApiError extends Error {
   }
 }
 
+const GENERIC_RETRY_DELAY_SECONDS = 5;
+
 const SEND_LEASE_MS = 60 * 1000;
 const OUTBOX_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const OUTBOX_CLEANUP_LIMIT = 100;
@@ -341,7 +343,7 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
       }
 
       const delaySeconds =
-        telegramError.retryAfterSeconds ?? Math.ceil(SEND_LEASE_MS / 1000);
+        telegramError.retryAfterSeconds ?? GENERIC_RETRY_DELAY_SECONDS;
       const retryLeaseUntil = failedAt + delaySeconds * 1000;
       this.scheduleNextAllowedSendAt(
         failedAt,

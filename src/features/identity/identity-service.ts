@@ -31,6 +31,17 @@ import {
   DISPLAY_NAME_FALLBACK,
 } from "../../i18n/defaults";
 
+const isTelegramUserHashConflict = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("unique constraint") &&
+    message.includes("telegram_user_hash")
+  );
+};
+
 export const ensureUserStateInitialized = async (
   env: Environment,
   userId: string
@@ -290,7 +301,7 @@ export const createUserFromTelegram = async (
     env.APP_MASTER_KEY
   );
 
-  const insertUserRow = async (): Promise<boolean> => {
+  const insertUserRow = async (): Promise<"inserted" | "duplicate"> => {
     try {
       await env.DB.prepare(
         `INSERT INTO users (
@@ -308,13 +319,16 @@ export const createUserFromTelegram = async (
           now
         )
         .run();
-      return true;
-    } catch {
-      return false;
+      return "inserted";
+    } catch (error) {
+      if (isTelegramUserHashConflict(error)) {
+        return "duplicate";
+      }
+      throw error;
     }
   };
 
-  if (!(await insertUserRow())) {
+  if ((await insertUserRow()) === "duplicate") {
     const existing = await getUserByTelegramHash(telegramHash, env);
     if (existing) {
       await ensureUserStateInitialized(env, existing.id);
@@ -326,7 +340,7 @@ export const createUserFromTelegram = async (
       await hardDeleteUserAccount(leftover.id, env);
     }
 
-    if (!(await insertUserRow())) {
+    if ((await insertUserRow()) === "duplicate") {
       throw new Error("Failed to create user");
     }
   }
@@ -385,7 +399,10 @@ export const clearUserAccountAndRecreate = async (
   userId: string,
   env: Environment
 ): Promise<D1User> => {
-  await invalidateUserConversationProfile(env, userId).catch(() => undefined);
+  // Profile invalidation must succeed before rotating the account — silent
+  // failure can leave discoverable vectors / vault state orphaned under the
+  // deleted user id while the user believes reset completed.
+  await invalidateUserConversationProfile(env, userId);
   const unreadItems = await listUnreadItemsForReset(env, userId).catch(() => []);
   await Promise.all(
     unreadItems.map(async (item) => {

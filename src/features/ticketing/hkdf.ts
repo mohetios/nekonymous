@@ -41,3 +41,20 @@ export const deriveAesGcmKey = async (
     false,
     ["encrypt", "decrypt"]
   );
+
+export const deriveHkdfBits = async (
+  keyMaterial: string,
+  salt: Uint8Array,
+  info: Uint8Array,
+  lengthBits: number
+): Promise<ArrayBuffer> =>
+  crypto.subtle.deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt,
+      info,
+    },
+    await getHkdfKeyMaterial(keyMaterial),
+    lengthBits
+  );

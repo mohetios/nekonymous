@@ -64,6 +64,7 @@ import {
   notifyRequesterAccepted,
   notifyRequesterDeclined,
 } from "./request-notify.ts";
+import { logBotError } from "../../../utils/logs";
 
 export { parseRequestCallback } from "./request-callbacks.ts";
 
@@ -182,18 +183,6 @@ export const createConversationRequest = async (
     return { ok: false, reason: "blocked" };
   }
 
-  if (input.suggestionRef) {
-    const converted = await markSuggestionConvertedToRequest(
-      env,
-      input.requesterActorHash,
-      input.suggestionRef
-    );
-    if (!converted.ok) {
-      await releasePairPendingLock(env, input.pairTag);
-      return converted;
-    }
-  }
-
   const requestRef = randomRequestRef();
   const requestHash = await createRequestLookupHash(env.APP_MASTER_KEY, requestRef);
   const requesterProofTag = await createConversationOwnerProofTag(
@@ -242,7 +231,26 @@ export const createConversationRequest = async (
     return { ok: false, reason: "invalid" };
   }
 
-  await recordRequestSent(env);
+  // Suggestion status after durable store — convert failure must not leave a
+  // "converted" suggestion with no request, but store success is the success.
+  if (input.suggestionRef) {
+    const converted = await markSuggestionConvertedToRequest(
+      env,
+      input.requesterActorHash,
+      input.suggestionRef
+    );
+    if (!converted.ok) {
+      logBotError(
+        "conversation-request:suggestion-convert",
+        new Error(converted.reason)
+      );
+    }
+  }
+
+  // Stats and notification are deferred side effects after durable accept.
+  await recordRequestSent(env).catch((error) =>
+    logBotError("conversation-request:stats", error)
+  );
   await notifyIncomingConversationRequest(
     env,
     input.candidateProfileHash,
@@ -250,7 +258,8 @@ export const createConversationRequest = async (
     requestHash,
     introText,
     input.explanation
-  );
+  ).catch((error) => logBotError("conversation-request:notify", error));
+
   return {
     ok: true,
     request: { requestRef, requestHash },
@@ -285,7 +294,9 @@ export const cancelConversationRequest = async (
       true
     );
     await releasePairPendingLock(env, resolved.route.pairTag);
-    await recordRequestCanceled(env);
+    await recordRequestCanceled(env).catch((error) =>
+      logBotError("conversation-request:cancel-stats", error)
+    );
     return { ok: true };
   } catch (error) {
     return mapRequestError(error);
@@ -327,9 +338,13 @@ export const declineConversationRequest = async (
     });
     const requester = await getUserById(resolved.route.requesterUserId, env);
     if (requester) {
-      await notifyRequesterDeclined(env, requester, resolved.requestHash);
+      await notifyRequesterDeclined(env, requester, resolved.requestHash).catch(
+        (error) => logBotError("conversation-request:decline-notify", error)
+      );
     }
-    await recordRequestDeclined(env);
+    await recordRequestDeclined(env).catch((error) =>
+      logBotError("conversation-request:decline-stats", error)
+    );
     return { ok: true };
   } catch (error) {
     return mapRequestError(error);
@@ -430,8 +445,12 @@ export const acceptConversationRequest = async (
       expiresAt: Date.now() + PAIR_ACCEPTED_COOLDOWN_MS,
     });
 
-    await notifyRequesterAccepted(env, requester, resolved.requestHash);
-    await recordRequestAccepted(env);
+    await notifyRequesterAccepted(env, requester, resolved.requestHash).catch(
+      (error) => logBotError("conversation-request:accept-notify", error)
+    );
+    await recordRequestAccepted(env).catch((error) =>
+      logBotError("conversation-request:accept-stats", error)
+    );
     return { ok: true };
   } catch (error) {
     return mapRequestError(error);

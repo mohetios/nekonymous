@@ -126,6 +126,9 @@ const notificationJobForUser = (
   createdAt: Date.now(),
 });
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 const handleInboxNotificationMessage = async (
   message: Message<InboxNotificationJob>,
   env: Environment
@@ -140,43 +143,51 @@ const handleInboxNotificationMessage = async (
     return;
   }
 
-  const { accountId, eventId } = message.body;
-  const summary = await getUnreadSummary(env, accountId);
-  if (summary.unreadCount <= 0) {
-    message.ack();
-    return;
-  }
+  try {
+    const { accountId, eventId } = message.body;
+    const summary = await getUnreadSummary(env, accountId);
+    if (summary.unreadCount <= 0) {
+      message.ack();
+      return;
+    }
 
-  const user = await getUserById(accountId, env);
-  if (!user) {
-    message.ack();
-    return;
-  }
+    const user = await getUserById(accountId, env);
+    if (!user) {
+      message.ack();
+      return;
+    }
 
-  const result = await sendViaOutboxDo(
-    env,
-    notificationJobForUser(user, eventId, summary.unreadCount)
-  );
-  if (result.status === "sent") {
-    message.ack();
-    return;
-  }
-
-  if (result.status === "rejected") {
-    logBotError(
-      "queue:inbox-notification",
-      new Error("Inbox notification permanently rejected"),
-      { permanent: true }
+    const result = await sendViaOutboxDo(
+      env,
+      notificationJobForUser(user, eventId, summary.unreadCount)
     );
-    message.ack();
-    return;
-  }
+    if (result.status === "sent") {
+      message.ack();
+      return;
+    }
 
-  logBotError("queue:inbox-notification", new Error("Inbox notification retry"), {
-    retryable: true,
-    delaySeconds: result.delaySeconds,
-  });
-  message.retry({ delaySeconds: result.delaySeconds });
+    if (result.status === "rejected") {
+      logBotError(
+        "queue:inbox-notification",
+        new Error("Inbox notification permanently rejected"),
+        { permanent: true }
+      );
+      message.ack();
+      return;
+    }
+
+    logBotError("queue:inbox-notification", new Error("Inbox notification retry"), {
+      retryable: true,
+      delaySeconds: result.delaySeconds,
+    });
+    message.retry({ delaySeconds: result.delaySeconds });
+  } catch (error) {
+    logBotError("queue:inbox-notification", error, {
+      retryable: true,
+      delaySeconds: 5,
+    });
+    message.retry({ delaySeconds: 5 });
+  }
 };
 
 const handleInboxDrainMessage = async (
@@ -286,8 +297,28 @@ export const handleOutboxBatch = async (
   };
 
   for (const message of batch.messages) {
-    if (message.body.kind === "inbox-drain") {
+    const body = message.body;
+    if (!isRecord(body) || typeof body.kind !== "string") {
+      logBotError(
+        "queue:outbox-batch",
+        new Error("Invalid outbox queue message body"),
+        { permanent: true }
+      );
+      message.ack();
+      continue;
+    }
+
+    if (body.kind === "inbox-drain") {
       const drainMessage = message as Message<InboxDrainJob>;
+      if (!isInboxDrainJob(drainMessage.body)) {
+        logBotError(
+          "queue:inbox-drain",
+          new Error("Invalid inbox drain job"),
+          { permanent: true }
+        );
+        message.ack();
+        continue;
+      }
       const chatHash = await resolveAccountChatHash(
         env,
         drainMessage.body.userId,
@@ -296,8 +327,17 @@ export const handleOutboxBatch = async (
       appendLaneWork(chatHash, { type: "drain", message: drainMessage });
       continue;
     }
-    if (message.body.kind === "inbox-notification") {
+    if (body.kind === "inbox-notification") {
       const notificationMessage = message as Message<InboxNotificationJob>;
+      if (!isInboxNotificationJob(notificationMessage.body)) {
+        logBotError(
+          "queue:inbox-notification",
+          new Error("Invalid inbox notification job"),
+          { permanent: true }
+        );
+        message.ack();
+        continue;
+      }
       const chatHash = await resolveAccountChatHash(
         env,
         notificationMessage.body.accountId,
@@ -307,6 +347,15 @@ export const handleOutboxBatch = async (
         type: "notification",
         message: notificationMessage,
       });
+      continue;
+    }
+    if (body.kind !== "telegram") {
+      logBotError(
+        "queue:outbox-batch",
+        new Error("Unknown outbox queue message kind"),
+        { permanent: true }
+      );
+      message.ack();
       continue;
     }
     const telegramMessage = message as Message<TelegramOutboxJob>;

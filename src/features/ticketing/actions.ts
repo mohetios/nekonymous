@@ -150,7 +150,8 @@ export const handleReplyAction = async (
     await ctx.reply(replyPrompt, withHtml({
       reply_markup: buildDraftCancelKeyboard(INPUT_PLACEHOLDERS.reply),
     }));
-  } catch {
+  } catch (error) {
+    logBotError("reply:action", error);
     await ctx.reply(HuhMessage);
   } finally {
     await ctx.answerCallbackQuery();
@@ -206,7 +207,8 @@ export const handleBlockAction = async (
     } catch (error) {
       logBotError("block:telegram-ui", error);
     }
-  } catch {
+  } catch (error) {
+    logBotError("block:action", error);
     await ctx.reply(HuhMessage);
   } finally {
     await ctx.answerCallbackQuery();
@@ -265,7 +267,8 @@ export const handleUnblockAction = async (
     } catch (error) {
       logBotError("unblock:telegram-ui", error);
     }
-  } catch {
+  } catch (error) {
+    logBotError("unblock:action", error);
     await ctx.reply(HuhMessage);
   } finally {
     await ctx.answerCallbackQuery();
@@ -320,7 +323,8 @@ export const handleNicknameAction = async (
         reply_markup: buildDraftCancelKeyboard(INPUT_PLACEHOLDERS.nickname),
       })
     );
-  } catch {
+  } catch (error) {
+    logBotError("nickname:action", error);
     await ctx.reply(HuhMessage);
   } finally {
     await ctx.answerCallbackQuery();
@@ -370,7 +374,8 @@ export const handleReportAction = async (
     } catch (error) {
       logBotError("report:telegram-ui", error);
     }
-  } catch {
+  } catch (error) {
+    logBotError("report:action", error);
     await ctx.reply(HuhMessage);
   } finally {
     await ctx.answerCallbackQuery();

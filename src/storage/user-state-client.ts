@@ -172,18 +172,14 @@ export const completeUnreadDelivery = async (
   env: Environment,
   userId: string,
   claim: CompleteUnreadDeliveryInput
-): Promise<UnreadInboxSummary> => {
-  const result = await stub(env, userId).completeUnreadDelivery(claim);
-  return result.summary;
-};
+): Promise<{ ok: boolean; summary: UnreadInboxSummary }> =>
+  stub(env, userId).completeUnreadDelivery(claim);
 
 export const releaseUnreadDelivery = async (
   env: Environment,
   userId: string,
   claim: ReleaseUnreadDeliveryInput
-): Promise<void> => {
-  await stub(env, userId).releaseUnreadDelivery(claim);
-};
+): Promise<{ ok: boolean }> => stub(env, userId).releaseUnreadDelivery(claim);
 
 export const cleanupExpiredUnreadItems = async (
   env: Environment,

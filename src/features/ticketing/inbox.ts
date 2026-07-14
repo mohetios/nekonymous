@@ -32,6 +32,9 @@ import {
   getUserState,
   releaseUnreadDelivery,
 } from "../../storage/user-state-client";
+import { deleteTicketRecord } from "../../storage/ticket-vault/ticket-vault.client";
+import { createTicketHash } from "./keys";
+import { parseTicketCapability } from "./ticket-capability";
 import type {
   InboxDeliverClaimResult,
   InboxDeliveryPrefs,
@@ -190,12 +193,35 @@ const deliveryJobForPayload = (
 const completeOrphan = async (
   env: Environment,
   userId: string,
-  claim: UnreadDeliveryClaim
+  claim: UnreadDeliveryClaim,
+  ticketHash?: string
 ): Promise<void> => {
-  await completeUnreadDelivery(env, userId, {
+  if (ticketHash) {
+    await deleteTicketRecord(env, ticketHash).catch((error) =>
+      logBotError("inbox:orphan-vault", error)
+    );
+  }
+  const completed = await completeUnreadDelivery(env, userId, {
     itemId: claim.itemId,
     deliveryAttemptId: claim.deliveryAttemptId,
   });
+  if (!completed.ok) {
+    logBotError("inbox:orphan-complete", new Error("stale delivery attempt"));
+  }
+};
+
+const resolveLabel = async (
+  env: Environment,
+  userId: string,
+  contactTag: string,
+  cache: Map<string, string | undefined>
+): Promise<string | undefined> => {
+  if (cache.has(contactTag)) {
+    return cache.get(contactTag);
+  }
+  const label = await getContactLabel(env, userId, contactTag);
+  cache.set(contactTag, label);
+  return label;
 };
 
 const loadDeliveryPrefs = async (
@@ -238,29 +264,55 @@ const deliverClaim = async (
     return { outcome: "unavailable" };
   }
 
-  const resolved = await resolveTicketAction(null, env, "open", capability, {
-    actorHash: d1User.telegram_user_hash,
-    actorUserId: d1User.id,
-  });
+  let resolved;
+  try {
+    resolved = await resolveTicketAction(null, env, "open", capability, {
+      actorHash: d1User.telegram_user_hash,
+      actorUserId: d1User.id,
+    });
+  } catch (error) {
+    logBotError("inbox:resolve-ticket", error);
+    let ticketHash: string | undefined;
+    try {
+      ticketHash = await createTicketHash(
+        env.APP_HMAC_PEPPER,
+        parseTicketCapability(capability)
+      );
+    } catch {
+      // Malformed material — unread orphan only.
+    }
+    await completeOrphan(env, d1User.id, claim, ticketHash);
+    return { outcome: "unavailable" };
+  }
 
   if (!resolved || isExpiredTicketAction(resolved)) {
     logBotError("inbox:resolve-ticket", new Error("Ticket unavailable"));
-    await completeOrphan(env, d1User.id, claim);
+    let ticketHash: string | undefined;
+    try {
+      ticketHash = await createTicketHash(
+        env.APP_HMAC_PEPPER,
+        parseTicketCapability(capability)
+      );
+    } catch {
+      // Capability already opened — hash derivation should succeed.
+    }
+    await completeOrphan(env, d1User.id, claim, ticketHash);
     return { outcome: "unavailable" };
   }
 
   if (resolved.ticket.status !== "active" || !resolved.ticket.payloadEnc) {
     logBotError("inbox:payload-missing", new Error("Ticket payload unavailable"));
-    await completeOrphan(env, d1User.id, claim);
+    await completeOrphan(env, d1User.id, claim, resolved.ticketHash);
     return { outcome: "unavailable" };
   }
 
   const isBlocked = deliveryPrefs.blockTags.has(resolved.route.blockTag);
 
-  const senderLabel = await getContactLabel(
+  const senderLabel = await resolveLabel(
     env,
     d1User.id,
-    resolved.route.contactTag
+    resolved.route.contactTag,
+    deliveryPrefs.labelCache
   );
   const delivery = await deliveryContextFromResolvedTicket(
     resolved,
@@ -268,7 +320,7 @@ const deliverClaim = async (
   );
   if (!hasDeliverablePayload(delivery.payload)) {
     logBotError("inbox:payload-undeliverable", new Error("Unsupported payload"));
-    await completeOrphan(env, d1User.id, claim);
+    await completeOrphan(env, d1User.id, claim, resolved.ticketHash);
     return { outcome: "unavailable" };
   }
 
@@ -283,7 +335,7 @@ const deliverClaim = async (
   );
   if (!job) {
     logBotError("inbox:delivery-job", new Error("Unsupported message type"));
-    await completeOrphan(env, d1User.id, claim);
+    await completeOrphan(env, d1User.id, claim, resolved.ticketHash);
     return { outcome: "unavailable" };
   }
 
@@ -292,10 +344,13 @@ const deliverClaim = async (
     sendResult = await sendViaOutboxDo(env, job);
   } catch (error) {
     logBotError("inbox:send", error, { retryable: true, delaySeconds: 5 });
-    await releaseUnreadDelivery(env, d1User.id, {
+    const released = await releaseUnreadDelivery(env, d1User.id, {
       itemId: claim.itemId,
       deliveryAttemptId: claim.deliveryAttemptId,
     });
+    if (!released.ok) {
+      logBotError("inbox:release", new Error("stale delivery attempt"));
+    }
     return { outcome: "retryable-failure", delaySeconds: 5 };
   }
   if (sendResult.status === "retry") {
@@ -303,10 +358,13 @@ const deliverClaim = async (
       retryable: true,
       delaySeconds: sendResult.delaySeconds,
     });
-    await releaseUnreadDelivery(env, d1User.id, {
+    const released = await releaseUnreadDelivery(env, d1User.id, {
       itemId: claim.itemId,
       deliveryAttemptId: claim.deliveryAttemptId,
     });
+    if (!released.ok) {
+      logBotError("inbox:release", new Error("stale delivery attempt"));
+    }
     return {
       outcome: "retryable-failure",
       delaySeconds: sendResult.delaySeconds,
@@ -316,16 +374,19 @@ const deliverClaim = async (
     logBotError("inbox:send", new Error("Telegram outbox send rejected"), {
       permanent: true,
     });
-    // Permanent outbox rejection cannot succeed on retry; drop the unread lease.
-    await completeOrphan(env, d1User.id, claim);
+    // Permanent outbox rejection: drop unread + vault payload (no access path left).
+    await completeOrphan(env, d1User.id, claim, resolved.ticketHash);
     return { outcome: "unavailable" };
   }
 
   await markResolvedTicketViewed(env, d1User.id, resolved);
-  await completeUnreadDelivery(env, d1User.id, {
+  const completed = await completeUnreadDelivery(env, d1User.id, {
     itemId: claim.itemId,
     deliveryAttemptId: claim.deliveryAttemptId,
   });
+  if (!completed.ok) {
+    logBotError("inbox:complete", new Error("stale delivery attempt"));
+  }
   await recordMessageDelivered(env);
 
   await notifyMessageSeenRoute(
@@ -351,6 +412,7 @@ export const drainUnreadInbox = async (
   const prefs = await loadDeliveryPrefs(env, d1User);
   const deliveryPrefs: InboxDeliveryPrefs = {
     blockTags: new Set(prefs.blockTags),
+    labelCache: new Map(),
   };
 
   let deliveredCount = 0;

@@ -4,6 +4,7 @@ import type {
   TicketCapability,
 } from "../../contracts/ticketing/capability";
 import { asEncodedTicketCapability } from "../../contracts/primitives.ts";
+import { deriveHkdfBits } from "./hkdf.ts";
 
 const BASE64URL_RE = /^[A-Za-z0-9_-]+$/;
 const TICKET_CAPABILITY_NONCE_BYTES = 16;
@@ -12,6 +13,9 @@ export const TICKET_CAPABILITY_BYTES =
   TICKET_CAPABILITY_NONCE_BYTES + TICKET_CAPABILITY_KEY_SEED_BYTES;
 export const TICKET_CAPABILITY_CHARS = 43;
 export const TICKET_CAPABILITY_PATTERN = `[A-Za-z0-9_-]{${TICKET_CAPABILITY_CHARS}}`;
+const DEDUPE_CAPABILITY_INFO = new TextEncoder().encode(
+  "nekonymous:ticket-capability-dedupe:v1"
+);
 
 const hasNonZeroByte = (bytes: Uint8Array): boolean =>
   bytes.some((byte) => byte !== 0);
@@ -23,6 +27,32 @@ const randomNonZeroBytes = (size: number): Uint8Array => {
       return bytes;
     }
   }
+};
+
+const capabilityFromMaterial = (material: Uint8Array): TicketCapability => {
+  if (material.length !== TICKET_CAPABILITY_BYTES) {
+    throw new Error("Invalid ticket capability material length");
+  }
+  // Guarantee non-zero nonce/keySeed for deterministic material (HKDF collision
+  // with all-zero is astronomically unlikely; still defense-in-depth).
+  const bytes = new Uint8Array(material);
+  if (!hasNonZeroByte(bytes.subarray(0, TICKET_CAPABILITY_NONCE_BYTES))) {
+    bytes[0] = 1;
+  }
+  if (
+    !hasNonZeroByte(
+      bytes.subarray(
+        TICKET_CAPABILITY_NONCE_BYTES,
+        TICKET_CAPABILITY_BYTES
+      )
+    )
+  ) {
+    bytes[TICKET_CAPABILITY_NONCE_BYTES] = 1;
+  }
+  return {
+    lookupNonce: bytes.slice(0, TICKET_CAPABILITY_NONCE_BYTES),
+    keySeed: bytes.slice(TICKET_CAPABILITY_NONCE_BYTES),
+  };
 };
 
 const capabilityBytes = (capability: TicketCapability): Uint8Array => {
@@ -51,6 +81,28 @@ export const createTicketCapability = (): TicketCapability => ({
   lookupNonce: randomNonZeroBytes(TICKET_CAPABILITY_NONCE_BYTES),
   keySeed: randomNonZeroBytes(TICKET_CAPABILITY_KEY_SEED_BYTES),
 });
+
+/**
+ * Stable capability for retry-safe ticket creation (e.g. conversation-request accept).
+ * Same masterKey + dedupeKey → same ticketHash / unread dedupe.
+ */
+export const createDeterministicTicketCapability = async (
+  masterKey: string,
+  dedupeKey: string
+): Promise<TicketCapability> => {
+  const normalized = dedupeKey.trim();
+  if (!normalized || normalized.length > 128) {
+    throw new Error("Invalid ticket capability dedupe key");
+  }
+  const salt = new TextEncoder().encode(normalized);
+  const bits = await deriveHkdfBits(
+    masterKey,
+    salt,
+    DEDUPE_CAPABILITY_INFO,
+    TICKET_CAPABILITY_BYTES * 8
+  );
+  return capabilityFromMaterial(new Uint8Array(bits));
+};
 
 export const encodeTicketCapability = (
   capability: TicketCapability

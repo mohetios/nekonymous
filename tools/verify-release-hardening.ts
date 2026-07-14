@@ -46,6 +46,11 @@ assertIncludes(userState, "isUnreadDedupeConflict", "unread insert must only ded
 assertIncludes(userState, "sqlChanges()", "UserState RPC must verify rows written");
 assertIncludes(userState, "DEFAULT_DRAFT_TTL_MS", "drafts must get a default TTL");
 assertIncludes(userState, "expires_at <= ?", "getDraft must expire stale drafts");
+assertIncludes(
+  userState,
+  "WHERE expires_at IS NULL OR expires_at > ?",
+  "getState must ignore expired drafts"
+);
 assertIncludes(userState, "inserted: this.sqlChanges() === 1", "addBlock must report true inserts");
 assertIncludes(userState, "removed: this.sqlChanges() === 1", "removeBlock must report true removals");
 assertIncludes(userState, "delivery_attempt_id", "unread claims must be attempt guarded");
@@ -74,6 +79,22 @@ assertNotIncludes(userState, `inbox${"Page"}`, "inbox page RPC must stay absent"
 assertNotIncludes(userState, `markInbox${"Status"}`, "inbox status RPC must stay absent");
 
 const createSealedTicket = read("src/features/ticketing/create-sealed-ticket.ts");
+assertIncludes(createSealedTicket, "checkCanReceive", "new tickets must enforce recipient receive gates");
+assertNotIncludes(
+  createSealedTicket,
+  "if (!input.isThreadReply)",
+  "thread replies must not skip checkCanReceive"
+);
+assertIncludes(
+  createSealedTicket,
+  "createDeterministicTicketCapability",
+  "dedupeKey must mint a stable ticket capability for accept retries"
+);
+assertIncludes(
+  createSealedTicket,
+  "duplicate: true,\n        pendingCount: inboxResult.unreadCount,\n        ticketHash,",
+  "duplicate/retry success must return ticketHash"
+);
 assertIncludes(createSealedTicket, "createTicketCapability", "new tickets must create canonical capabilities");
 assertIncludes(createSealedTicket, "deriveTicketKeys", "new tickets must use canonical key derivation");
 assertIncludes(createSealedTicket, "createContactTag", "new tickets must derive contact tags");
@@ -113,6 +134,12 @@ assertIncludes(safetyState, "operatorClearSanction", "SafetyState must expose in
 assertIncludes(safetyState, "isReportEventConflict", "report insert must only treat unique conflicts as duplicates");
 assertIncludes(safetyState, "reportersSincePhase", "sanction windows must start at phase boundary");
 assertIncludes(safetyState, "const now = Date.now()", "SafetyState must own authoritative report time");
+assertIncludes(safetyState, "ALLOWED_REASON_CODES", "SafetyState must allowlist report reason codes");
+assertIncludes(
+  safetyState,
+  "Persist FIRST_STRIKE phase start",
+  "SafetyState must persist clear-phase start on first countable report"
+);
 
 const safetyClient = read("src/storage/safety-state/safety-state.client.ts");
 assertIncludes(safetyClient, "`safety:${abuseSubjectTag}`", "SafetyState must be keyed by full abuse subject tag");
@@ -125,6 +152,12 @@ assertIncludes(requestService, "createBlockTag", "conversation requests must der
 assertIncludes(requestService, "claimRequestAccept", "accepted request tickets need an accepting claim before ticket creation");
 assertIncludes(requestService, "completeRequestAccept", "accepted requests must finalize with the created ticket hash");
 assertIncludes(requestService, "requestAcceptOperationId", "accepted request tickets need stable operation keys");
+assertIncludes(requestService, "dedupeKey: operationId", "accept must pass stable dedupeKey into createSealedTicket");
+assertIncludes(
+  requestService,
+  "conversation-request:notify",
+  "request notifications must be deferred after durable store"
+);
 assertIncludes(requestService, "candidateProfile?.status === \"discoverable\"", "request creation must reject non-discoverable candidates");
 
 const resolver = read("src/features/ticketing/resolve-ticket-action.ts");
@@ -135,6 +168,12 @@ assertIncludes(resolver, "actorUserId", "owner proof must include current intern
 
 const identity = read("src/features/identity/identity-service.ts");
 assertIncludes(identity, "invalidateUserConversationProfile", "reset must invalidate profile vault state");
+assertIncludes(identity, "isTelegramUserHashConflict", "user insert must only treat unique telegram hash as duplicate");
+assertNotIncludes(
+  identity,
+  "invalidateUserConversationProfile(env, userId).catch(() => undefined)",
+  "reset must not silently ignore profile invalidation failures"
+);
 assertIncludes(identity, "listUnreadItemsForReset", "reset must inspect unread items before purging");
 assertIncludes(identity, "openUnreadCapability", "reset must decrypt unread capabilities in memory");
 assertIncludes(identity, "deleteTicketRecord", "reset must delete unread ticket records");
@@ -176,7 +215,13 @@ assertIncludes(outbox, "next.due_at <= now", "outbox must reschedule overdue cle
 assertIncludes(outbox, "CHAT_PACE_SCOPE", "outbox must pace sends per chat");
 assertIncludes(outbox, 'status: "retry"', "outbox must return explicit retry status");
 assertIncludes(outbox, 'status: "rejected"', "outbox must return explicit rejected status");
+assertIncludes(outbox, "GENERIC_RETRY_DELAY_SECONDS", "outbox generic retry must use a short backoff");
 assertIncludes(outbox, "logBotError(\"telegram-outbox:internal\"", "outbox must log internal failures safely");
+assertNotIncludes(
+  outbox,
+  "telegramError.retryAfterSeconds ?? Math.ceil(SEND_LEASE_MS / 1000)",
+  "outbox must not reuse send lease as generic retry delay"
+);
 
 const outboxConsumer = read("src/queues/outbox-consumer.ts");
 assertIncludes(outboxConsumer, "OUTBOX_CHAT_CONCURRENCY", "outbox consumer must bound cross-chat concurrency");
@@ -191,6 +236,16 @@ assertIncludes(outboxConsumer, "inbox-notification:${user.id}:${eventId}", "inbo
 assertIncludes(outboxConsumer, "getUnreadSummary", "inbox notifications must read live unread count");
 assertIncludes(outboxConsumer, "inboxFreshNoticeMessage", "inbox notifications must include unread count copy");
 assertIncludes(outboxConsumer, "DELIVER_INBOX_BUTTON", "inbox notices must use shared deliver CTA label");
+assertIncludes(
+  outboxConsumer,
+  "Invalid outbox queue message body",
+  "outbox batch must validate body before kind dispatch"
+);
+assertIncludes(
+  outboxConsumer,
+  'logBotError("queue:inbox-notification", error,',
+  "inbox notification handler must catch DO/D1 failures"
+);
 assertNotIncludes(outboxConsumer, "editMessageText", "inbox notifications must never edit Telegram messages");
 assertNotIncludes(outboxConsumer, "markInboxNotificationSent", "notification cycle mark-sent must stay absent");
 assertNotIncludes(outboxConsumer, "closeInboxNotificationCycle", "notification cycle close must stay absent");
@@ -223,6 +278,16 @@ assertIncludes(userStateClient, ".getState()", "user state client must use typed
 assertIncludes(userStateClient, "DurableObjectCallError(404", "user state client must preserve fail-closed 404 semantics");
 assertIncludes(userStateClient, "claimNextUnreadItem", "user state client must expose unread claim RPC");
 assertIncludes(userStateClient, "completeUnreadDelivery", "user state client must expose attempt-guarded completion");
+assertIncludes(
+  userStateClient,
+  "Promise<{ ok: boolean; summary: UnreadInboxSummary }>",
+  "completeUnreadDelivery client must preserve truthful ok"
+);
+assertIncludes(
+  userStateClient,
+  "Promise<{ ok: boolean }>",
+  "releaseUnreadDelivery client must preserve truthful ok"
+);
 assertIncludes(userStateClient, "getContactLabelCiphertext", "user state client must expose single-label ciphertext fetch");
 assertNotIncludes(userStateClient, "getOptionalUserState", "unused optional state helper must stay absent");
 assertNotIncludes(userStateClient, "purgeUnreadInbox", "unused purgeUnreadInbox client must stay absent");
@@ -232,6 +297,11 @@ assertNotIncludes(userStateClient, `listInbox${"Page"}`, "user state client must
 const ticketCapability = read("src/features/ticketing/ticket-capability.ts");
 assertIncludes(ticketCapability, "TICKET_CAPABILITY_BYTES =\n  TICKET_CAPABILITY_NONCE_BYTES + TICKET_CAPABILITY_KEY_SEED_BYTES", "ticket capability must be 16-byte nonce plus 16-byte keySeed");
 assertIncludes(ticketCapability, "TICKET_CAPABILITY_CHARS = 43", "encoded ticket capability must be 43 chars");
+assertIncludes(
+  ticketCapability,
+  "createDeterministicTicketCapability",
+  "ticket capability must support deterministic dedupe minting"
+);
 assertNotIncludes(ticketCapability, `TicketCapability${"V" + "2"}`, "versioned ticket capability type must stay absent");
 assertNotIncludes(ticketCapability, `${"Leg" + "acy"}Ticket${"Capability"}`, "removed ticket capability type must stay absent");
 

@@ -54,6 +54,23 @@ describe("UserState typed RPC", () => {
     expect(second.limited).toBe(true);
   });
 
+  it("getState ignores expired drafts", async () => {
+    const stub = env.USER_STATE_DO.get(
+      env.USER_STATE_DO.idFromName("vitest-expired-draft")
+    );
+    await stub.initState("vitest-expired-draft");
+    await stub.setDraft({
+      id: "primary",
+      mode: "reply",
+      toUserId: "other-user",
+      linkSlug: "slug",
+      expiresAt: Date.now() - 1_000,
+    });
+
+    const state = await stub.getState();
+    expect(state?.draft).toBeNull();
+  });
+
   it("stores unread inbox items and dedupes retries", async () => {
     const stub = env.USER_STATE_DO.get(
       env.USER_STATE_DO.idFromName("vitest-unread-item")
@@ -244,6 +261,34 @@ describe("SafetyState typed RPC", () => {
     expect(first.duplicate).toBe(false);
     expect(second.ok).toBe(true);
     expect(second.duplicate).toBe(true);
+  });
+
+  it("suspends after five distinct reporters in FIRST_STRIKE", async () => {
+    const tag = `abuse-subject-strike-${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
+    const stub = env.SAFETY_STATE_DO.get(
+      env.SAFETY_STATE_DO.idFromName(`safety:${tag}`)
+    );
+
+    let lastDecision = await stub.getSafetyDecision();
+    for (let index = 0; index < 5; index += 1) {
+      const suffix = `${index}${crypto.randomUUID().replaceAll("-", "")}`.slice(
+        0,
+        24
+      );
+      const result = await stub.submitReport({
+        eventTag: `report-event-${suffix}`,
+        reporterSubjectTag: `reporter-subject-${suffix}`,
+        reasonCode: "spam",
+      });
+      expect(result.ok).toBe(true);
+      expect(result.duplicate).toBe(false);
+      lastDecision = result.decision;
+      // Yield so report created_at values are not all identical.
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+
+    expect(lastDecision.status).toBe("suspended");
+    expect(lastDecision.allowed).toBe(false);
   });
 
   it("exposes refresh and operator clear APIs", async () => {

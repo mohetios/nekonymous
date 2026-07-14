@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Environment } from "../../contracts/runtime";
+import type { ReportReasonCode } from "../../contracts/safety/model";
 import {
   FIRST_STRIKE_UNIQUE_REPORTERS,
   FIRST_STRIKE_WINDOW,
@@ -19,6 +20,11 @@ import type {
 } from "../../contracts/safety/rpc";
 
 const isSafeTag = (value: string): boolean => /^[A-Za-z0-9_-]{16,86}$/.test(value);
+
+const ALLOWED_REASON_CODES = new Set<ReportReasonCode>([
+  "inbox_report",
+  "spam",
+]);
 
 const isReportEventConflict = (error: unknown): boolean => {
   if (!(error instanceof Error)) {
@@ -72,19 +78,27 @@ export class SafetyStateDurableObject extends DurableObject<Environment> {
     `);
   }
 
-  private getSanctionRow(): SanctionRow {
+  private getSanctionRow(): { row: SanctionRow; persisted: boolean } {
     const row = this.ctx.storage.sql
       .exec<SanctionRow>(
         `SELECT status, strike_count, suspended_until, probation_until, updated_at
          FROM sanction_state WHERE singleton_id = 1`
       )
       .toArray()[0];
-    return row ?? {
-      status: "clear",
-      strike_count: 0,
-      suspended_until: null,
-      probation_until: null,
-      updated_at: Date.now(),
+    if (row) {
+      return { row, persisted: true };
+    }
+    return {
+      persisted: false,
+      row: {
+        status: "clear",
+        strike_count: 0,
+        suspended_until: null,
+        probation_until: null,
+        // Ephemeral clear: phase window starts at (now - FIRST_STRIKE_WINDOW),
+        // not "this millisecond", so reports can accumulate before first persist.
+        updated_at: 0,
+      },
     };
   }
 
@@ -181,7 +195,7 @@ export class SafetyStateDurableObject extends DurableObject<Environment> {
 
   getSafetyDecision(): SafetyDecision {
     const now = Date.now();
-    return this.decision(this.refresh(this.getSanctionRow(), now));
+    return this.decision(this.refresh(this.getSanctionRow().row, now));
   }
 
   refreshExpiredSanction(): SafetyDecision {
@@ -193,8 +207,7 @@ export class SafetyStateDurableObject extends DurableObject<Environment> {
     if (
       !isSafeTag(body.eventTag) ||
       !isSafeTag(body.reporterSubjectTag) ||
-      !body.reasonCode ||
-      body.reasonCode.length > 64
+      !ALLOWED_REASON_CODES.has(body.reasonCode)
     ) {
       return {
         ok: false,
@@ -203,7 +216,10 @@ export class SafetyStateDurableObject extends DurableObject<Environment> {
       };
     }
 
-    let row = this.refresh(this.getSanctionRow(), now);
+    const initial = this.getSanctionRow();
+    let row = this.refresh(initial.row, now);
+    const persisted = initial.persisted;
+
     this.ctx.storage.sql.exec("DELETE FROM report_events WHERE expires_at <= ?", now);
 
     const expiresAt = now + REPORT_EVENT_RETENTION;
@@ -245,6 +261,18 @@ export class SafetyStateDurableObject extends DurableObject<Environment> {
           this.saveSanction(row);
         }
       } else if (row.status === "clear") {
+        // Persist FIRST_STRIKE phase start on the first countable report so the
+        // window does not reset to "now" on every subsequent report.
+        if (!persisted) {
+          row = {
+            status: "clear",
+            strike_count: row.strike_count,
+            suspended_until: null,
+            probation_until: null,
+            updated_at: now,
+          };
+          this.saveSanction(row);
+        }
         const reporters = this.reportersSincePhase(
           now,
           FIRST_STRIKE_WINDOW,
