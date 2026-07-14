@@ -1,6 +1,6 @@
 import {
-  decryptMatchIntro,
-  encryptMatchIntro,
+  decryptScopedPayload,
+  encryptScopedPayload,
 } from "../../ticketing/ticketing-service";
 import {
   createConversationOwnerProofTag,
@@ -51,7 +51,7 @@ const encryptProfileRef = async (
   profileRef: string,
   appMasterKey: string
 ): Promise<string> =>
-  encryptMatchIntro(capabilityScope(userId), profileRef, appMasterKey);
+  encryptScopedPayload(capabilityScope(userId), profileRef, appMasterKey);
 
 export const decryptStoredProfileRef = async (
   userId: string,
@@ -61,7 +61,7 @@ export const decryptStoredProfileRef = async (
   if (!ciphertext) {
     return null;
   }
-  return decryptMatchIntro(capabilityScope(userId), ciphertext, appMasterKey);
+  return decryptScopedPayload(capabilityScope(userId), ciphertext, appMasterKey);
 };
 
 const resolveNextRevision = async (

@@ -1,29 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Environment } from "../contracts/runtime";
 import type {
+  TelegramApiResponse,
   TelegramOutboxJob,
   TelegramOutboxSendResult,
-  TelegramOutboxSendStatus,
+  TelegramOutboxSentRow,
 } from "../contracts/telegram/outbox";
 import { decryptTelegramChatId } from "../features/ticketing/ticketing-service";
-
-type SentRow = {
-  idempotency_key: string;
-  status: TelegramOutboxSendStatus;
-  telegram_message_id: string | null;
-  lease_attempt_id: string | null;
-  lease_until: number | null;
-  attempts: number;
-  permanent_error: number;
-};
-
-type TelegramApiResponse = {
-  ok: boolean;
-  result?: { message_id?: number };
-  description?: string;
-  error_code?: number;
-  parameters?: { retry_after?: number };
-};
+import { logBotError } from "../utils/logs";
 
 class TelegramApiError extends Error {
   constructor(
@@ -40,6 +24,8 @@ const SEND_LEASE_MS = 60 * 1000;
 const OUTBOX_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const OUTBOX_CLEANUP_LIMIT = 100;
 const CHAT_LOCK_ID = "chat";
+const CHAT_PACE_SCOPE = "chat_send";
+const MIN_SEND_INTERVAL_MS = 1000;
 
 const isPermanentTelegramError = (
   httpStatus: number,
@@ -172,13 +158,14 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
 
   async sendJob(job: TelegramOutboxJob): Promise<TelegramOutboxSendResult> {
     if (!isOutboxJob(job)) {
-      return { ok: false, retryable: false };
+      return { status: "rejected", reason: "invalid" };
     }
 
     const now = Date.now();
     this.cleanupRetainedRows(now);
+
     const existing = this.ctx.storage.sql
-      .exec<SentRow>(
+      .exec<TelegramOutboxSentRow>(
         `SELECT idempotency_key, status, telegram_message_id,
                 lease_attempt_id, lease_until, attempts, permanent_error
          FROM sent_events
@@ -189,18 +176,14 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
 
     if (existing?.status === "sent") {
       return {
-        ok: true,
+        status: "sent",
         duplicate: true,
         telegramMessageId: existing.telegram_message_id,
       };
     }
 
     if (existing?.status === "failed" && existing.permanent_error === 1) {
-      return {
-        ok: true,
-        duplicate: true,
-        permanentFailure: true,
-      };
+      return { status: "rejected", reason: "permanent" };
     }
 
     if (
@@ -209,10 +192,15 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
       existing.lease_until > now
     ) {
       return {
-        ok: false,
-        retryable: true,
+        status: "retry",
         delaySeconds: Math.max(1, Math.ceil((existing.lease_until - now) / 1000)),
       };
+    }
+
+    // Pace only after a prior successful/attempted send window; first send is immediate.
+    const paceDelaySeconds = this.paceDelaySeconds(now);
+    if (paceDelaySeconds !== null) {
+      return { status: "retry", delaySeconds: paceDelaySeconds };
     }
 
     const lock = this.ctx.storage.sql
@@ -223,8 +211,7 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
       .toArray()[0];
     if (lock && lock.lease_until > now) {
       return {
-        ok: false,
-        retryable: true,
+        status: "retry",
         delaySeconds: Math.max(1, Math.ceil((lock.lease_until - now) / 1000)),
       };
     }
@@ -294,10 +281,11 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
         attemptId
       );
       this.releaseChatLock(attemptId);
+      this.scheduleNextAllowedSendAt(sentAt, MIN_SEND_INTERVAL_MS);
       await this.scheduleCleanupAlarm();
 
       const current = this.ctx.storage.sql
-        .exec<SentRow>(
+        .exec<TelegramOutboxSentRow>(
           `SELECT idempotency_key, status, telegram_message_id,
                   lease_attempt_id, lease_until, attempts, permanent_error
            FROM sent_events
@@ -307,18 +295,25 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
         .toArray()[0];
 
       if (current?.status !== "sent") {
-        return { ok: false, retryable: true, delaySeconds: 5 };
+        return { status: "retry", delaySeconds: 5 };
       }
 
       return {
-        ok: true,
-        telegramMessageId: current.telegram_message_id ?? result.messageId,
+        status: "sent",
+        duplicate: false,
+        telegramMessageId: current.telegram_message_id ?? result.messageId ?? null,
       };
     } catch (error) {
       const telegramError =
         error instanceof TelegramApiError
           ? error
-          : new TelegramApiError("Telegram send failed", false);
+          : (() => {
+              logBotError("telegram-outbox:internal", error, {
+                retryable: true,
+                delaySeconds: 5,
+              });
+              return new TelegramApiError("Telegram send failed", false);
+            })();
       const failedAt = Date.now();
       this.ctx.storage.sql.exec(
         `UPDATE sent_events
@@ -337,14 +332,21 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
         attemptId
       );
       if (telegramError.permanent) {
+        logBotError("telegram-outbox:dispatch", telegramError, {
+          permanent: true,
+        });
         this.releaseChatLock(attemptId);
         await this.scheduleCleanupAlarm();
-        return { ok: true, permanentFailure: true };
+        return { status: "rejected", reason: "permanent" };
       }
 
       const delaySeconds =
         telegramError.retryAfterSeconds ?? Math.ceil(SEND_LEASE_MS / 1000);
       const retryLeaseUntil = failedAt + delaySeconds * 1000;
+      this.scheduleNextAllowedSendAt(
+        failedAt,
+        Math.max(MIN_SEND_INTERVAL_MS, delaySeconds * 1000)
+      );
       this.ctx.storage.sql.exec(
         `INSERT INTO send_locks (id, attempt_id, lease_until)
          VALUES (?, ?, ?)
@@ -358,9 +360,40 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
         attemptId,
         retryLeaseUntil
       );
+      logBotError("telegram-outbox:dispatch", telegramError, {
+        retryable: true,
+        delaySeconds,
+      });
       await this.scheduleCleanupAlarm();
-      return { ok: false, retryable: true, delaySeconds };
+      return { status: "retry", delaySeconds };
     }
+  }
+
+  private paceDelaySeconds(now: number): number | null {
+    const row = this.ctx.storage.sql
+      .exec<{ last_refill_at: number }>(
+        "SELECT last_refill_at FROM rate_buckets WHERE scope = ?",
+        CHAT_PACE_SCOPE
+      )
+      .toArray()[0];
+    if (!row || row.last_refill_at <= now) {
+      return null;
+    }
+    return Math.max(1, Math.ceil((row.last_refill_at - now) / 1000));
+  }
+
+  private scheduleNextAllowedSendAt(now: number, delayMs: number): void {
+    const nextAt = now + delayMs;
+    this.ctx.storage.sql.exec(
+      `INSERT INTO rate_buckets (scope, tokens, last_refill_at, updated_at)
+       VALUES (?, 0, ?, ?)
+       ON CONFLICT(scope) DO UPDATE SET
+         last_refill_at = MAX(rate_buckets.last_refill_at, excluded.last_refill_at),
+         updated_at = excluded.updated_at`,
+      CHAT_PACE_SCOPE,
+      nextAt,
+      now
+    );
   }
 
   private releaseChatLock(attemptId: string): void {

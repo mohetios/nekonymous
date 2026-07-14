@@ -3,9 +3,7 @@
   "project": ["src/**/*.ts", "tools/**/*.{js,mjs,ts}", "test/**/*.ts"],
   "ignoreDependencies": ["cloudflare"],
   "ignoreFiles": [
-    "tools/wrangler-config-without-migration.ts",
-    "tools/run-verify.ts",
-    "test/env.d.ts"
+    "tools/wrangler-config-without-migration.ts"
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {

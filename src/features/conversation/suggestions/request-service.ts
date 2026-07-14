@@ -26,6 +26,10 @@ import {
 } from "../../identity/identity-service.ts";
 import { createSealedTicket } from "../../ticketing/create-sealed-ticket.ts";
 import {
+  createAbuseSubjectTag,
+  createBlockTag,
+} from "../../ticketing/blind-tags.ts";
+import {
   claimRequestAccept,
   completeRequestAccept,
   failRequestAccept,
@@ -39,6 +43,9 @@ import {
   releasePairPendingLock,
   upsertPairStateRecord,
 } from "../../../storage/pair-ledger/pair-ledger.client";
+import { getSafetyDecision } from "../../../storage/safety-state/safety-state.client";
+import { checkCanReceive } from "../../../storage/user-state-client";
+import { resolveCandidateDeliveryUserId } from "../profile/profile-service.ts";
 import type { D1User } from "../../../contracts/identity/model";
 import type { Environment } from "../../../contracts/runtime";
 import {
@@ -137,6 +144,36 @@ export const createConversationRequest = async (
     ))
   ) {
     return { ok: false, reason: "state" };
+  }
+
+  const abuseSubjectTag = await createAbuseSubjectTag(
+    env.APP_HMAC_PEPPER,
+    input.requester.telegram_user_hash
+  );
+  const safety = await getSafetyDecision(env, abuseSubjectTag);
+  if (!safety.allowed) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const candidateUserId = await resolveCandidateDeliveryUserId(
+    env,
+    input.candidateProfileHash
+  );
+  if (!candidateUserId) {
+    return { ok: false, reason: "state" };
+  }
+
+  const blockTag = await createBlockTag(
+    env.APP_HMAC_PEPPER,
+    candidateUserId,
+    input.requester.telegram_user_hash
+  );
+  const canReceive = await checkCanReceive(env, candidateUserId, blockTag);
+  if (!canReceive.ok) {
+    return {
+      ok: false,
+      reason: canReceive.reason === "blocked" ? "blocked" : "forbidden",
+    };
   }
 
   const expiresAt = Date.now() + REQUEST_CAPABILITY_TTL_MS;

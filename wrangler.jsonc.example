@@ -61,7 +61,7 @@
       {
         "queue": "neko-outbox",
         "max_batch_size": 10,
-        "max_batch_timeout": 2,
+        "max_batch_timeout": 0,
         "max_retries": 5,
         "dead_letter_queue": "neko-outbox-dlq"
       },

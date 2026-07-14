@@ -437,25 +437,12 @@ export const toBotUser = async (
     }
   }
 
-  const contactLabels: Record<string, string> = {};
-  for (const label of state.labels) {
-    try {
-      contactLabels[label.contact_tag] = await decryptDisplayName(
-        label.nickname_ciphertext,
-        env.APP_MASTER_KEY
-      );
-    } catch {
-      // skip corrupt label
-    }
-  }
-
   return {
     id: d1User.id,
     slug,
     displayName,
     paused: state.paused,
     blockTags: state.blockTags,
-    contactLabels,
     draft: state.draft ?? undefined,
     pendingSettings: state.draft?.pendingSettings,
     lastMessageAt: state.lastMessageAt,

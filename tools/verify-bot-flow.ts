@@ -64,6 +64,16 @@ const FORBIDDEN_SOURCE_TOKENS = [
   "match_requests",
   "boundaryRespect",
   "computeSafetyTier",
+  "encryptMatchIntro",
+  "decryptMatchIntro",
+  "MatchIntro",
+  "InboxNotificationCycle",
+  "getInboxNotificationCycle",
+  "claimUnreadBatch",
+  "OPEN_INBOX_BUTTON",
+  "markTicketBlocked",
+  "markTicketRecordReported",
+  "createMessageDedupeKey",
 ] as const;
 
 const callbackRef = encodeTicketCapability(createTicketCapability());
@@ -116,6 +126,7 @@ const [
   profileScriptSource,
   inboxNotificationSource,
   outboxConsumerSource,
+  inboxEventsSource,
   queueContractsSource,
 ] = await Promise.all([
   readSource("../src/bot/register-handlers.ts"),
@@ -135,6 +146,7 @@ const [
   readSource("../tools/set-telegram-bot-profile.sh"),
   readSource("../src/features/ticketing/inbox-notification.ts"),
   readSource("../src/queues/outbox-consumer.ts"),
+  readSource("../src/contracts/inbox/events.ts"),
   readSource("../src/contracts/queues/events.ts"),
 ]);
 
@@ -249,22 +261,27 @@ assert(
 assert(
   inboxNotificationSource.includes('kind: "inbox-notification"') &&
     inboxNotificationSource.includes("accountId") &&
-    inboxNotificationSource.includes("cycleId") &&
+    inboxNotificationSource.includes("eventId") &&
     inboxNotificationSource.includes('contentType: "json"') &&
     !inboxNotificationSource.includes("ticketHash") &&
     !inboxNotificationSource.includes("capability") &&
-    !inboxNotificationSource.includes("unreadCount"),
-  "inbox notification producer must enqueue only account and cycle identifiers"
+    !inboxNotificationSource.includes("unreadCount") &&
+    !inboxNotificationSource.includes("cycleId") &&
+    !inboxNotificationSource.includes("itemId"),
+  "inbox notification producer must enqueue only accountId and eventId"
 );
 assert(
   outboxConsumerSource.includes("inbox-notification") &&
-    outboxConsumerSource.includes("Object.keys(value).length === 3") &&
+    inboxEventsSource.includes("Object.keys(value).length === 3") &&
     outboxConsumerSource.includes("INBOX_MENU_CALLBACK.deliver") &&
-    outboxConsumerSource.includes("inbox-notification:${user.id}:${cycleId}") &&
-    outboxConsumerSource.includes("markInboxNotificationSent") &&
+    outboxConsumerSource.includes("inbox-notification:${user.id}:${eventId}") &&
+    outboxConsumerSource.includes("getUnreadSummary") &&
+    outboxConsumerSource.includes("DELIVER_INBOX_BUTTON") &&
+    !outboxConsumerSource.includes("markInboxNotificationSent") &&
     !outboxConsumerSource.includes("editMessageText") &&
     !outboxConsumerSource.includes("message_id") &&
-    !outboxConsumerSource.includes("ticketHash"),
+    !outboxConsumerSource.includes("ticketHash") &&
+    !outboxConsumerSource.includes("cycleId"),
   "inbox notification consumer must send a fresh idempotent ib:d notification"
 );
 assert(

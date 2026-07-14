@@ -52,12 +52,25 @@ export type CreateSealedTicketInput = Readonly<{
   dedupeKey?: string;
 }>;
 
+export type CreateSealedTicketRejectReason =
+  | "blocked"
+  | "paused"
+  | "full"
+  | "safety";
+
+export type CreateSealedTicketNotify = Readonly<{
+  eventId: string;
+}>;
+
 export type CreateSealedTicketResult = Readonly<{
   ok: boolean;
   status: number;
+  reason?: CreateSealedTicketRejectReason;
   pendingCount?: number;
   duplicate?: boolean;
   ticketHash?: TicketHash;
+  /** Present when caller should enqueue after sender ACK. */
+  notify?: CreateSealedTicketNotify;
 }>;
 
 export type SendMessageInput = Readonly<CreateSealedTicketInput>;

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Read-only source/schema audit for Sealed Ticket Routing storage rules.
+# Read-only source/schema audit for sealed-ticket storage rules.
 
 set -euo pipefail
 
@@ -16,6 +16,11 @@ PATTERNS=(
   'report.*sender_id'
   'report.*recipient_id'
   'callback_data.*user'
+  'encryptMatchIntro'
+  'InboxNotificationCycle'
+  'claimUnreadBatch'
+  'markTicketBlocked'
+  'REPORT_LEDGER'
 )
 
 echo "Nekonymous sealed ticket storage audit"

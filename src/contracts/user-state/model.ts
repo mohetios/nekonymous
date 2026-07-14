@@ -5,7 +5,6 @@ import type {
   TelegramMessageId,
   UnixMillis,
 } from "../primitives";
-import type { EncryptedNickname } from "../crypto";
 
 export type UserDraftMode =
   | "compose"
@@ -39,9 +38,5 @@ export type UserStateSnapshot = Readonly<{
   profileCapabilityEnc: string | null;
   draft: UserDraft | null;
   blockTags: BlockTag[];
-  labels: Array<{
-    contact_tag: ContactTag;
-    nickname_ciphertext: EncryptedNickname;
-  }>;
   lastMessageAt?: UnixMillis;
 }>;

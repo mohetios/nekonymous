@@ -1,6 +1,6 @@
 import {
-  decryptMatchIntro,
-  encryptMatchIntro,
+  decryptScopedPayload,
+  encryptScopedPayload,
 } from "../../ticketing/ticketing-service";
 import {
   deleteProfileSessionWire,
@@ -25,7 +25,7 @@ const encryptAnswers = async (
   answers: ProfileAnswers,
   appMasterKey: string
 ): Promise<string> =>
-  encryptMatchIntro(
+  encryptScopedPayload(
     sessionScope(userId),
     JSON.stringify(answers),
     appMasterKey
@@ -36,7 +36,7 @@ const decryptAnswers = async (
   answersEnc: string,
   appMasterKey: string
 ): Promise<ProfileAnswers> => {
-  const plaintext = await decryptMatchIntro(
+  const plaintext = await decryptScopedPayload(
     sessionScope(userId),
     answersEnc,
     appMasterKey

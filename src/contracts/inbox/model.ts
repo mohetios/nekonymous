@@ -1,7 +1,7 @@
 import type {
   DeliveryAttemptId,
-  InboxNotificationCycleId,
   InboxDedupeTag,
+  InboxNotificationEventId,
   UnixMillis,
   UnreadItemId,
 } from "../primitives";
@@ -24,19 +24,10 @@ export type UnreadSummary = Readonly<{
   unreadCount: number;
 }>;
 
-export type InboxNotificationCycleStatus = "pending" | "sent";
-
-export type InboxNotificationCycle = Readonly<{
-  cycleId: InboxNotificationCycleId;
-  status: InboxNotificationCycleStatus;
-  createdAt: UnixMillis;
-  sentAt: UnixMillis | null;
-}>;
-
 export type InboxNotificationDecision =
   | Readonly<{
       required: true;
-      cycleId: InboxNotificationCycleId;
+      eventId: InboxNotificationEventId;
     }>
   | Readonly<{
       required: false;
@@ -49,3 +40,25 @@ export type UnreadDeliveryClaim = Readonly<{
   deliveryAttemptId: DeliveryAttemptId;
   expiresAt: UnixMillis;
 }>;
+
+export type InboxDrainResult = Readonly<
+  | {
+      status: "completed";
+      deliveredCount: number;
+    }
+  | {
+      status: "retry";
+      deliveredCount: number;
+      delaySeconds: number;
+    }
+>;
+
+export type InboxDeliveryPrefs = Readonly<{
+  blockTags: ReadonlySet<string>;
+}>;
+
+export type InboxDeliverClaimResult = Readonly<
+  | { outcome: "delivered" }
+  | { outcome: "unavailable" }
+  | { outcome: "retryable-failure"; delaySeconds: number }
+>;

@@ -44,11 +44,36 @@ export type TelegramOutboxJob = Readonly<{
   createdAt: UnixMillis;
 }>;
 
-export type TelegramOutboxSendResult = Readonly<{
+export type TelegramOutboxSendResult = Readonly<
+  | {
+      status: "sent";
+      duplicate: boolean;
+      telegramMessageId: string | null;
+    }
+  | {
+      status: "retry";
+      delaySeconds: number;
+    }
+  | {
+      status: "rejected";
+      reason: "permanent" | "invalid";
+    }
+>;
+
+export type TelegramOutboxSentRow = Readonly<{
+  idempotency_key: string;
+  status: TelegramOutboxSendStatus;
+  telegram_message_id: string | null;
+  lease_attempt_id: string | null;
+  lease_until: number | null;
+  attempts: number;
+  permanent_error: number;
+}>;
+
+export type TelegramApiResponse = Readonly<{
   ok: boolean;
-  duplicate?: boolean;
-  permanentFailure?: boolean;
-  retryable?: boolean;
-  delaySeconds?: number;
-  telegramMessageId?: string | null;
+  result?: { message_id?: number };
+  description?: string;
+  error_code?: number;
+  parameters?: { retry_after?: number };
 }>;

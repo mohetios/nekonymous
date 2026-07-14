@@ -7,6 +7,7 @@ import {
   PROBATION_DURATION,
   PROBATION_UNIQUE_REPORTERS,
   PROBATION_WINDOW,
+  REPORT_EVENT_RETENTION,
 } from "./safety-policy";
 import type {
   SafetyDecision,
@@ -18,6 +19,14 @@ import type {
 } from "../../contracts/safety/rpc";
 
 const isSafeTag = (value: string): boolean => /^[A-Za-z0-9_-]{16,86}$/.test(value);
+
+const isReportEventConflict = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  return message.includes("unique constraint") && message.includes("event_tag");
+};
 
 type SanctionRow = {
   status: SanctionStatus;
@@ -164,34 +173,40 @@ export class SafetyStateDurableObject extends DurableObject<Environment> {
       .one().count;
   }
 
-  getSafetyDecision(now = Date.now()): SafetyDecision {
+  /** Count reporters only inside the current sanction phase window. */
+  private reportersSincePhase(now: number, policyWindowMs: number, phaseStartedAt: number): number {
+    const since = Math.max(now - policyWindowMs, phaseStartedAt);
+    return this.distinctReportersSince(since);
+  }
+
+  getSafetyDecision(): SafetyDecision {
+    const now = Date.now();
     return this.decision(this.refresh(this.getSanctionRow(), now));
   }
 
-  refreshExpiredSanction(now = Date.now()): SafetyDecision {
-    return this.getSafetyDecision(now);
+  refreshExpiredSanction(): SafetyDecision {
+    return this.getSafetyDecision();
   }
 
   submitReport(body: SafetyReportEvent): SafetyReportResult {
+    const now = Date.now();
     if (
       !isSafeTag(body.eventTag) ||
       !isSafeTag(body.reporterSubjectTag) ||
       !body.reasonCode ||
-      body.reasonCode.length > 64 ||
-      !Number.isSafeInteger(body.createdAt) ||
-      !Number.isSafeInteger(body.expiresAt)
+      body.reasonCode.length > 64
     ) {
       return {
         ok: false,
         duplicate: false,
-        decision: this.getSafetyDecision(body.createdAt),
+        decision: this.getSafetyDecision(),
       };
     }
 
-    const now = body.createdAt;
     let row = this.refresh(this.getSanctionRow(), now);
     this.ctx.storage.sql.exec("DELETE FROM report_events WHERE expires_at <= ?", now);
 
+    const expiresAt = now + REPORT_EVENT_RETENTION;
     let duplicate = false;
     try {
       this.ctx.storage.sql.exec(
@@ -201,16 +216,24 @@ export class SafetyStateDurableObject extends DurableObject<Environment> {
         body.eventTag,
         body.reporterSubjectTag,
         body.reasonCode,
-        body.createdAt,
-        body.expiresAt
+        now,
+        expiresAt
       );
-    } catch {
-      duplicate = true;
+    } catch (error) {
+      if (isReportEventConflict(error)) {
+        duplicate = true;
+      } else {
+        throw error;
+      }
     }
 
     if (!duplicate && row.status !== "banned") {
       if (row.status === "probation") {
-        const reporters = this.distinctReportersSince(now - PROBATION_WINDOW);
+        const reporters = this.reportersSincePhase(
+          now,
+          PROBATION_WINDOW,
+          row.updated_at
+        );
         if (reporters >= PROBATION_UNIQUE_REPORTERS) {
           row = {
             status: "banned",
@@ -222,7 +245,11 @@ export class SafetyStateDurableObject extends DurableObject<Environment> {
           this.saveSanction(row);
         }
       } else if (row.status === "clear") {
-        const reporters = this.distinctReportersSince(now - FIRST_STRIKE_WINDOW);
+        const reporters = this.reportersSincePhase(
+          now,
+          FIRST_STRIKE_WINDOW,
+          row.updated_at
+        );
         if (reporters >= FIRST_STRIKE_UNIQUE_REPORTERS) {
           if (row.strike_count >= 1) {
             row = {
@@ -250,7 +277,8 @@ export class SafetyStateDurableObject extends DurableObject<Environment> {
     return { ok: true, duplicate, decision: this.decision(row) };
   }
 
-  operatorClearSanction(now = Date.now()): SafetyDecision {
+  operatorClearSanction(): SafetyDecision {
+    const now = Date.now();
     const row: SanctionRow = {
       status: "clear",
       strike_count: 0,

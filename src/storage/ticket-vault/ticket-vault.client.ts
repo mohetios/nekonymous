@@ -53,16 +53,6 @@ const markTicketStatus = async (
 export const markTicketViewed = (env: Environment, ticketHash: string) =>
   markTicketStatus(env, ticketHash, "viewed");
 
-export const markTicketBlocked = (env: Environment, ticketHash: string) =>
-  markTicketStatus(env, ticketHash, "blocked");
-
-export const markTicketRecordReported = async (
-  env: Environment,
-  ticketHash: string
-): Promise<void> => {
-  await markTicketStatus(env, ticketHash, "reported");
-};
-
 export const deleteTicketRecord = async (
   env: Environment,
   ticketHash: string

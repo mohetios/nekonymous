@@ -44,7 +44,7 @@ assert(
 );
 assert(
   !wranglerSource.includes('"PROFILE_VECTORS"'),
-  "wrangler.jsonc must not bind legacy PROFILE_VECTORS"
+  "wrangler.jsonc must not bind PROFILE_VECTORS"
 );
 assert(!wranglerSource.includes('"binding": "AI"'), "wrangler.jsonc must not bind Workers AI");
 

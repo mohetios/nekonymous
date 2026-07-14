@@ -1,13 +1,18 @@
 import type { Environment } from "../../contracts/runtime";
-import { encryptDisplayName } from "./ticketing-service";
+import {
+  decryptDisplayName,
+  encryptDisplayName,
+} from "./ticketing-service";
 import {
   buildDeliveryHeader,
   buildDeliveryHeaderLine,
   buildDeliveryHeaderMarkdown,
 } from "./contact-display";
-import { setContactLabel as setLabelInDo } from "../../storage/user-state-client";
+import {
+  getContactLabelCiphertext,
+  setContactLabel as setLabelInDo,
+} from "../../storage/user-state-client";
 
-export const NICKNAME_MAX_COUNT = 200;
 export const NICKNAME_MAX_LENGTH = 32;
 export const NICKNAME_DRAFT_TTL = 10 * 60 * 1000;
 
@@ -26,15 +31,26 @@ export const sanitizeNickname = (input: string): string => {
   return [...cleaned].slice(0, NICKNAME_MAX_LENGTH).join("");
 };
 
-export const lookupContactLabel = (
-  labels: Record<string, string> | undefined,
+/** Decrypt a single contact nickname; never bulk-loads all labels. */
+export const getContactLabel = async (
+  env: Environment,
+  recipientUserId: string,
   contactTag: string
-): string | undefined => labels?.[contactTag];
-
-export const getContactLabelForSender = (
-  labels: Record<string, string> | undefined,
-  contactTag: string
-): string | undefined => lookupContactLabel(labels, contactTag);
+): Promise<string | undefined> => {
+  const ciphertext = await getContactLabelCiphertext(
+    env,
+    recipientUserId,
+    contactTag
+  );
+  if (!ciphertext) {
+    return undefined;
+  }
+  try {
+    return await decryptDisplayName(ciphertext, env.APP_MASTER_KEY);
+  } catch {
+    return undefined;
+  }
+};
 
 export class ContactLabelLimitError extends Error {
   constructor() {
@@ -47,18 +63,8 @@ export const setContactLabel = async (
   env: Environment,
   recipientUserId: string,
   contactTag: string,
-  nickname: string,
-  existingLabels: Record<string, string>
+  nickname: string
 ): Promise<void> => {
-  const isUpdate = contactTag in existingLabels;
-  if (
-    nickname &&
-    !isUpdate &&
-    Object.keys(existingLabels).length >= NICKNAME_MAX_COUNT
-  ) {
-    throw new ContactLabelLimitError();
-  }
-
   const nicknameCiphertext = nickname
     ? await encryptDisplayName(nickname, env.APP_MASTER_KEY)
     : null;

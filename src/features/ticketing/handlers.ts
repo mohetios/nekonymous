@@ -8,7 +8,8 @@ import {
   restoreMainMenu,
 } from "../../bot/input-navigation";
 import { handleMainMenuCommand } from "../../bot/menu";
-import { logBotError } from "../../utils/logs";
+import type { NekoContext } from "../../bot/context";
+import { logBotError, logBotTiming } from "../../utils/logs";
 import {
   HuhMessage,
   INBOX_FULL_MESSAGE,
@@ -34,11 +35,11 @@ import {
   setContactLabel,
 } from "./contact";
 import { messageToPayload } from "./payload";
-import { createBlockTag } from "./blind-tags";
 import {
   hasDeliverablePayload,
   sendAnonymousMessage,
 } from "./service";
+import { enqueueInboxNotification } from "./inbox-notification";
 import {
   getActiveSlugForUser,
   getUserByPublicSlug,
@@ -47,7 +48,6 @@ import {
   getUserById,
 } from "../identity/identity-service";
 import {
-  checkCanReceive,
   clearDraft,
   getDraft,
   setDraft,
@@ -60,9 +60,16 @@ import { handleConversationIntroInput } from "../conversation/suggestions/sugges
 import { mainMenu } from "../../bot/keyboards";
 import { hmacTelegramUserId } from "./ticketing-service";
 import type { UserDraft } from "../../contracts/user-state/model";
-import { recordLinkOpened, recordReplySent } from "../../stats/product-events";
+import {
+  recordLinkOpened,
+  recordMessageCreated,
+  recordReplySent,
+} from "../../stats/product-events";
+import { createBlockTag } from "./blind-tags";
 
-const isTextInputDraft = (draft: UserDraft | undefined): boolean => {
+const isTextInputDraft = (
+  draft: UserDraft | null | undefined
+): draft is UserDraft => {
   if (!draft) {
     return false;
   }
@@ -180,19 +187,22 @@ export const handleMessage = async (
     return;
   }
 
+  const startedAt = Date.now();
   try {
     const d1User = await resolveOrCreateUser(ctx, env);
-    const user = await toBotUser(d1User, env);
-    const draft = (await getDraft(env, user.id)) ?? user.draft;
+    const afterIdentity = Date.now();
+    const draft = await getDraft(env, d1User.id);
+    const afterDraft = Date.now();
     const text = message.text;
 
     if (isTextInputDraft(draft)) {
       if (text === DRAFT_CANCEL_LABEL) {
-        await cancelActiveInput(ctx, env, user.id);
+        await cancelActiveInput(ctx, env, d1User.id);
         return;
       }
 
       if (draft?.mode === "display_name") {
+        const user = await toBotUser(d1User, env);
         await handleDisplayNameInput(ctx, user, env);
         return;
       }
@@ -218,25 +228,26 @@ export const handleMessage = async (
         const suggestionRef = draft.linkSlug;
         if (!suggestionRef) {
           await ctx.reply(HuhMessage, { reply_markup: mainMenu });
-          await clearDraft(env, user.id);
+          await clearDraft(env, d1User.id);
           return;
         }
 
         const handled = await handleConversationIntroInput(
           ctx,
           env,
-          user.id,
+          d1User.id,
           actorHash,
           suggestionRef,
           message.text
         );
         if (handled) {
-          await clearDraft(env, user.id);
+          await clearDraft(env, d1User.id);
         }
         return;
       }
 
       if (draft?.pendingNicknameContactTag) {
+        const user = await toBotUser(d1User, env);
         if (!message.text) {
           await ctx.reply(
             NICKNAME_TEXT_ONLY_MESSAGE,
@@ -253,8 +264,7 @@ export const handleMessage = async (
             env,
             user.id,
             draft.pendingNicknameContactTag,
-            nickname,
-            user.contactLabels
+            nickname
           );
           await clearDraft(env, user.id);
           await restoreMainMenu(
@@ -277,11 +287,12 @@ export const handleMessage = async (
       const recipientId = draft?.toUserId;
       if (!recipientId) {
         await ctx.reply(HuhMessage, { reply_markup: mainMenu });
-        await clearDraft(env, user.id);
+        await clearDraft(env, d1User.id);
         return;
       }
 
       const recipientD1 = await getUserById(recipientId, env);
+      const afterRecipient = Date.now();
       const isThreadReply = draft?.reply_to_message_id !== undefined;
       const draftKeyboard = buildDraftCancelKeyboard(
         draftPlaceholder(draft?.mode === "reply" ? "reply" : "compose")
@@ -289,46 +300,17 @@ export const handleMessage = async (
 
       if (!recipientD1) {
         await ctx.reply(NoUserFoundMessage, { reply_markup: mainMenu });
-        await clearDraft(env, user.id);
+        await clearDraft(env, d1User.id);
         return;
       }
 
-      const recipient = await toBotUser(recipientD1, env);
       const linkSlug = draft?.linkSlug;
-      const activeSlug = await getActiveSlugForUser(recipient.id, env);
+      const activeSlug = await getActiveSlugForUser(recipientD1.id, env);
+      const afterSlug = Date.now();
 
       if (!linkSlug || activeSlug !== linkSlug) {
         await ctx.reply(NoUserFoundMessage, { reply_markup: mainMenu });
-        await clearDraft(env, user.id);
-        return;
-      }
-
-      const blockTag = await createBlockTag(
-        env.APP_HMAC_PEPPER,
-        recipientD1.id,
-        d1User.telegram_user_hash
-      );
-
-      if (recipient.blockTags.includes(blockTag)) {
-        await ctx.reply(USER_IS_BLOCKED_MESSAGE, { reply_markup: mainMenu });
-        await clearDraft(env, user.id);
-        return;
-      }
-
-      const canReceive = await checkCanReceive(env, recipientD1.id, blockTag);
-      if (!canReceive.ok && !isThreadReply) {
-        if (canReceive.reason === "blocked") {
-          await ctx.reply(USER_IS_BLOCKED_MESSAGE, { reply_markup: mainMenu });
-        } else {
-          await ctx.reply(
-            RECIPIENT_PAUSED_MESSAGE.replace(
-              "USER_NAME",
-              escapeHtml(publicDisplayName(recipient, PEER_USER_FALLBACK))
-            ),
-            withHtml({ reply_markup: mainMenu })
-          );
-        }
-        await clearDraft(env, user.id);
+        await clearDraft(env, d1User.id);
         return;
       }
 
@@ -341,6 +323,7 @@ export const handleMessage = async (
         return;
       }
 
+      const beforeSeal = Date.now();
       const result = await sendAnonymousMessage(env, {
         sender: d1User,
         recipient: recipientD1,
@@ -349,10 +332,29 @@ export const handleMessage = async (
         isThreadReply,
         replyToMessageId: draft?.reply_to_message_id,
       });
+      const afterSeal = Date.now();
 
       if (!result.ok) {
+        if (result.reason === "blocked") {
+          await ctx.reply(USER_IS_BLOCKED_MESSAGE, { reply_markup: mainMenu });
+          await clearDraft(env, d1User.id);
+          return;
+        }
+        if (result.reason === "paused") {
+          await ctx.reply(
+            RECIPIENT_PAUSED_MESSAGE.replace(
+              "USER_NAME",
+              escapeHtml(PEER_USER_FALLBACK)
+            ),
+            withHtml({ reply_markup: mainMenu })
+          );
+          await clearDraft(env, d1User.id);
+          return;
+        }
         await ctx.reply(
-          result.status === 429 ? INBOX_FULL_MESSAGE : HuhMessage,
+          result.status === 429 || result.reason === "full"
+            ? INBOX_FULL_MESSAGE
+            : HuhMessage,
           {
             reply_markup: draftKeyboard,
             reply_to_message_id: draft?.parent_message_id,
@@ -367,15 +369,57 @@ export const handleMessage = async (
         reply_to_message_id: draft?.parent_message_id,
         reply_markup: mainMenu,
       });
+      const afterAck = Date.now();
 
-      if (draft?.mode === "reply") {
-        await recordReplySent(env);
-      }
+      const nekoCtx = ctx as NekoContext;
+      nekoCtx.deferWork?.(
+        (async () => {
+          if (result.notify) {
+            try {
+              await enqueueInboxNotification(
+                env,
+                recipientD1.id,
+                result.notify.eventId
+              );
+            } catch (error) {
+              logBotError("inbox-notification:enqueue", error, {
+                retryable: true,
+              });
+              try {
+                await enqueueInboxNotification(
+                  env,
+                  recipientD1.id,
+                  result.notify.eventId
+                );
+              } catch (retryError) {
+                logBotError("inbox-notification:enqueue", retryError, {
+                  permanent: true,
+                });
+              }
+            }
+          }
+          await recordMessageCreated(env);
+          if (draft?.mode === "reply") {
+            await recordReplySent(env);
+          }
+        })().catch((error) => logBotError("handleMessage:deferred", error))
+      );
 
-      await clearDraft(env, user.id);
+      await clearDraft(env, d1User.id);
+
+      logBotTiming("send:hot-path", {
+        identityMs: afterIdentity - startedAt,
+        draftMs: afterDraft - afterIdentity,
+        recipientMs: afterRecipient - afterDraft,
+        slugMs: afterSlug - afterRecipient,
+        sealMs: afterSeal - beforeSeal,
+        ackMs: afterAck - afterSeal,
+        totalMs: afterAck - startedAt,
+      });
       return;
     }
 
+    const user = await toBotUser(d1User, env);
     if (await handleMainMenuCommand(ctx, user, env, botUsername)) {
       return;
     }

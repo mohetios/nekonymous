@@ -4,10 +4,10 @@
  */
 
 import {
-  decryptMatchIntro,
-  decryptTelegramChatId,
-  encryptMatchIntro,
+  decryptScopedPayload,
+  encryptScopedPayload,
   encryptTelegramChatId,
+  decryptTelegramChatId,
   generateOpaqueId,
   hmacTelegramUserId,
 } from "../src/features/ticketing/ticketing-service.ts";
@@ -56,12 +56,12 @@ const randomNonZeroBytes = (size: number): Uint8Array => {
 };
 
 const scopedPayloadId = generateOpaqueId(12);
-const ciphertext = await encryptMatchIntro(
+const ciphertext = await encryptScopedPayload(
   scopedPayloadId,
   sample,
   appMasterKey
 );
-const decrypted = await decryptMatchIntro(
+const decrypted = await decryptScopedPayload(
   scopedPayloadId,
   ciphertext,
   appMasterKey
@@ -75,12 +75,12 @@ const decrypted = await decryptMatchIntro(
 const profileSessionScope =
   "profile-session:v2:01932abc-def0-7890-abcd-ef1234567890";
 const profileAnswers = "{}";
-const profileCiphertext = await encryptMatchIntro(
+const profileCiphertext = await encryptScopedPayload(
   profileSessionScope,
   profileAnswers,
   appMasterKey
 );
-const profileDecrypted = await decryptMatchIntro(
+const profileDecrypted = await decryptScopedPayload(
   profileSessionScope,
   profileCiphertext,
   appMasterKey

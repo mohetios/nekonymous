@@ -1,4 +1,10 @@
-export const logBotError = (context: string, error: unknown): void => {
+import type { LogErrorMeta } from "../contracts/logging";
+
+export const logBotError = (
+  context: string,
+  error: unknown,
+  meta?: LogErrorMeta
+): void => {
   const serialized =
     error instanceof Error
       ? {
@@ -15,6 +21,21 @@ export const logBotError = (context: string, error: unknown): void => {
       level: "error",
       context,
       error: serialized,
+      ...(meta ? { meta } : {}),
+    })
+  );
+};
+
+/** Safe hot-path timing (no IDs / capabilities / tags). */
+export const logBotTiming = (
+  context: string,
+  timings: Readonly<Record<string, number>>
+): void => {
+  console.warn(
+    JSON.stringify({
+      level: "info",
+      context,
+      timings,
     })
   );
 };

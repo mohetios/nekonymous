@@ -12,7 +12,6 @@ import {
 } from "./keys";
 import { createTicketCapability, encodeTicketCapability } from "./ticket-capability";
 import { ensureUserStateInitialized } from "../identity/identity-service";
-import { recordMessageCreated } from "../../stats/product-events";
 import {
   addUnreadItem,
   checkCanReceive,
@@ -24,8 +23,6 @@ import {
 } from "../../storage/ticket-vault/ticket-vault.client";
 import { displayNumberForTicketHash, ticketExpiresAt } from "./ticket-lifecycle";
 import { sealUnreadCapability } from "./unread-capability";
-import { enqueueInboxNotification } from "./inbox-notification";
-import { logBotError } from "../../utils/logs";
 import {
   createAbuseSubjectTag,
   createBlockTag,
@@ -101,7 +98,7 @@ export const createSealedTicket = async (
 
   const safetyDecision = await getSafetyDecision(env, abuseSubjectTag);
   if (!safetyDecision.allowed) {
-    return { ok: false, status: 403 };
+    return { ok: false, status: 403, reason: "safety" };
   }
 
   const route: RouteCapsule = {
@@ -122,9 +119,21 @@ export const createSealedTicket = async (
     createdAt: now,
   } satisfies TicketMetadata;
 
-  const canReceive = await checkCanReceive(env, input.recipient.id, blockTag);
-  if (!canReceive.ok) {
-    return { ok: false, status: 403 };
+  // Canonical receive gate (skip for in-thread replies that already passed recipient).
+  if (!input.isThreadReply) {
+    const canReceive = await checkCanReceive(env, input.recipient.id, blockTag);
+    if (!canReceive.ok) {
+      return {
+        ok: false,
+        status: 403,
+        reason:
+          canReceive.reason === "blocked"
+            ? "blocked"
+            : canReceive.reason === "paused"
+              ? "paused"
+              : "blocked",
+      };
+    }
   }
 
   const routeSize = new TextEncoder().encode(JSON.stringify(route)).length;
@@ -163,74 +172,82 @@ export const createSealedTicket = async (
     expiresAt,
   });
 
-  await ensureUserStateInitialized(env, input.recipient.id);
-
-  const dedupeTag = await createUnreadInboxDedupeTag(
-    env.APP_HMAC_PEPPER,
-    ticketHash
-  );
-  const itemId = crypto.randomUUID();
-  const sealedCapabilityEnc = await sealUnreadCapability(
-    env.APP_MASTER_KEY,
-    input.recipient.id,
-    itemId,
-    dedupeTag,
-    ticketCapability
-  );
-
-  let inboxResult: AddUnreadItemResult;
+  let unreadAccepted = false;
   try {
-    inboxResult = await addUnreadItem(env, input.recipient.id, {
+    await ensureUserStateInitialized(env, input.recipient.id);
+
+    const dedupeTag = await createUnreadInboxDedupeTag(
+      env.APP_HMAC_PEPPER,
+      ticketHash
+    );
+    const itemId = crypto.randomUUID();
+    const sealedCapabilityEnc = await sealUnreadCapability(
+      env.APP_MASTER_KEY,
+      input.recipient.id,
       itemId,
-      sealedCapabilityEnc,
       dedupeTag,
-      createdAt: now,
-      expiresAt,
-    });
-  } catch {
-    await cleanupStoredTicket(env, ticketHash);
-    return { ok: false, status: 500 };
-  }
+      ticketCapability
+    );
 
-  if (!inboxResult.ok) {
-    await cleanupStoredTicket(env, ticketHash);
-    return { ok: false, status: inboxResult.status };
-  }
+    let inboxResult: AddUnreadItemResult;
+    try {
+      inboxResult = await addUnreadItem(env, input.recipient.id, {
+        itemId,
+        sealedCapabilityEnc,
+        dedupeTag,
+        createdAt: now,
+        expiresAt,
+      });
+    } catch {
+      return { ok: false, status: 500 };
+    }
 
-  if (inboxResult.duplicate) {
-    await cleanupStoredTicket(env, ticketHash);
+    if (!inboxResult.ok) {
+      return {
+        ok: false,
+        status: inboxResult.status,
+        reason: inboxResult.status === 429 ? "full" : undefined,
+      };
+    }
+
+    if (inboxResult.duplicate) {
+      // Unread already owns this ticketHash; keep the vault record.
+      unreadAccepted = true;
+      return {
+        ok: true,
+        status: 200,
+        duplicate: true,
+        pendingCount: inboxResult.unreadCount,
+      };
+    }
+
+    if (
+      typeof inboxResult.unreadCount !== "number" ||
+      inboxResult.unreadCount < 1
+    ) {
+      return { ok: false, status: 500 };
+    }
+
+    unreadAccepted = true;
+
     return {
       ok: true,
       status: 200,
-      duplicate: true,
       pendingCount: inboxResult.unreadCount,
+      ticketHash,
+      ...(inboxResult.notification.required
+        ? {
+            notify: {
+              eventId: inboxResult.notification.eventId,
+            },
+          }
+        : {}),
     };
+  } finally {
+    if (!unreadAccepted) {
+      await cleanupStoredTicket(env, ticketHash);
+    }
   }
-
-  if (
-    typeof inboxResult.unreadCount !== "number" ||
-    inboxResult.unreadCount < 1
-  ) {
-    await cleanupStoredTicket(env, ticketHash);
-    return { ok: false, status: 500 };
-  }
-
-  if (inboxResult.notification.required) {
-    await enqueueInboxNotification(
-      env,
-      input.recipient.id,
-      inboxResult.notification.cycleId
-    ).catch((error) => logBotError("inbox-notification:enqueue", error));
-  }
-
-  await recordMessageCreated(env);
-
-  return {
-    ok: true,
-    status: 200,
-    pendingCount: inboxResult.unreadCount,
-    ticketHash,
-  };
 };
 
 export const payloadCapsuleToMessagePayload = (

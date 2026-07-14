@@ -1,5 +1,7 @@
 /** Strings with HTML tags must be sent via `replyHtml` / `withHtml` (parse_mode HTML). */
 
+import { convertToPersianNumbers } from "../utils/text";
+
 export const PROJECT_INTRO_URL = "https://mohetios.github.io/Nekonymous/";
 
 export const WelcomeMessage = `میو، رسیدی 🐾
@@ -162,7 +164,11 @@ export const UnsupportedMessageTypeMessage = `فعلاً این نوع پیام 
 
 متن یا یکی از فرمت‌هایی رو بفرست که اینجا کار می‌کنه.`;
 
-export const INBOX_FRESH_NOTICE_MESSAGE = `نامه‌های تازه داری، میو 🐾`;
+export const inboxFreshNoticeMessage = (unreadCount: number): string => {
+  const count = convertToPersianNumbers(Math.max(0, Math.floor(unreadCount)));
+  return `یک نامه‌ی تازه رسید، میو 🐾
+الان ${count} نامه‌ی تحویل‌نشده داری.`;
+};
 
 export const INBOX_EMPTY_MESSAGE = `فعلاً نامه‌ی تازه‌ای نیست، میو.`;
 

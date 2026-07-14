@@ -2,6 +2,7 @@ import {
   resolveProcessedEventClaim,
   type ProcessedEventSnapshot,
 } from "../src/storage/processed-events-policy.ts";
+import { isInboxNotificationJob } from "../src/contracts/inbox/events.ts";
 
 const assert = (condition: boolean, message: string): void => {
   if (!condition) {
@@ -12,7 +13,6 @@ const assert = (condition: boolean, message: string): void => {
 
 const now = Date.now();
 
-// 1) duplicate webhook update_id does not duplicate side effects (done is skipped)
 const doneSnapshot: ProcessedEventSnapshot = {
   status: "done",
   leaseUntil: null,
@@ -23,7 +23,6 @@ assert(
   "done event must be skipped safely"
 );
 
-// 2) failed processing can be retried
 const failedSnapshot: ProcessedEventSnapshot = {
   status: "failed",
   leaseUntil: null,
@@ -34,7 +33,6 @@ assert(
   "failed event must be retryable"
 );
 
-// 3) processing lease can be recovered after expiry
 const expiredLeaseSnapshot: ProcessedEventSnapshot = {
   status: "processing",
   leaseUntil: now - 1_000,
@@ -45,7 +43,6 @@ assert(
   "expired processing lease must allow takeover"
 );
 
-// 4) active processing lease prevents duplicate processing until retry
 const activeLeaseSnapshot: ProcessedEventSnapshot = {
   status: "processing",
   leaseUntil: now + 30_000,
@@ -56,7 +53,6 @@ assert(
   "active processing lease must prevent duplicate processing"
 );
 
-// 5) two different outbox events to same recipient can both send
 const ticketDeliveryEventKey = (ticketHash: string): string =>
   `ticket-delivery:${ticketHash}`;
 
@@ -67,14 +63,12 @@ assert(
   "different source events must generate distinct outbox keys"
 );
 
-// 6) same outbox event key sends only once (same stable key)
 const eventKeyARepeat = ticketDeliveryEventKey("ticket_hash_a");
 assert(
   eventKeyA === eventKeyARepeat,
   "same source event must generate same outbox key"
 );
 
-// 7) outbox key does not include raw ticketRef/chatId/message text
 const forbiddenSamples = ["ref_ABC", "123456789", "hello text payload"];
 for (const sample of forbiddenSamples) {
   assert(
@@ -83,5 +77,47 @@ for (const sample of forbiddenSamples) {
   );
 }
 
+const inboxNotificationKey = (accountId: string, eventId: string): string =>
+  `inbox-notification:${accountId}:${eventId}`;
+
+assert(
+  inboxNotificationKey("user-a", "event-1") !==
+    inboxNotificationKey("user-a", "event-2"),
+  "distinct notification events must get distinct outbox keys"
+);
+assert(
+  inboxNotificationKey("user-a", "event-1") ===
+    inboxNotificationKey("user-a", "event-1"),
+  "same notification event must replay with the same outbox key"
+);
+
+assert(
+  isInboxNotificationJob({
+    kind: "inbox-notification",
+    accountId: "user-a",
+    eventId: "event-1",
+  }),
+  "canonical inbox notification jobs must validate"
+);
+assert(
+  !isInboxNotificationJob({
+    kind: "inbox-notification",
+    accountId: "user-a",
+    eventId: "event-1",
+    unreadCount: 3,
+  }),
+  "notification jobs must reject stored unread counts"
+);
+assert(
+  !isInboxNotificationJob({
+    kind: "inbox-notification",
+    accountId: "user-a",
+    cycleId: "cycle-1",
+    itemId: "item-1",
+  }),
+  "notification jobs must reject removed cycle/item fields"
+);
+
 console.log("Processed-event idempotency policy OK");
 console.log("Outbox event key strategy OK");
+console.log("Inbox notification event idempotency OK");

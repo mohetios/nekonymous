@@ -1,7 +1,6 @@
 import type {
   ActorHash,
   BlockTag,
-  ContactTag,
   InternalAccountId,
   UnixMillis,
 } from "../primitives";
@@ -28,7 +27,6 @@ export type BotUser = Readonly<{
   displayName: string;
   paused: boolean;
   blockTags: BlockTag[];
-  contactLabels: Record<ContactTag, string>;
   draft?: UserDraft;
   pendingSettings?: PendingSettingsAction;
   lastMessageAt?: UnixMillis;

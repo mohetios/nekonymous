@@ -60,10 +60,10 @@ export const INBOX_BUTTON = {
   reply: "💬 پاسخ دادن",
   nickname: "🏷️ نام خصوصی",
   report: "⚠️ گزارش کردن",
-  loadMore: "پیام‌های بیشتر",
 } as const;
 
-export const OPEN_INBOX_BUTTON = "📥 باز کردن صندوق";
+/** Inbox notification CTA — delivers current unread via ib:d. */
+export const DELIVER_INBOX_BUTTON = "📥 تحویل نامه‌ها";
 
 /** Prefix for delivered anonymous messages (nickname inserted). */
 export const DELIVERY_HEADER_FROM = (nickname: string): string =>

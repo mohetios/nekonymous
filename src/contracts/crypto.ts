@@ -8,7 +8,6 @@ export type CipherEnvelope = Readonly<{
 }>;
 
 export type SealedUnreadCapability = Brand<string, "SealedUnreadCapability">;
-export type EncryptedNickname = Brand<string, "EncryptedNickname">;
 
 export type EncryptedTicketRoute = Ciphertext;
 export type EncryptedTicketPayload = Ciphertext;

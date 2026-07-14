@@ -3,13 +3,10 @@ import type { UserDraft, UserStateSnapshot } from "../contracts/user-state/model
 import type {
   AddUnreadItemInput,
   AddUnreadItemResult,
-  CloseInboxNotificationCycleInput,
   CompleteUnreadDeliveryInput,
-  MarkInboxNotificationSentInput,
   ReleaseUnreadDeliveryInput,
 } from "../contracts/inbox/rpc";
 import type {
-  InboxNotificationCycle,
   UnreadDeliveryClaim,
   UnreadSummary as UnreadInboxSummary,
 } from "../contracts/inbox/model";
@@ -48,20 +45,6 @@ export const getUserState = async (
     throw new DurableObjectCallError(404, userStateOperation("/state"));
   }
   return state;
-};
-
-export const getOptionalUserState = async (
-  env: Environment,
-  userId: string
-): Promise<UserStateSnapshot | null> => {
-  try {
-    return await getUserState(env, userId);
-  } catch (error) {
-    if (error instanceof DurableObjectCallError && error.status === 404) {
-      return null;
-    }
-    throw error;
-  }
 };
 
 export const setPaused = async (
@@ -210,38 +193,6 @@ export const cleanupExpiredUnreadItems = async (
   return result.summary;
 };
 
-export const getInboxNotificationCycle = (
-  env: Environment,
-  userId: string
-): Promise<InboxNotificationCycle | null> =>
-  stub(env, userId).getInboxNotificationCycle();
-
-export const markInboxNotificationSent = async (
-  env: Environment,
-  userId: string,
-  input: MarkInboxNotificationSentInput
-): Promise<InboxNotificationCycle | null> => {
-  const result = await stub(env, userId).markInboxNotificationSent(input);
-  return result.cycle;
-};
-
-export const closeInboxNotificationCycle = async (
-  env: Environment,
-  userId: string,
-  input: CloseInboxNotificationCycleInput = {}
-): Promise<InboxNotificationCycle | null> => {
-  const result = await stub(env, userId).closeInboxNotificationCycle(input);
-  return result.cycle;
-};
-
-export const purgeUnreadInbox = async (
-  env: Environment,
-  userId: string
-): Promise<UnreadInboxSummary> => {
-  const result = await stub(env, userId).purgeUnreadInbox();
-  return result.summary;
-};
-
 export const listUnreadItemsForReset = (
   env: Environment,
   userId: string
@@ -255,16 +206,18 @@ export const addBlock = async (
   env: Environment,
   userId: string,
   blockTag: string
-): Promise<void> => {
-  await stub(env, userId).addBlock(blockTag);
+): Promise<{ inserted: boolean }> => {
+  const result = await stub(env, userId).addBlock(blockTag);
+  return { inserted: result.inserted === true };
 };
 
 export const removeBlock = async (
   env: Environment,
   userId: string,
   blockTag: string
-): Promise<void> => {
-  await stub(env, userId).removeBlock(blockTag);
+): Promise<{ removed: boolean }> => {
+  const result = await stub(env, userId).removeBlock(blockTag);
+  return { removed: result.removed === true };
 };
 
 export const clearBlocks = async (
@@ -291,6 +244,15 @@ export const setContactLabel = async (
     }
     throw new DurableObjectCallError(400, userStateOperation("/set-label"));
   }
+};
+
+export const getContactLabelCiphertext = async (
+  env: Environment,
+  userId: string,
+  contactTag: string
+): Promise<string | null> => {
+  const result = await stub(env, userId).getLabel(contactTag);
+  return result?.nicknameCiphertext ?? null;
 };
 
 export const purgeUserState = async (

@@ -6,6 +6,7 @@ import { createSealedTicket, payloadCapsuleToMessagePayload } from "./create-sea
 import type {
   RouteCapsule,
   SendMessageInput,
+  CreateSealedTicketResult,
   TicketPayloadCapsule as PayloadCapsule,
 } from "../../contracts/ticketing/model";
 import type { ResolvedTicketAction } from "../../contracts/ticketing/actions";
@@ -72,24 +73,7 @@ const isPayloadCapsule = (value: unknown): value is PayloadCapsule => {
 export const sendAnonymousMessage = async (
   env: Environment,
   input: SendMessageInput
-): Promise<{
-  ok: boolean;
-  status: number;
-  pendingCount?: number;
-  ticketHash?: string;
-}> => {
-  const result = await createSealedTicket(env, input);
-  if (!result.ok) {
-    return { ok: false, status: result.status };
-  }
-
-  return {
-    ok: true,
-    status: 200,
-    pendingCount: result.pendingCount,
-    ticketHash: result.ticketHash,
-  };
-};
+): Promise<CreateSealedTicketResult> => createSealedTicket(env, input);
 
 export const notifyMessageSeenRoute = async (
   env: Environment,
@@ -116,7 +100,7 @@ export const notifyMessageSeenRoute = async (
 
 export const deliveryContextFromResolvedTicket = async (
   resolved: ResolvedTicketAction,
-  ownerContactLabels: Record<string, string>
+  senderLabel?: string
 ): Promise<{
   payload: MessagePayload;
   route: RouteCapsule;
@@ -135,12 +119,11 @@ export const deliveryContextFromResolvedTicket = async (
     throw new Error("Invalid payload capsule");
   }
   const payload = payloadCapsuleToMessagePayload(capsule);
-  const senderLabel = ownerContactLabels[resolved.route.contactTag];
 
   return {
     payload,
     route: resolved.route,
-    senderLabel,
+    ...(senderLabel ? { senderLabel } : {}),
   };
 };
 

@@ -85,9 +85,25 @@ for (const token of [
   "recipientRouteTag",
   "senderAlias",
   "reportSeeds",
+  "encryptMatchIntro",
+  "decryptMatchIntro",
+  "MatchIntro",
+  "InboxNotificationCycle",
+  "getInboxNotificationCycle",
+  "markInboxNotificationSent",
+  "closeInboxNotificationCycle",
+  "createNotificationCycle",
+  "OPEN_INBOX_BUTTON",
+  "createMessageDedupeKey",
+  "markTicketBlocked",
+  "markTicketRecordReported",
+  "EncryptedNickname",
+  "getOptionalUserState",
+  "purgeUnreadInbox",
+  "claimUnreadBatch",
 ]) {
   if (allSource.includes(token)) {
-    fail(`forbidden legacy type/storage token remains: ${token}`);
+    fail(`forbidden removed token remains: ${token}`);
   }
 }
 
@@ -100,6 +116,8 @@ const mustBeUnique = [
   "D1User",
   "D1UserStatus",
   "Environment",
+  "InboxNotificationEventId",
+  "InboxNotificationJob",
   "MessagePayload",
   "ProfileIndexJob",
   "ProfileIndexJobRecord",
@@ -111,6 +129,7 @@ const mustBeUnique = [
   "TicketCapability",
   "RouteCapsule",
   "TicketStatus",
+  "TicketTransitionStatus",
   "TicketVaultRecord",
   "SafetyDecision",
   "TelegramOutboxSendStatus",

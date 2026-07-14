@@ -21,9 +21,10 @@ export type ReporterSubjectTag = Brand<string, "ReporterSubjectTag">;
 export type InboxDedupeTag = Brand<string, "InboxDedupeTag">;
 
 export type UnreadItemId = Brand<string, "UnreadItemId">;
-export type InboxNotificationCycleId = Brand<
+/** Blind queue idempotency id for one inbox notice; never ticket material. */
+export type InboxNotificationEventId = Brand<
   string,
-  "InboxNotificationCycleId"
+  "InboxNotificationEventId"
 >;
 export type DeliveryAttemptId = Brand<string, "DeliveryAttemptId">;
 export type QueueRequestId = Brand<string, "QueueRequestId">;

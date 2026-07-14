@@ -1,7 +1,6 @@
 import type { CipherEnvelope } from "../../contracts/crypto";
 import { bytesToBase64Url, base64UrlToBytes } from "./base64url.ts";
 import { deriveAesGcmKey } from "./hkdf.ts";
-import { hmacBase64Url } from "./hmac.ts";
 
 /**
  * Product ticketing helpers: Telegram chat sealing, scoped payloads,
@@ -13,7 +12,6 @@ const MASTER_KID = "master:v1";
 const AES_INFO = new TextEncoder().encode("nekonymous:aes:v1");
 const CHAT_INFO = new TextEncoder().encode("nekonymous:chat:v1");
 const HMAC_INFO = new TextEncoder().encode("nekonymous:tg-user:v1");
-const DEDUPE_INFO = "dedupe:v1:";
 
 const textEncoder = new TextEncoder();
 
@@ -117,17 +115,6 @@ export const decryptTelegramChatId = async (
 export const generateOpaqueId = (bytes = 16): string =>
   bytesToBase64Url(crypto.getRandomValues(new Uint8Array(bytes)));
 
-export const createMessageDedupeKey = (
-  lookupSecret: string,
-  senderHash: string,
-  recipientHash: string,
-  telegramMessageId: number
-): Promise<string> =>
-  hmacBase64Url(
-    lookupSecret,
-    `${DEDUPE_INFO}${senderHash}:${recipientHash}:${telegramMessageId}`
-  );
-
 const scopedPayloadSalt = (scopeId: string): Uint8Array =>
   textEncoder.encode(scopeId);
 
@@ -137,7 +124,7 @@ const deriveScopedPayloadKey = (
 ): Promise<CryptoKey> =>
   deriveAesGcmKey(appMasterKey, scopedPayloadSalt(scopeId), AES_INFO);
 
-const encryptScopedPayload = async (
+export const encryptScopedPayload = async (
   scopeId: string,
   payload: string,
   appMasterKey: string
@@ -148,7 +135,7 @@ const encryptScopedPayload = async (
   );
 };
 
-const decryptScopedPayload = async (
+export const decryptScopedPayload = async (
   scopeId: string,
   ciphertext: string,
   appMasterKey: string
@@ -156,18 +143,6 @@ const decryptScopedPayload = async (
   const aesKey = await deriveScopedPayloadKey(scopeId, appMasterKey);
   return openEnvelope(wireToEnvelope(ciphertext), aesKey);
 };
-
-export const encryptMatchIntro = async (
-  requestId: string,
-  intro: string,
-  appMasterKey: string
-): Promise<string> => encryptScopedPayload(requestId, intro, appMasterKey);
-
-export const decryptMatchIntro = async (
-  requestId: string,
-  ciphertext: string,
-  appMasterKey: string
-): Promise<string> => decryptScopedPayload(requestId, ciphertext, appMasterKey);
 
 export const encryptDisplayName = async (
   name: string,

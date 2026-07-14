@@ -9,7 +9,7 @@ import type {
   BlockTag,
   ContactTag,
   EncodedTicketCapability,
-  InboxNotificationCycleId,
+  InboxNotificationEventId,
   InternalAccountId,
   TicketHash,
   UnixMillis,
@@ -22,7 +22,7 @@ declare const abuseSubjectTag: AbuseSubjectTag;
 declare const encodedCapability: EncodedTicketCapability;
 declare const ticketHash: TicketHash;
 declare const accountId: InternalAccountId;
-declare const cycleId: InboxNotificationCycleId;
+declare const eventId: InboxNotificationEventId;
 declare const now: UnixMillis;
 
 const acceptBlockTag = (_value: BlockTag): void => undefined;
@@ -77,7 +77,7 @@ const runCompileTimeChecks = (): void => {
   const notificationJob = {
     kind: "inbox-notification",
     accountId,
-    cycleId,
+    eventId,
   } satisfies InboxNotificationJob;
 
   // @ts-expect-error InboxNotificationJob must not carry a ticket capability.
@@ -85,21 +85,7 @@ const runCompileTimeChecks = (): void => {
 
   // @ts-expect-error InboxNotificationJob must not carry a ticket hash.
   notificationJob.ticketHash = ticketHash;
-};
 
-const describeDecision = (decision: SafetyDecision): string => {
-  switch (decision.status) {
-    case "clear":
-      return String(decision.strikeCount);
-    case "suspended":
-      return String(decision.suspendedUntil);
-    case "probation":
-      return String(decision.probationUntil);
-    case "banned":
-      // @ts-expect-error banned decisions have no automatic expiry.
-      return String(decision.probationUntil);
-  }
+  // @ts-expect-error InboxNotificationJob must not carry a stored unread count.
+  notificationJob.unreadCount = 3;
 };
-
-void describeDecision;
-void runCompileTimeChecks;

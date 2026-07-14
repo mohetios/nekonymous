@@ -137,7 +137,7 @@ Route data is not duplicated into UserState, D1, KV, logs, or callback data.
 8. Encrypt route, payload, and meta.
 9. Store the TicketVault record.
 10. Seal the encoded capability as authenticated ciphertext in a recipient unread item.
-11. Queue an aggregated unread notice without the capability or message body.
+11. Queue one unread notice per newly accepted unread item (with live unread count).
 12. Emit best-effort aggregate statistics.
 ```
 

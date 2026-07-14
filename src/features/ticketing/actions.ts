@@ -6,8 +6,7 @@ import {
   INPUT_PLACEHOLDERS,
 } from "../../bot/input-navigation";
 import {
-  getContactLabelForSender,
-  lookupContactLabel,
+  getContactLabel,
   NICKNAME_DRAFT_TTL,
 } from "./contact";
 import {
@@ -34,6 +33,7 @@ import {
   setDraft,
 } from "../../storage/user-state-client";
 import { escapeHtml, withHtml } from "../../utils/text";
+import { logBotError } from "../../utils/logs";
 import { recordBlockCreated, recordReportCreated } from "../../stats/product-events";
 import {
   resolveTicketAction,
@@ -44,10 +44,6 @@ import type {
   TicketActionKind,
 } from "../../contracts/ticketing/actions";
 import { createBlindReport } from "../moderation/create-blind-report";
-import {
-  markTicketBlocked,
-  markTicketRecordReported,
-} from "../../storage/ticket-vault/ticket-vault.client";
 
 const ticketRefFromContext = (ctx: Context): string | null => {
   const ref = ctx.match?.[1];
@@ -132,8 +128,9 @@ export const handleReplyAction = async (
       return;
     }
 
-    const senderLabel = getContactLabelForSender(
-      user.contactLabels,
+    const senderLabel = await getContactLabel(
+      env,
+      user.id,
       resolved.route.contactTag
     );
 
@@ -192,18 +189,23 @@ export const handleBlockAction = async (
       return;
     }
 
-    await addBlock(env, user.id, resolved.route.blockTag);
-    await recordBlockCreated(env);
-    await markTicketBlocked(env, resolved.ticketHash);
+    const { inserted } = await addBlock(env, user.id, resolved.route.blockTag);
+    if (inserted) {
+      await recordBlockCreated(env);
+    }
 
-    await ctx.api.sendMessage(
-      chatId,
-      USER_BLOCKED_MESSAGE,
-      withHtml({ reply_to_message_id: callbackMessageId })
-    );
-    await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
-      reply_markup: createMessageKeyboard(resolved.ticketRef, true),
-    });
+    try {
+      await ctx.api.sendMessage(
+        chatId,
+        USER_BLOCKED_MESSAGE,
+        withHtml({ reply_to_message_id: callbackMessageId })
+      );
+      await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
+        reply_markup: createMessageKeyboard(resolved.ticketRef, true),
+      });
+    } catch (error) {
+      logBotError("block:telegram-ui", error);
+    }
   } catch {
     await ctx.reply(HuhMessage);
   } finally {
@@ -251,14 +253,18 @@ export const handleUnblockAction = async (
 
     await removeBlock(env, user.id, resolved.route.blockTag);
 
-    await ctx.api.sendMessage(
-      chatId,
-      USER_UNBLOCKED_MESSAGE,
-      withHtml({ reply_to_message_id: callbackMessageId })
-    );
-    await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
-      reply_markup: createMessageKeyboard(resolved.ticketRef, false),
-    });
+    try {
+      await ctx.api.sendMessage(
+        chatId,
+        USER_UNBLOCKED_MESSAGE,
+        withHtml({ reply_to_message_id: callbackMessageId })
+      );
+      await ctx.api.editMessageReplyMarkup(chatId, callbackMessageId, {
+        reply_markup: createMessageKeyboard(resolved.ticketRef, false),
+      });
+    } catch (error) {
+      logBotError("unblock:telegram-ui", error);
+    }
   } catch {
     await ctx.reply(HuhMessage);
   } finally {
@@ -298,7 +304,7 @@ export const handleNicknameAction = async (
     }
 
     const currentNick =
-      lookupContactLabel(user.contactLabels, resolved.route.contactTag) ?? "-";
+      (await getContactLabel(env, user.id, resolved.route.contactTag)) ?? "-";
 
     await setDraft(env, user.id, {
       id: "primary",
@@ -350,15 +356,20 @@ export const handleReportAction = async (
       return;
     }
 
-    await createBlindReport(env, {
+    const report = await createBlindReport(env, {
       actorHash: d1User.telegram_user_hash,
       ticketHash: resolved.ticketHash,
       route: resolved.route,
       reasonCode: "inbox_report",
     });
-    await recordReportCreated(env, "inbox_report");
-    await markTicketRecordReported(env, resolved.ticketHash);
-    await ctx.reply(REPORT_SUBMITTED_MESSAGE, withHtml());
+    if (!report.duplicate) {
+      await recordReportCreated(env, "inbox_report");
+    }
+    try {
+      await ctx.reply(REPORT_SUBMITTED_MESSAGE, withHtml());
+    } catch (error) {
+      logBotError("report:telegram-ui", error);
+    }
   } catch {
     await ctx.reply(HuhMessage);
   } finally {

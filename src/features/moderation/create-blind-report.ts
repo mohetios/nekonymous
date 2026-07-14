@@ -34,7 +34,6 @@ export const createBlindReport = async (
     eventTag,
     reporterSubjectTag,
     reasonCode: input.reasonCode,
-    createdAt: Date.now(),
   });
 
   return {

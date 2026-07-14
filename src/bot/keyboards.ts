@@ -1,4 +1,4 @@
-import { InlineKeyboard, Keyboard } from "grammy";
+import { Keyboard } from "grammy";
 import {
   encodeInboxCallbackData,
   type InboxCallbackAction,
@@ -17,10 +17,13 @@ export const mainMenu = new Keyboard()
   .resized()
   .persistent();
 
+/** Plain Telegram inline keyboard — safe to pass across DO/Queue serialization. */
 export const createMessageKeyboard = (
   capability: string,
   isBlocked: boolean
-): InlineKeyboard => {
+): {
+  inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
+} => {
   const blockData = isBlocked
     ? inboxCallback("unblock", capability)
     : inboxCallback("block", capability);
@@ -28,10 +31,19 @@ export const createMessageKeyboard = (
   const nicknameData = inboxCallback("nickname", capability);
   const reportData = inboxCallback("report", capability);
 
-  return new InlineKeyboard()
-    .text(INBOX_BUTTON.reply, replyData)
-    .text(INBOX_BUTTON.nickname, nicknameData)
-    .row()
-    .text(isBlocked ? INBOX_BUTTON.unblock : INBOX_BUTTON.block, blockData)
-    .text(INBOX_BUTTON.report, reportData);
+  return {
+    inline_keyboard: [
+      [
+        { text: INBOX_BUTTON.reply, callback_data: replyData },
+        { text: INBOX_BUTTON.nickname, callback_data: nicknameData },
+      ],
+      [
+        {
+          text: isBlocked ? INBOX_BUTTON.unblock : INBOX_BUTTON.block,
+          callback_data: blockData,
+        },
+        { text: INBOX_BUTTON.report, callback_data: reportData },
+      ],
+    ],
+  };
 };

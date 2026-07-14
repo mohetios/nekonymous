@@ -3,19 +3,24 @@ import type {
   InboxDrainJob,
   InboxNotificationJob,
 } from "../contracts/inbox/events";
+import {
+  isInboxDrainJob,
+  isInboxNotificationJob,
+} from "../contracts/inbox/events";
 import type { OutboxQueueJob } from "../contracts/queues/events";
+import type {
+  OrderedOutboxLaneWork,
+  OutboxLaneWork,
+} from "../contracts/queues/outbox-lanes";
 import type { TelegramOutboxJob } from "../contracts/telegram/outbox";
 import { sendViaOutboxDo } from "../storage/telegram-outbox-client";
 import { drainUnreadInbox } from "../features/ticketing/inbox";
 import { INBOX_MENU_CALLBACK } from "../bot/callback-data";
-import { INBOX_FRESH_NOTICE_MESSAGE } from "../i18n/messages";
+import { DELIVER_INBOX_BUTTON } from "../i18n/labels";
+import { inboxFreshNoticeMessage } from "../i18n/messages";
 import { getUserById } from "../features/identity/identity-service";
-import {
-  closeInboxNotificationCycle,
-  getInboxNotificationCycle,
-  getUnreadSummary,
-  markInboxNotificationSent,
-} from "../storage/user-state-client";
+import { getUnreadSummary } from "../storage/user-state-client";
+import { logBotError } from "../utils/logs";
 
 const OUTBOX_CHAT_CONCURRENCY = 4;
 
@@ -23,26 +28,12 @@ const noticeReplyMarkup = {
   inline_keyboard: [
     [
       {
-        text: "📥 تحویل نامه‌ها",
+        text: DELIVER_INBOX_BUTTON,
         callback_data: INBOX_MENU_CALLBACK.deliver,
       },
     ],
   ],
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const isInboxNotificationJob = (
-  value: unknown
-): value is InboxNotificationJob =>
-  isRecord(value) &&
-  Object.keys(value).length === 3 &&
-  value.kind === "inbox-notification" &&
-  typeof value.accountId === "string" &&
-  value.accountId.length > 0 &&
-  typeof value.cycleId === "string" &&
-  value.cycleId.length > 0;
 
 const mapBounded = async <T>(
   items: T[],
@@ -86,16 +77,31 @@ const handleChatMessages = async (
 
     try {
       const result = await sendViaOutboxDo(env, message.body);
-      if (result.ok) {
-        message.ack();
-      } else if (result.retryable === false) {
-        message.ack();
-      } else {
-        retryRestDelay = result.delaySeconds ?? 5;
-        retryMessage(message, retryRestDelay);
+      switch (result.status) {
+        case "sent":
+          message.ack();
+          break;
+        case "retry":
+          retryRestDelay = result.delaySeconds;
+          logBotError("queue:telegram", new Error("Telegram outbox retry"), {
+            retryable: true,
+            delaySeconds: retryRestDelay,
+          });
+          retryMessage(message, retryRestDelay);
+          break;
+        case "rejected":
+          logBotError("queue:telegram", new Error("Telegram outbox rejected"), {
+            permanent: true,
+          });
+          message.ack();
+          break;
       }
-    } catch {
+    } catch (error) {
       retryRestDelay = 5;
+      logBotError("queue:telegram", error, {
+        retryable: true,
+        delaySeconds: retryRestDelay,
+      });
       retryMessage(message, retryRestDelay);
     }
   }
@@ -103,15 +109,16 @@ const handleChatMessages = async (
 
 const notificationJobForUser = (
   user: NonNullable<Awaited<ReturnType<typeof getUserById>>>,
-  cycleId: string
+  eventId: string,
+  unreadCount: number
 ): TelegramOutboxJob => ({
-  idempotencyKey: `inbox-notification:${user.id}:${cycleId}`,
+  idempotencyKey: `inbox-notification:${user.id}:${eventId}`,
   kind: "telegram",
   chatCiphertext: user.telegram_chat_ciphertext,
   chatHash: user.telegram_user_hash,
   method: "sendMessage",
   payload: {
-    text: INBOX_FRESH_NOTICE_MESSAGE,
+    text: inboxFreshNoticeMessage(unreadCount),
     parse_mode: "HTML",
     reply_markup: noticeReplyMarkup,
   },
@@ -124,96 +131,189 @@ const handleInboxNotificationMessage = async (
   env: Environment
 ): Promise<void> => {
   if (!isInboxNotificationJob(message.body)) {
+    logBotError(
+      "queue:inbox-notification",
+      new Error("Invalid inbox notification job"),
+      { permanent: true }
+    );
     message.ack();
     return;
   }
 
-  const { accountId, cycleId } = message.body;
-  const cycle = await getInboxNotificationCycle(env, accountId);
-  if (!cycle || cycle.cycleId !== cycleId) {
-    message.ack();
-    return;
-  }
-  if (cycle.status === "sent") {
-    message.ack();
-    return;
-  }
-
+  const { accountId, eventId } = message.body;
   const summary = await getUnreadSummary(env, accountId);
   if (summary.unreadCount <= 0) {
-    await closeInboxNotificationCycle(env, accountId, { cycleId });
     message.ack();
     return;
   }
 
   const user = await getUserById(accountId, env);
   if (!user) {
-    await closeInboxNotificationCycle(env, accountId, { cycleId });
     message.ack();
     return;
   }
 
   const result = await sendViaOutboxDo(
     env,
-    notificationJobForUser(user, cycleId)
+    notificationJobForUser(user, eventId, summary.unreadCount)
   );
-  if (result.ok && !result.permanentFailure) {
-    await markInboxNotificationSent(env, accountId, {
-      cycleId,
-      sentAt: Date.now(),
+  if (result.status === "sent") {
+    message.ack();
+    return;
+  }
+
+  if (result.status === "rejected") {
+    logBotError(
+      "queue:inbox-notification",
+      new Error("Inbox notification permanently rejected"),
+      { permanent: true }
+    );
+    message.ack();
+    return;
+  }
+
+  logBotError("queue:inbox-notification", new Error("Inbox notification retry"), {
+    retryable: true,
+    delaySeconds: result.delaySeconds,
+  });
+  message.retry({ delaySeconds: result.delaySeconds });
+};
+
+const handleInboxDrainMessage = async (
+  message: Message<InboxDrainJob>,
+  env: Environment
+): Promise<void> => {
+  if (!isInboxDrainJob(message.body)) {
+    logBotError("queue:inbox-drain", new Error("Invalid inbox drain job"), {
+      permanent: true,
     });
     message.ack();
     return;
   }
 
-  if (result.retryable === false || result.permanentFailure) {
+  try {
+    const result = await drainUnreadInbox(env, message.body.userId);
+    if (result.status === "retry") {
+      logBotError("queue:inbox-drain", new Error("Inbox drain retry"), {
+        retryable: true,
+        delaySeconds: result.delaySeconds,
+      });
+      message.retry({ delaySeconds: result.delaySeconds });
+      return;
+    }
     message.ack();
-    return;
+  } catch (error) {
+    logBotError("queue:inbox-drain", error, {
+      retryable: true,
+      delaySeconds: 5,
+    });
+    message.retry({ delaySeconds: 5 });
+  }
+};
+
+const resolveAccountChatHash = async (
+  env: Environment,
+  accountId: string,
+  cache: Map<string, string>
+): Promise<string> => {
+  const cached = cache.get(accountId);
+  if (cached) {
+    return cached;
+  }
+  const user = await getUserById(accountId, env);
+  const chatHash = user?.telegram_user_hash ?? `missing:${accountId}`;
+  cache.set(accountId, chatHash);
+  return chatHash;
+};
+
+const processChatLane = async (
+  orderedWork: OrderedOutboxLaneWork[],
+  env: Environment
+): Promise<void> => {
+  const sorted = [...orderedWork].sort((left, right) => left.order - right.order);
+  const telegramMessages: Message<TelegramOutboxJob>[] = [];
+
+  for (const entry of sorted) {
+    if (entry.work.type === "telegram") {
+      telegramMessages.push(...entry.work.messages);
+      continue;
+    }
+    if (telegramMessages.length > 0) {
+      await handleChatMessages(telegramMessages, env);
+      telegramMessages.length = 0;
+    }
+    if (entry.work.type === "drain") {
+      await handleInboxDrainMessage(entry.work.message, env);
+      continue;
+    }
+    await handleInboxNotificationMessage(entry.work.message, env);
   }
 
-  message.retry({ delaySeconds: result.delaySeconds ?? 5 });
+  if (telegramMessages.length > 0) {
+    await handleChatMessages(telegramMessages, env);
+  }
 };
 
 export const handleOutboxBatch = async (
   batch: MessageBatch<OutboxQueueJob>,
   env: Environment
 ): Promise<void> => {
-  const byChat = new Map<string, Message<TelegramOutboxJob>[]>();
-  const drainMessages: Message<InboxDrainJob>[] = [];
-  const notificationMessages: Message<InboxNotificationJob>[] = [];
+  const lanes = new Map<string, OrderedOutboxLaneWork[]>();
+  const accountChatHash = new Map<string, string>();
+  let order = 0;
+
+  const appendLaneWork = (chatHash: string, work: OutboxLaneWork): void => {
+    const items = lanes.get(chatHash) ?? [];
+    items.push({ order: order++, work });
+    lanes.set(chatHash, items);
+  };
+
+  const appendTelegramMessage = (
+    chatHash: string,
+    message: Message<TelegramOutboxJob>
+  ): void => {
+    const items = lanes.get(chatHash) ?? [];
+    const last = items[items.length - 1];
+    if (last?.work.type === "telegram") {
+      last.work.messages.push(message);
+      return;
+    }
+    items.push({
+      order: order++,
+      work: { type: "telegram", messages: [message] },
+    });
+    lanes.set(chatHash, items);
+  };
+
   for (const message of batch.messages) {
     if (message.body.kind === "inbox-drain") {
-      drainMessages.push(message as Message<InboxDrainJob>);
+      const drainMessage = message as Message<InboxDrainJob>;
+      const chatHash = await resolveAccountChatHash(
+        env,
+        drainMessage.body.userId,
+        accountChatHash
+      );
+      appendLaneWork(chatHash, { type: "drain", message: drainMessage });
       continue;
     }
     if (message.body.kind === "inbox-notification") {
-      notificationMessages.push(message as Message<InboxNotificationJob>);
+      const notificationMessage = message as Message<InboxNotificationJob>;
+      const chatHash = await resolveAccountChatHash(
+        env,
+        notificationMessage.body.accountId,
+        accountChatHash
+      );
+      appendLaneWork(chatHash, {
+        type: "notification",
+        message: notificationMessage,
+      });
       continue;
     }
     const telegramMessage = message as Message<TelegramOutboxJob>;
-    const messages = byChat.get(telegramMessage.body.chatHash) ?? [];
-    messages.push(telegramMessage);
-    byChat.set(telegramMessage.body.chatHash, messages);
+    appendTelegramMessage(telegramMessage.body.chatHash, telegramMessage);
   }
 
-  await Promise.all([
-    mapBounded([...byChat.values()], OUTBOX_CHAT_CONCURRENCY, (messages) =>
-      handleChatMessages(messages, env)
-    ),
-    mapBounded(drainMessages, OUTBOX_CHAT_CONCURRENCY, async (message) => {
-      try {
-        await drainUnreadInbox(env, message.body.userId);
-        message.ack();
-      } catch {
-        message.retry({ delaySeconds: 5 });
-      }
-    }),
-    mapBounded(notificationMessages, OUTBOX_CHAT_CONCURRENCY, async (message) => {
-      try {
-        await handleInboxNotificationMessage(message, env);
-      } catch {
-        message.retry({ delaySeconds: 5 });
-      }
-    }),
-  ]);
+  await mapBounded([...lanes.values()], OUTBOX_CHAT_CONCURRENCY, (orderedWork) =>
+    processChatLane(orderedWork, env)
+  );
 };

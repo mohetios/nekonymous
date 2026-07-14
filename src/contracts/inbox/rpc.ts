@@ -1,6 +1,5 @@
 import type {
   DeliveryAttemptId,
-  InboxNotificationCycleId,
   InboxDedupeTag,
   UnixMillis,
   UnreadItemId,
@@ -30,12 +29,3 @@ export type CompleteUnreadDeliveryInput = Readonly<{
 }>;
 
 export type ReleaseUnreadDeliveryInput = CompleteUnreadDeliveryInput;
-
-export type MarkInboxNotificationSentInput = Readonly<{
-  cycleId: InboxNotificationCycleId;
-  sentAt: UnixMillis;
-}>;
-
-export type CloseInboxNotificationCycleInput = Readonly<{
-  cycleId?: InboxNotificationCycleId;
-}>;
