@@ -289,25 +289,6 @@ export const getUserByPublicSlug = async (
   return row ? rowToD1User(row) : null;
 };
 
-export const createPublicLinkForUser = async (
-  userId: string,
-  env: Environment
-): Promise<string> => {
-  const now = Date.now();
-  const slug = generateOpaqueId(16);
-
-  await env.DB.prepare(
-    `INSERT INTO public_links (slug, owner_user_id, is_active, created_at, updated_at)
-     VALUES (?, ?, 1, ?, ?)`
-  )
-    .bind(slug, userId, now, now)
-    .run();
-
-  await kvPut(env, linkCacheKey(slug), userId);
-  await recordLinkCreated(env);
-  return slug;
-};
-
 export const createUserFromTelegram = async (
   ctx: Context,
   env: Environment
