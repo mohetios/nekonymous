@@ -1,4 +1,9 @@
-import type { InternalAccountId, QueueRequestId, UnixMillis } from "../primitives";
+import type {
+  InboxNotificationCycleId,
+  InternalAccountId,
+  QueueRequestId,
+  UnixMillis,
+} from "../primitives";
 
 export type InboxDrainJob = Readonly<{
   kind: "inbox-drain";
@@ -6,4 +11,10 @@ export type InboxDrainJob = Readonly<{
   userId: InternalAccountId;
   requestId: QueueRequestId;
   createdAt: UnixMillis;
+}>;
+
+export type InboxNotificationJob = Readonly<{
+  kind: "inbox-notification";
+  accountId: InternalAccountId;
+  cycleId: InboxNotificationCycleId;
 }>;

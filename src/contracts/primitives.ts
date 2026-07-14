@@ -21,6 +21,10 @@ export type ReporterSubjectTag = Brand<string, "ReporterSubjectTag">;
 export type InboxDedupeTag = Brand<string, "InboxDedupeTag">;
 
 export type UnreadItemId = Brand<string, "UnreadItemId">;
+export type InboxNotificationCycleId = Brand<
+  string,
+  "InboxNotificationCycleId"
+>;
 export type DeliveryAttemptId = Brand<string, "DeliveryAttemptId">;
 export type QueueRequestId = Brand<string, "QueueRequestId">;
 

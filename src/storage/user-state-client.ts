@@ -3,10 +3,13 @@ import type { UserDraft, UserStateSnapshot } from "../contracts/user-state/model
 import type {
   AddUnreadItemInput,
   AddUnreadItemResult,
+  CloseInboxNotificationCycleInput,
   CompleteUnreadDeliveryInput,
+  MarkInboxNotificationSentInput,
   ReleaseUnreadDeliveryInput,
 } from "../contracts/inbox/rpc";
 import type {
+  InboxNotificationCycle,
   UnreadDeliveryClaim,
   UnreadSummary as UnreadInboxSummary,
 } from "../contracts/inbox/model";
@@ -154,11 +157,16 @@ export const addUnreadItem = async (
 ): Promise<AddUnreadItemResult> => {
   const result = await stub(env, recipientUserId).addUnreadItem(item);
   if (!result.ok) {
-    return { ok: false, status: result.reason === "full" ? 429 : 400 };
+    return {
+      ok: false,
+      status: result.reason === "full" ? 429 : 400,
+      notification: { required: false },
+    };
   }
   return {
     ok: true,
     status: 200,
+    notification: result.notification,
     ...(typeof result.unreadCount === "number"
       ? { unreadCount: result.unreadCount }
       : {}),
@@ -200,6 +208,30 @@ export const cleanupExpiredUnreadItems = async (
 ): Promise<UnreadInboxSummary> => {
   const result = await stub(env, userId).cleanupExpiredUnreadItems();
   return result.summary;
+};
+
+export const getInboxNotificationCycle = (
+  env: Environment,
+  userId: string
+): Promise<InboxNotificationCycle | null> =>
+  stub(env, userId).getInboxNotificationCycle();
+
+export const markInboxNotificationSent = async (
+  env: Environment,
+  userId: string,
+  input: MarkInboxNotificationSentInput
+): Promise<InboxNotificationCycle | null> => {
+  const result = await stub(env, userId).markInboxNotificationSent(input);
+  return result.cycle;
+};
+
+export const closeInboxNotificationCycle = async (
+  env: Environment,
+  userId: string,
+  input: CloseInboxNotificationCycleInput = {}
+): Promise<InboxNotificationCycle | null> => {
+  const result = await stub(env, userId).closeInboxNotificationCycle(input);
+  return result.cycle;
 };
 
 export const purgeUnreadInbox = async (

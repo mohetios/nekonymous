@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# Destructive remote reset: Durable Object generation deploy + D1 + KV + Vectorize.
+# Destructive remote reset: D1 + KV + Vectorize, with optional DO generation deploy.
 #
 # Usage:
-#   ./tools/flush-remote.sh          # remote only
-#   ./tools/flush-remote.sh --local  # also flush local D1/KV (vectorize is remote-only)
+#   ./tools/flush-remote.sh                 # data wipe only (safe to repeat)
+#   ./tools/flush-remote.sh --full-do-reset # one-shot DO generation reset (v9/v10/v11)
+#   ./tools/flush-remote.sh --local         # also flush local D1/KV
 #
-# Requires: wrangler auth and V4/V2 reset migrations (v9 + v10) in wrangler.jsonc.
-# D1 schema is a single squashed migration: migrations/0001_init.sql
+# Data-only mode drops D1 tables, reapplies migrations/0001_init.sql, clears KV,
+# and recreates the Vectorize index. Durable Object storage is NOT wiped unless
+# --full-do-reset is used and a fresh create/delete migration pair is pending.
+#
+# DO generation reset is one-shot per migration pair. After v9/v10/v11 are applied,
+# repeat DO wipes require a new vN-create / vN-delete pair in wrangler.jsonc.
 
 set -euo pipefail
 
@@ -14,9 +19,17 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 LOCAL_TOO=false
-if [[ "${1:-}" == "--local" ]]; then
-  LOCAL_TOO=true
-fi
+FULL_DO_RESET=false
+for arg in "$@"; do
+  case "$arg" in
+    --local) LOCAL_TOO=true ;;
+    --full-do-reset) FULL_DO_RESET=true ;;
+    *)
+      echo "Usage: $0 [--local] [--full-do-reset]" >&2
+      exit 1
+      ;;
+  esac
+done
 
 WRANGLER=(wrangler)
 DB_BINDING="DB"
@@ -45,7 +58,9 @@ run_worker_deploy() {
 run_phase1_deploy() {
   local config="${ROOT}/.wrangler-flush-phase1.json"
   node --experimental-strip-types tools/wrangler-config-without-migration.ts \
-    "v10-delete-durable-objects-v3-and-vault-v1" "$config"
+    "$config" \
+    "v10-delete-durable-objects-v3-and-vault-v1" \
+    "v11-safety-state-replace-report-ledger-v4"
   run_worker_deploy "phase 1 — bind V4 core + V2 vault durable objects" "$config"
   rm -f "$config"
 }
@@ -98,18 +113,27 @@ run_vectorize_recreate() {
 }
 
 echo "!!! DESTRUCTIVE REMOTE RESET for Nekonymous !!!"
-echo "    Durable Objects: two deploys (V4/V2 vault create, then V3/V1 delete)"
+if $FULL_DO_RESET; then
+  echo "    Mode: full DO generation reset + data wipe"
+  echo "    Durable Objects: two deploys (V4/V2 create, then V3/V1 delete)"
+else
+  echo "    Mode: data wipe only (D1 + KV + Vectorize)"
+  echo "    Durable Objects: skipped (use --full-do-reset only with a new migration pair)"
+fi
 echo "    D1: all tables dropped + single migration (0001_init.sql) reapplied"
 echo "    KV: all keys deleted"
 echo "    Vectorize: index recreated empty"
 echo
 
-require_do_reset_migrations
 run_vectorize_recreate
-run_phase1_deploy
 run_d1_flush --remote
 run_kv_flush --remote
-run_worker_deploy "phase 2 — delete V3 core + V1 vault durable object storage"
+
+if $FULL_DO_RESET; then
+  require_do_reset_migrations
+  run_phase1_deploy
+  run_worker_deploy "phase 2 — delete V3 core + V1 vault durable object storage"
+fi
 
 if $LOCAL_TOO; then
   run_d1_flush --local
@@ -119,4 +143,6 @@ fi
 echo
 echo "Remote flush complete."
 echo "Users must /start again."
-echo "Note: future DO wipes require a new class generation and delete migration pair."
+if ! $FULL_DO_RESET; then
+  echo "Note: Durable Object data was not reset. Add a new create/delete migration pair for another DO wipe."
+fi

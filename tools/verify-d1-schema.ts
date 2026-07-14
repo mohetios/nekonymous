@@ -5,60 +5,41 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-
-const fail = (message: string): never => {
-  console.error(message);
-  process.exit(1);
-};
+import contract from "./d1-contract.json" with { type: "json" };
+import { assert } from "./verify-helpers.ts";
 
 const migrationPath = fileURLToPath(
   new URL("../migrations/0001_init.sql", import.meta.url)
 );
 const sql = readFileSync(migrationPath, "utf8");
 
-const REQUIRED_TABLES = [
-  "users",
-  "public_links",
-  "platform_daily_stats",
-  "platform_daily_stats_by_key",
-  "platform_daily_unique_stats",
-] as const;
-
-const FORBIDDEN_TABLES = [
-  "assessment_profiles",
-  "assessment_attempts",
-  "assessment_answers",
-  "profile_vector_index_events",
-  "match_requests",
-  "match_suggestions",
-  "match_blocks",
-  "match_events",
-  "reports",
-  "platform_stats",
-] as const;
-
-for (const table of REQUIRED_TABLES) {
-  if (!new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, "i").test(sql)) {
-    fail(`missing required table in migration: ${table}`);
-  }
+for (const table of contract.requiredTables) {
+  assert(
+    new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, "i").test(sql),
+    `missing required table in migration: ${table}`
+  );
 }
 
-for (const table of FORBIDDEN_TABLES) {
-  if (new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, "i").test(sql)) {
-    fail(`forbidden V1 table in migration: ${table}`);
-  }
+for (const table of contract.forbiddenTables) {
+  assert(
+    !new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, "i").test(sql),
+    `forbidden V1 table in migration: ${table}`
+  );
 }
 
-if (!/telegram_user_hash TEXT NOT NULL UNIQUE/.test(sql)) {
-  fail("users.telegram_user_hash must be UNIQUE");
-}
+assert(
+  /telegram_user_hash TEXT NOT NULL UNIQUE/.test(sql),
+  "users.telegram_user_hash must be UNIQUE"
+);
 
-if (!/telegram_chat_ciphertext TEXT NOT NULL/.test(sql)) {
-  fail("users.telegram_chat_ciphertext must be required");
-}
+assert(
+  /telegram_chat_ciphertext TEXT NOT NULL/.test(sql),
+  "users.telegram_chat_ciphertext must be required"
+);
 
-if (/profile_summary|match_request|assessment_/.test(sql)) {
-  fail("migration must not reference V1 profile/match columns");
-}
+assert(
+  !/profile_summary|match_request|assessment_/.test(sql),
+  "migration must not reference V1 profile/match columns"
+);
 
 console.log("verify-d1-schema: OK");

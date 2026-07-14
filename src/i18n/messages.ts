@@ -162,7 +162,7 @@ export const UnsupportedMessageTypeMessage = `فعلاً این نوع پیام 
 
 متن یا یکی از فرمت‌هایی رو بفرست که اینجا کار می‌کنه.`;
 
-export const INBOX_FRESH_NOTICE_MESSAGE = `یک نامه‌ی تازه داری، میو 🐾`;
+export const INBOX_FRESH_NOTICE_MESSAGE = `نامه‌های تازه داری، میو 🐾`;
 
 export const INBOX_EMPTY_MESSAGE = `فعلاً نامه‌ی تازه‌ای نیست، میو.`;
 

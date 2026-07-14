@@ -1,0 +1,27 @@
+{
+  "requiredTables": [
+    "users",
+    "public_links",
+    "platform_daily_stats",
+    "platform_daily_stats_by_key",
+    "platform_daily_unique_stats"
+  ],
+  "forbiddenTables": [
+    "assessment_profiles",
+    "assessment_attempts",
+    "assessment_answers",
+    "profile_vector_index_events",
+    "match_requests",
+    "match_suggestions",
+    "match_blocks",
+    "match_events",
+    "reports",
+    "platform_stats"
+  ],
+  "forbiddenSchemaTokens": [
+    "requester_user_id",
+    "candidate_user_id",
+    "profile_summary_text",
+    "dimension_scores_json"
+  ]
+}

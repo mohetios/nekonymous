@@ -68,6 +68,9 @@
     "test:conversation-requests": "node --experimental-strip-types tools/verify-conversation-requests.ts",
     "test:profile-index-idempotency": "node --experimental-strip-types tools/verify-profile-index-idempotency.ts",
     "test:release-hardening": "node --experimental-strip-types tools/verify-release-hardening.ts",
+    "test:verify": "node --experimental-strip-types tools/run-verify.ts",
+    "test:verify:core": "node --experimental-strip-types tools/run-verify.ts --filter=core",
+    "test:verify:conversation": "node --experimental-strip-types tools/run-verify.ts --filter=conversation",
     "test:workers": "vitest run",
     "test:d1-schema": "node --experimental-strip-types tools/verify-d1-schema.ts",
     "audit:d1": "./tools/audit-d1.sh",
@@ -77,7 +80,7 @@
     "flush:remote": "./tools/flush-remote.sh",
     "flush:remote:local": "./tools/flush-remote.sh --local",
     "bot:profile": "./tools/set-telegram-bot-profile.sh",
-    "test": "pnpm run test:ticketing && pnpm run test:idempotency && pnpm run test:stats && pnpm run test:bot-flow && pnpm run test:d1-schema && pnpm run test:profile-index-idempotency && pnpm run test:conversation-v2-resources && pnpm run test:conversation-capabilities && pnpm run test:conversation-privacy && pnpm run test:conversation-profile && pnpm run test:conversation-index && pnpm run test:conversation-retrieval && pnpm run test:conversation-ranking && pnpm run test:conversation-eligibility && pnpm run test:conversation-suggestions && pnpm run test:conversation-requests && pnpm run test:release-hardening && pnpm run test:workers",
+    "test": "pnpm run test:verify && pnpm run test:workers",
     "check": "pnpm run types:check && pnpm run typecheck && pnpm run lint && pnpm run knip && pnpm run test && pnpm run audit:ticket-storage && pnpm run audit:types"
   },
   "dependencies": {

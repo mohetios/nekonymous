@@ -114,6 +114,9 @@ const [
   menuSource,
   suggestionHubSource,
   profileScriptSource,
+  inboxNotificationSource,
+  outboxConsumerSource,
+  queueContractsSource,
 ] = await Promise.all([
   readSource("../src/bot/register-handlers.ts"),
   readSource("../src/features/ticketing/resolve-ticket-action.ts"),
@@ -130,6 +133,9 @@ const [
   readSource("../src/bot/menu.ts"),
   readSource("../src/features/conversation/suggestions/suggestion-hub.ts"),
   readSource("../tools/set-telegram-bot-profile.sh"),
+  readSource("../src/features/ticketing/inbox-notification.ts"),
+  readSource("../src/queues/outbox-consumer.ts"),
+  readSource("../src/contracts/queues/events.ts"),
 ]);
 
 for (const action of ["reply", "block", "unblock", "nickname", "report"]) {
@@ -239,6 +245,32 @@ assert(
     inboxSource.includes('kind: "inbox-drain"') &&
     !inboxSource.includes("claimUnreadBatch"),
   "/inbox must enqueue one-item unread delivery drains"
+);
+assert(
+  inboxNotificationSource.includes('kind: "inbox-notification"') &&
+    inboxNotificationSource.includes("accountId") &&
+    inboxNotificationSource.includes("cycleId") &&
+    inboxNotificationSource.includes('contentType: "json"') &&
+    !inboxNotificationSource.includes("ticketHash") &&
+    !inboxNotificationSource.includes("capability") &&
+    !inboxNotificationSource.includes("unreadCount"),
+  "inbox notification producer must enqueue only account and cycle identifiers"
+);
+assert(
+  outboxConsumerSource.includes("inbox-notification") &&
+    outboxConsumerSource.includes("Object.keys(value).length === 3") &&
+    outboxConsumerSource.includes("INBOX_MENU_CALLBACK.deliver") &&
+    outboxConsumerSource.includes("inbox-notification:${user.id}:${cycleId}") &&
+    outboxConsumerSource.includes("markInboxNotificationSent") &&
+    !outboxConsumerSource.includes("editMessageText") &&
+    !outboxConsumerSource.includes("message_id") &&
+    !outboxConsumerSource.includes("ticketHash"),
+  "inbox notification consumer must send a fresh idempotent ib:d notification"
+);
+assert(
+  queueContractsSource.includes("InboxNotificationJob") &&
+    queueContractsSource.includes("InboxDrainJob"),
+  "queue event union must include canonical inbox notification jobs"
 );
 assert(
   !inboxSource.includes(`listInbox${"Page"}`) &&

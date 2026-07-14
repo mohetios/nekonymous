@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { UnreadInboxItemRow } from "../src/contracts/inbox/model";
-import type { InboxDrainJob } from "../src/contracts/inbox/events";
+import type {
+  InboxDrainJob,
+  InboxNotificationJob,
+} from "../src/contracts/inbox/events";
 import type {
   AbuseSubjectTag,
   BlockTag,
   ContactTag,
   EncodedTicketCapability,
+  InboxNotificationCycleId,
+  InternalAccountId,
   TicketHash,
   UnixMillis,
 } from "../src/contracts/primitives";
@@ -16,6 +21,8 @@ declare const blockTag: BlockTag;
 declare const abuseSubjectTag: AbuseSubjectTag;
 declare const encodedCapability: EncodedTicketCapability;
 declare const ticketHash: TicketHash;
+declare const accountId: InternalAccountId;
+declare const cycleId: InboxNotificationCycleId;
 declare const now: UnixMillis;
 
 const acceptBlockTag = (_value: BlockTag): void => undefined;
@@ -66,6 +73,18 @@ const runCompileTimeChecks = (): void => {
 
   // @ts-expect-error InboxDrainJob must not carry a ticket capability.
   drainJob.capability = encodedCapability;
+
+  const notificationJob = {
+    kind: "inbox-notification",
+    accountId,
+    cycleId,
+  } satisfies InboxNotificationJob;
+
+  // @ts-expect-error InboxNotificationJob must not carry a ticket capability.
+  notificationJob.capability = encodedCapability;
+
+  // @ts-expect-error InboxNotificationJob must not carry a ticket hash.
+  notificationJob.ticketHash = ticketHash;
 };
 
 const describeDecision = (decision: SafetyDecision): string => {

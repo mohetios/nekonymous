@@ -1,5 +1,6 @@
 import type {
   DeliveryAttemptId,
+  InboxNotificationCycleId,
   InboxDedupeTag,
   UnixMillis,
   UnreadItemId,
@@ -22,6 +23,24 @@ export type UnreadInboxItemRow = Readonly<{
 export type UnreadSummary = Readonly<{
   unreadCount: number;
 }>;
+
+export type InboxNotificationCycleStatus = "pending" | "sent";
+
+export type InboxNotificationCycle = Readonly<{
+  cycleId: InboxNotificationCycleId;
+  status: InboxNotificationCycleStatus;
+  createdAt: UnixMillis;
+  sentAt: UnixMillis | null;
+}>;
+
+export type InboxNotificationDecision =
+  | Readonly<{
+      required: true;
+      cycleId: InboxNotificationCycleId;
+    }>
+  | Readonly<{
+      required: false;
+    }>;
 
 export type UnreadDeliveryClaim = Readonly<{
   itemId: UnreadItemId;

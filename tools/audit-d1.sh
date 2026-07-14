@@ -2,9 +2,9 @@
 # Read-only D1 privacy audit for Nekonymous.
 #
 # Usage:
-#   ./tools/audit-d1.sh                  # local migration/schema audit only
-#   ./tools/audit-d1.sh --remote         # opt-in remote D1 data audit
-#   NEKO_AUDIT_D1_REMOTE=1 ./tools/audit-d1.sh
+#   ./tools/audit-d1.sh           # local migration/schema audit (default)
+#   ./tools/audit-d1.sh --local   # same as default
+#   ./tools/audit-d1.sh --remote  # opt-in remote D1 data audit
 #
 # The default check is deterministic and never queries production.
 
@@ -16,38 +16,30 @@ cd "$ROOT"
 MODE="local"
 if [[ "${1:-}" == "--remote" || "${NEKO_AUDIT_D1_REMOTE:-}" == "1" ]]; then
   MODE="remote"
-elif [[ -n "${1:-}" ]]; then
-  echo "Usage: $0 [--remote]" >&2
+elif [[ -n "${1:-}" && "${1:-}" != "--local" ]]; then
+  echo "Usage: $0 [--remote|--local]" >&2
   exit 1
 fi
+
+CONTRACT_FILE="${ROOT}/tools/d1-contract.json"
+read_contract_array() {
+  local key="$1"
+  node -e "
+    const contract = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+    for (const value of contract[process.argv[2]]) process.stdout.write(value + '\n');
+  " "$CONTRACT_FILE" "$key"
+}
+
+mapfile -t FORBIDDEN_TABLES < <(read_contract_array forbiddenTables)
+mapfile -t FORBIDDEN_SCHEMA_TOKENS < <(read_contract_array forbiddenSchemaTokens)
+mapfile -t ALLOWED_TABLES < <(read_contract_array requiredTables)
+
+FORBIDDEN_TABLES+=("${FORBIDDEN_SCHEMA_TOKENS[@]}")
 
 DB_BINDING="DB"
 KV_BINDING="NEKO_KV"
 MIGRATIONS_DIR="migrations"
 REMOTE_TIMEOUT_SECONDS="${NEKO_AUDIT_D1_TIMEOUT_SECONDS:-20}"
-
-FORBIDDEN_TABLES=(
-  assessment_profiles
-  assessment_attempts
-  assessment_answers
-  profile_vector_index_events
-  match_requests
-  match_suggestions
-  match_blocks
-  match_events
-  requester_user_id
-  candidate_user_id
-  profile_summary_text
-  dimension_scores_json
-)
-
-ALLOWED_TABLES=(
-  users
-  public_links
-  platform_daily_stats
-  platform_daily_stats_by_key
-  platform_daily_unique_stats
-)
 
 schema_source() {
   find "$MIGRATIONS_DIR" -type f -name "*.sql" -print0 |

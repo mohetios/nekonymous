@@ -70,6 +70,13 @@ describe("UserState typed RPC", () => {
     });
     expect(added.ok).toBe(true);
     expect(added.unreadCount).toBe(1);
+    expect(added.notification.required).toBe(true);
+
+    const cycle = await stub.getInboxNotificationCycle();
+    expect(cycle?.status).toBe("pending");
+    if (!cycle) {
+      throw new Error("missing notification cycle");
+    }
 
     const duplicate = await stub.addUnreadItem({
       itemId: "item-vitest-duplicate",
@@ -81,6 +88,7 @@ describe("UserState typed RPC", () => {
     expect(duplicate.ok).toBe(true);
     expect(duplicate.duplicate).toBe(true);
     expect(duplicate.unreadCount).toBe(1);
+    expect(duplicate.notification.required).toBe(false);
 
     const claim = await stub.claimNextUnreadItem();
     expect(claim?.itemId).toBe("item-vitest-1");
@@ -106,6 +114,115 @@ describe("UserState typed RPC", () => {
     });
     expect(completed.ok).toBe(true);
     expect(completed.summary.unreadCount).toBe(0);
+    expect(await stub.getInboxNotificationCycle()).toBeNull();
+  });
+
+  it("keeps one notification cycle for a non-empty inbox", async () => {
+    const stub = env.USER_STATE_DO.get(
+      env.USER_STATE_DO.idFromName("vitest-inbox-cycle")
+    );
+    await stub.initState("vitest-inbox-cycle");
+    const now = Date.now();
+
+    const first = await stub.addUnreadItem({
+      itemId: "cycle-item-1",
+      sealedCapabilityEnc: "sealed-cycle-1",
+      dedupeTag: "cycle-dedupe-1",
+      createdAt: now,
+      expiresAt: now + 60_000,
+    });
+    expect(first.notification.required).toBe(true);
+    if (!first.notification.required) {
+      throw new Error("missing first notification");
+    }
+    const firstCycleId = first.notification.cycleId;
+
+    const second = await stub.addUnreadItem({
+      itemId: "cycle-item-2",
+      sealedCapabilityEnc: "sealed-cycle-2",
+      dedupeTag: "cycle-dedupe-2",
+      createdAt: now + 1,
+      expiresAt: now + 60_000,
+    });
+    expect(second.notification).toEqual({
+      required: true,
+      cycleId: firstCycleId,
+    });
+
+    const sent = await stub.markInboxNotificationSent({
+      cycleId: firstCycleId,
+      sentAt: now + 2,
+    });
+    expect(sent.ok).toBe(true);
+    expect(sent.cycle?.status).toBe("sent");
+
+    const third = await stub.addUnreadItem({
+      itemId: "cycle-item-3",
+      sealedCapabilityEnc: "sealed-cycle-3",
+      dedupeTag: "cycle-dedupe-3",
+      createdAt: now + 3,
+      expiresAt: now + 60_000,
+    });
+    expect(third.notification).toEqual({ required: false });
+    expect((await stub.getInboxNotificationCycle())?.cycleId).toBe(firstCycleId);
+
+    const closedWhileUnread = await stub.closeInboxNotificationCycle({
+      cycleId: firstCycleId,
+    });
+    expect(closedWhileUnread.ok).toBe(true);
+    expect(await stub.getInboxNotificationCycle()).toBeNull();
+
+    const recovered = await stub.addUnreadItem({
+      itemId: "cycle-item-4",
+      sealedCapabilityEnc: "sealed-cycle-4",
+      dedupeTag: "cycle-dedupe-4",
+      createdAt: now + 4,
+      expiresAt: now + 60_000,
+    });
+    expect(recovered.notification.required).toBe(true);
+    if (!recovered.notification.required) {
+      throw new Error("missing recovered notification");
+    }
+    const recoveredCycleId = recovered.notification.cycleId;
+    expect(recoveredCycleId).not.toBe(firstCycleId);
+
+    const firstClaim = await stub.claimNextUnreadItem();
+    if (!firstClaim) {
+      throw new Error("missing first claim");
+    }
+    const partial = await stub.completeUnreadDelivery({
+      itemId: firstClaim.itemId,
+      deliveryAttemptId: firstClaim.deliveryAttemptId,
+    });
+    expect(partial.summary.unreadCount).toBe(3);
+    expect((await stub.getInboxNotificationCycle())?.cycleId).toBe(
+      recoveredCycleId
+    );
+
+    for (;;) {
+      const claim = await stub.claimNextUnreadItem();
+      if (!claim) {
+        break;
+      }
+      await stub.completeUnreadDelivery({
+        itemId: claim.itemId,
+        deliveryAttemptId: claim.deliveryAttemptId,
+      });
+    }
+    expect(await stub.getInboxNotificationCycle()).toBeNull();
+
+    const afterDrain = await stub.addUnreadItem({
+      itemId: "cycle-item-5",
+      sealedCapabilityEnc: "sealed-cycle-5",
+      dedupeTag: "cycle-dedupe-5",
+      createdAt: now + 5,
+      expiresAt: now + 60_000,
+    });
+    expect(afterDrain.notification.required).toBe(true);
+    if (!afterDrain.notification.required) {
+      throw new Error("missing post-drain notification");
+    }
+    expect(afterDrain.notification.cycleId).not.toBe(recoveredCycleId);
   });
 });
 

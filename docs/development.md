@@ -293,7 +293,8 @@ Also verify:
 The following scripts are destructive or environment-sensitive and must never be part of a normal validation run:
 
 ```bash
-pnpm flush:remote
+pnpm flush:remote              # data wipe: D1 + KV + Vectorize (repeatable)
+pnpm flush:remote -- --full-do-reset  # one-shot DO generation reset (needs new migration pair after v11)
 pnpm flush:remote:local
 pnpm db:migrations:apply:remote
 pnpm bot:profile

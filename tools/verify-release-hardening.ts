@@ -3,33 +3,14 @@
  * Run: pnpm test:release-hardening
  */
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import {
+  assertIncludes,
+  assertNotIncludes,
+  fail,
+  readRepoFile,
+} from "./verify-helpers.ts";
 
-const root = fileURLToPath(new URL("..", import.meta.url));
-
-const read = (path: string): string => readFileSync(`${root}/${path}`, "utf8");
-
-const fail = (message: string): never => {
-  console.error(message);
-  process.exit(1);
-};
-
-const assertIncludes = (content: string, needle: string, message: string): void => {
-  if (!content.includes(needle)) {
-    fail(message);
-  }
-};
-
-const assertNotIncludes = (
-  content: string,
-  needle: string,
-  message: string
-): void => {
-  if (content.includes(needle)) {
-    fail(message);
-  }
-};
+const read = readRepoFile;
 
 const ticketVault = read("src/storage/ticket-vault/ticket-vault.do.ts");
 assertIncludes(ticketVault, "route_enc = NULL", "expired tickets must clear route_enc");
@@ -45,6 +26,10 @@ assertIncludes(userState, "claimNextUnreadItem", "UserState must expose atomic o
 assertNotIncludes(userState, "claimUnreadBatch", "removed unread batch claim must stay absent");
 assertIncludes(userState, "delivery_attempt_id", "unread claims must be attempt guarded");
 assertIncludes(userState, "DELETE FROM unread_inbox_items", "purge must clear unread rows");
+assertIncludes(userState, "inbox_notification_cycle", "UserState must track the active inbox notification cycle");
+assertIncludes(userState, "DELETE FROM inbox_notification_cycle", "purge and empty inbox must clear notification cycle");
+assertNotIncludes(userState, "notice_message_id", "notification message ids must not be stored");
+assertNotIncludes(userState, "notice_revision", "editable notification revisions must stay absent");
 assertIncludes(userState, "block_tag TEXT PRIMARY KEY", "blocks must use recipient-local block tags");
 assertIncludes(userState, "contact_tag TEXT PRIMARY KEY", "nicknames must use recipient-local contact tags");
 assertIncludes(userState, "deleteAlarm()", "purge must clear durable object alarms before deleteAll");
@@ -132,6 +117,9 @@ assertIncludes(outboxConsumer, "OUTBOX_CHAT_CONCURRENCY", "outbox consumer must 
 assertIncludes(outboxConsumer, "handleChatMessages", "outbox consumer must process each chat sequentially");
 assertIncludes(outboxConsumer, "inbox-drain", "outbox consumer must process unread drain jobs");
 assertIncludes(outboxConsumer, "drainUnreadInbox", "unread drain jobs must use canonical drain handler");
+assertIncludes(outboxConsumer, "inbox-notification", "outbox consumer must process inbox notification jobs");
+assertIncludes(outboxConsumer, "inbox-notification:${user.id}:${cycleId}", "inbox notifications must use stable cycle idempotency");
+assertNotIncludes(outboxConsumer, "editMessageText", "inbox notifications must never edit Telegram messages");
 
 const index = read("src/index.ts");
 assertIncludes(index, "case \"neko-outbox\"", "queue dispatch must handle outbox explicitly");

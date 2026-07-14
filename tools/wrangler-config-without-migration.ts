@@ -1,15 +1,17 @@
 /**
- * Writes a temporary wrangler config with one DO migration tag removed.
- * Usage: node --experimental-strip-types tools/wrangler-config-without-migration.ts <tag> <outPath>
+ * Writes a temporary wrangler config with one or more DO migration tags removed.
+ *
+ * Usage:
+ *   node --experimental-strip-types tools/wrangler-config-without-migration.ts <outPath> <tag> [tag...]
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const tag = process.argv[2];
-const outPath = process.argv[3];
-if (!tag || !outPath) {
-  console.error("usage: wrangler-config-without-migration.ts <tag> <outPath>");
+const outPath = process.argv[2];
+const tags = process.argv.slice(3);
+if (!outPath || tags.length === 0) {
+  console.error("usage: wrangler-config-without-migration.ts <outPath> <tag> [tag...]");
   process.exit(1);
 }
 
@@ -18,6 +20,7 @@ const source = readFileSync(`${root}/wrangler.jsonc`, "utf8");
 const withoutComments = source.replace(/\/\/[^\n]*/g, "");
 const config = JSON.parse(withoutComments) as {
   migrations?: Array<{ tag: string }>;
+  main?: string;
 };
 
 if (!Array.isArray(config.migrations)) {
@@ -25,9 +28,10 @@ if (!Array.isArray(config.migrations)) {
   process.exit(1);
 }
 
-const next = config.migrations.filter((entry) => entry.tag !== tag);
+const tagSet = new Set(tags);
+const next = config.migrations.filter((entry) => !tagSet.has(entry.tag));
 if (next.length === config.migrations.length) {
-  console.error(`migration tag not found: ${tag}`);
+  console.error(`migration tag(s) not found: ${tags.join(", ")}`);
   process.exit(1);
 }
 

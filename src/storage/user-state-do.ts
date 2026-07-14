@@ -2,6 +2,10 @@ import { DurableObject } from "cloudflare:workers";
 import type { Environment } from "../contracts/runtime";
 import type { UserDraft } from "../contracts/user-state/model";
 import type { UserDraftMode } from "../contracts/user-state/model";
+import type {
+  InboxNotificationCycle,
+  InboxNotificationCycleStatus,
+} from "../contracts/inbox/model";
 import { resolveProcessedEventClaim } from "./processed-events-policy";
 import { INBOX_MAX_UNREAD } from "../features/ticketing/inbox-constants";
 
@@ -81,6 +85,12 @@ type UnreadInboxItemRow = {
   expires_at: number;
 };
 
+type InboxNotificationCycleRow = {
+  cycle_id: string;
+  status: InboxNotificationCycleStatus;
+  created_at: number;
+  sent_at: number | null;
+};
 
 type UnreadInboxSummary = {
   unreadCount: number;
@@ -175,6 +185,13 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
       CREATE INDEX IF NOT EXISTS idx_unread_inbox_items_expires
         ON unread_inbox_items(expires_at);
+
+      CREATE TABLE IF NOT EXISTS inbox_notification_cycle (
+        cycle_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        sent_at INTEGER
+      );
 
       CREATE TABLE IF NOT EXISTS blocks (
         block_tag TEXT PRIMARY KEY,
@@ -591,6 +608,51 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     );
   }
 
+  private activeNotificationCycle(): InboxNotificationCycle | null {
+    const row = this.ctx.storage.sql
+      .exec<InboxNotificationCycleRow>(
+        `SELECT cycle_id, status, created_at, sent_at
+         FROM inbox_notification_cycle
+         ORDER BY created_at DESC
+         LIMIT 1`
+      )
+      .toArray()[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      cycleId: row.cycle_id,
+      status: row.status,
+      createdAt: row.created_at,
+      sentAt: row.sent_at,
+    };
+  }
+
+  private createNotificationCycle(now: number): InboxNotificationCycle {
+    const cycleId = crypto.randomUUID();
+    this.ctx.storage.sql.exec("DELETE FROM inbox_notification_cycle");
+    this.ctx.storage.sql.exec(
+      `INSERT INTO inbox_notification_cycle (
+        cycle_id, status, created_at, sent_at
+      ) VALUES (?, 'pending', ?, NULL)`,
+      cycleId,
+      now
+    );
+    return {
+      cycleId,
+      status: "pending",
+      createdAt: now,
+      sentAt: null,
+    };
+  }
+
+  private closeNotificationCycleIfInboxEmpty(): void {
+    if (this.activeUnreadCount() > 0) {
+      return;
+    }
+    this.ctx.storage.sql.exec("DELETE FROM inbox_notification_cycle");
+  }
+
   cleanupExpiredUnreadItems(): { deleted: number; summary: UnreadInboxSummary } {
     const now = Date.now();
     const rows = this.ctx.storage.sql
@@ -610,6 +672,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       );
     }
     this.recoverExpiredUnreadLeases(now);
+    this.closeNotificationCycleIfInboxEmpty();
     return { deleted: rows.length, summary: this.getUnreadSummary() };
   }
 
@@ -642,6 +705,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
     reason?: "full" | "invalid";
     unreadCount?: number;
     duplicate?: boolean;
+    notification: { required: true; cycleId: string } | { required: false };
   } {
     if (
       !body.itemId ||
@@ -653,7 +717,11 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       !Number.isSafeInteger(body.expiresAt) ||
       body.expiresAt <= body.createdAt
     ) {
-      return { ok: false, reason: "invalid" };
+      return {
+        ok: false,
+        reason: "invalid",
+        notification: { required: false },
+      };
     }
 
     this.cleanupExpiredUnreadItems();
@@ -669,13 +737,19 @@ export class UserStateDurableObject extends DurableObject<Environment> {
         ok: true,
         duplicate: true,
         unreadCount: summary.unreadCount,
+        notification: { required: false },
       };
     }
 
     const active = this.activeUnreadCount();
     if (active >= INBOX_MAX_UNREAD) {
-      return { ok: false, reason: "full" };
+      return {
+        ok: false,
+        reason: "full",
+        notification: { required: false },
+      };
     }
+    const wasEmpty = active === 0;
 
     try {
       this.ctx.storage.sql.exec(
@@ -695,14 +769,61 @@ export class UserStateDurableObject extends DurableObject<Environment> {
         ok: true,
         duplicate: true,
         unreadCount: summary.unreadCount,
+        notification: { required: false },
       };
     }
 
     const summary = this.getUnreadSummary();
+    const currentCycle = this.activeNotificationCycle();
+    const notification =
+      wasEmpty || !currentCycle
+        ? {
+            required: true as const,
+            cycleId: this.createNotificationCycle(body.createdAt).cycleId,
+          }
+        : currentCycle?.status === "pending"
+          ? { required: true as const, cycleId: currentCycle.cycleId }
+          : { required: false as const };
     return {
       ok: true,
       unreadCount: summary.unreadCount,
+      notification,
     };
+  }
+
+  getInboxNotificationCycle(): InboxNotificationCycle | null {
+    return this.activeNotificationCycle();
+  }
+
+  markInboxNotificationSent(body: {
+    cycleId: string;
+    sentAt: number;
+  }): { ok: boolean; cycle: InboxNotificationCycle | null } {
+    if (!body.cycleId || !Number.isSafeInteger(body.sentAt)) {
+      return { ok: false, cycle: this.activeNotificationCycle() };
+    }
+    this.ctx.storage.sql.exec(
+      `UPDATE inbox_notification_cycle
+       SET status = 'sent', sent_at = ?
+       WHERE cycle_id = ?`,
+      body.sentAt,
+      body.cycleId
+    );
+    return { ok: true, cycle: this.activeNotificationCycle() };
+  }
+
+  closeInboxNotificationCycle(body?: {
+    cycleId?: string;
+  }): { ok: boolean; cycle: InboxNotificationCycle | null } {
+    if (body?.cycleId) {
+      this.ctx.storage.sql.exec(
+        "DELETE FROM inbox_notification_cycle WHERE cycle_id = ?",
+        body.cycleId
+      );
+    } else {
+      this.ctx.storage.sql.exec("DELETE FROM inbox_notification_cycle");
+    }
+    return { ok: true, cycle: this.activeNotificationCycle() };
   }
 
   private claimUnreadRows(limit: number): UnreadDeliveryClaim[] {
@@ -781,6 +902,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       body.itemId,
       body.deliveryAttemptId
     );
+    this.closeNotificationCycleIfInboxEmpty();
     return { ok: true, summary: this.getUnreadSummary() };
   }
 
@@ -806,6 +928,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
 
   purgeUnreadInbox(): { ok: boolean; summary: UnreadInboxSummary } {
     this.ctx.storage.sql.exec("DELETE FROM unread_inbox_items");
+    this.ctx.storage.sql.exec("DELETE FROM inbox_notification_cycle");
     return { ok: true, summary: this.getUnreadSummary() };
   }
 
@@ -833,6 +956,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       return;
     }
     this.ctx.storage.sql.exec("DELETE FROM unread_inbox_items WHERE item_id = ?", itemId);
+    this.closeNotificationCycleIfInboxEmpty();
   }
 
   addBlock(blockTag: string): void {
@@ -1152,6 +1276,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       DELETE FROM contact_labels;
       DELETE FROM blocks;
       DELETE FROM unread_inbox_items;
+      DELETE FROM inbox_notification_cycle;
       DELETE FROM drafts;
       DELETE FROM profile_sessions;
       DELETE FROM exposure_tokens;

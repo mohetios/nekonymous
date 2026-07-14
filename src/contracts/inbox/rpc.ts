@@ -1,9 +1,11 @@
 import type {
   DeliveryAttemptId,
+  InboxNotificationCycleId,
   InboxDedupeTag,
   UnixMillis,
   UnreadItemId,
 } from "../primitives";
+import type { InboxNotificationDecision } from "./model";
 import type { SealedUnreadCapability } from "../crypto";
 
 export type AddUnreadItemInput = Readonly<{
@@ -19,6 +21,7 @@ export type AddUnreadItemResult = Readonly<{
   status: number;
   unreadCount?: number;
   duplicate?: boolean;
+  notification: InboxNotificationDecision;
 }>;
 
 export type CompleteUnreadDeliveryInput = Readonly<{
@@ -27,3 +30,12 @@ export type CompleteUnreadDeliveryInput = Readonly<{
 }>;
 
 export type ReleaseUnreadDeliveryInput = CompleteUnreadDeliveryInput;
+
+export type MarkInboxNotificationSentInput = Readonly<{
+  cycleId: InboxNotificationCycleId;
+  sentAt: UnixMillis;
+}>;
+
+export type CloseInboxNotificationCycleInput = Readonly<{
+  cycleId?: InboxNotificationCycleId;
+}>;

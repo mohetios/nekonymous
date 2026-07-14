@@ -194,12 +194,34 @@ const completeOrphan = async (
   });
 };
 
+const loadDeliveryPrefs = async (
+  env: Environment,
+  d1User: D1User
+): Promise<{
+  blockTags: string[];
+  contactLabels: Record<string, string>;
+}> => {
+  try {
+    const user = await toBotUser(d1User, env);
+    return {
+      blockTags: user.blockTags,
+      contactLabels: user.contactLabels,
+    };
+  } catch (error) {
+    logBotError("inbox:delivery-prefs", error);
+    return {
+      blockTags: [],
+      contactLabels: {},
+    };
+  }
+};
+
 const deliverClaim = async (
   env: Environment,
   d1User: D1User,
   claim: UnreadDeliveryClaim
 ): Promise<"delivered" | "unavailable" | "retryable-failure"> => {
-  const user = await toBotUser(d1User, env);
+  const deliveryPrefs = await loadDeliveryPrefs(env, d1User);
 
   let capability: string;
   try {
@@ -210,7 +232,8 @@ const deliverClaim = async (
       claim.dedupeTag,
       claim.sealedCapabilityEnc
     );
-  } catch {
+  } catch (error) {
+    logBotError("inbox:open-unread-capability", error);
     await completeOrphan(env, d1User.id, claim);
     return "unavailable";
   }
@@ -221,7 +244,8 @@ const deliverClaim = async (
       env.APP_HMAC_PEPPER,
       parseTicketCapability(capability)
     );
-  } catch {
+  } catch (error) {
+    logBotError("inbox:ticket-hash", error);
     await completeOrphan(env, d1User.id, claim);
     return "unavailable";
   }
@@ -232,22 +256,25 @@ const deliverClaim = async (
   });
 
   if (!resolved || isExpiredTicketAction(resolved)) {
+    logBotError("inbox:resolve-ticket", new Error("Ticket unavailable"));
     await completeOrphan(env, d1User.id, claim);
     return "unavailable";
   }
 
   if (resolved.ticket.status !== "active" || !resolved.ticket.payloadEnc) {
+    logBotError("inbox:payload-missing", new Error("Ticket payload unavailable"));
     await completeOrphan(env, d1User.id, claim);
     return "unavailable";
   }
 
-  const isBlocked = user.blockTags.includes(resolved.route.blockTag);
+  const isBlocked = deliveryPrefs.blockTags.includes(resolved.route.blockTag);
 
   const delivery = await deliveryContextFromResolvedTicket(
     resolved,
-    user.contactLabels
+    deliveryPrefs.contactLabels
   );
   if (!hasDeliverablePayload(delivery.payload)) {
+    logBotError("inbox:payload-undeliverable", new Error("Unsupported payload"));
     await completeOrphan(env, d1User.id, claim);
     return "unavailable";
   }
@@ -262,12 +289,14 @@ const deliverClaim = async (
     delivery.senderLabel
   );
   if (!job) {
+    logBotError("inbox:delivery-job", new Error("Unsupported message type"));
     await completeOrphan(env, d1User.id, claim);
     return "unavailable";
   }
 
   const sendResult = await sendViaOutboxDo(env, job);
   if (!sendResult.ok || sendResult.retryable || sendResult.permanentFailure) {
+    logBotError("inbox:send", new Error("Telegram outbox send failed"));
     await releaseUnreadDelivery(env, d1User.id, {
       itemId: claim.itemId,
       deliveryAttemptId: claim.deliveryAttemptId,
@@ -275,8 +304,8 @@ const deliverClaim = async (
     return "retryable-failure";
   }
 
-  await markResolvedTicketViewed(env, user.id, resolved);
-  await completeUnreadDelivery(env, user.id, {
+  await markResolvedTicketViewed(env, d1User.id, resolved);
+  await completeUnreadDelivery(env, d1User.id, {
     itemId: claim.itemId,
     deliveryAttemptId: claim.deliveryAttemptId,
   });

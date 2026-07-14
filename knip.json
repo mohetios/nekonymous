@@ -4,6 +4,7 @@
   "ignoreDependencies": ["cloudflare"],
   "ignoreFiles": [
     "tools/wrangler-config-without-migration.ts",
+    "tools/run-verify.ts",
     "test/env.d.ts"
   ],
   "ignoreExportsUsedInFile": true,

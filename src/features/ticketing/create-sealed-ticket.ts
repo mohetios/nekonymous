@@ -24,7 +24,8 @@ import {
 } from "../../storage/ticket-vault/ticket-vault.client";
 import { displayNumberForTicketHash, ticketExpiresAt } from "./ticket-lifecycle";
 import { sealUnreadCapability } from "./unread-capability";
-import { enqueueFreshUnreadNotification } from "./inbox-notification";
+import { enqueueInboxNotification } from "./inbox-notification";
+import { logBotError } from "../../utils/logs";
 import {
   createAbuseSubjectTag,
   createBlockTag,
@@ -214,11 +215,13 @@ export const createSealedTicket = async (
     return { ok: false, status: 500 };
   }
 
-  await enqueueFreshUnreadNotification(
-    env,
-    input.recipient,
-    itemId
-  ).catch(() => undefined);
+  if (inboxResult.notification.required) {
+    await enqueueInboxNotification(
+      env,
+      input.recipient.id,
+      inboxResult.notification.cycleId
+    ).catch((error) => logBotError("inbox-notification:enqueue", error));
+  }
 
   await recordMessageCreated(env);
 
