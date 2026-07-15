@@ -374,7 +374,11 @@ export const handleProfileIndexBatch = async (
     try {
       const outcome = await processJob(env, message.body, message.attempts);
       if (outcome.type === "retry") {
-        message.retry({ delaySeconds: outcome.delaySeconds });
+        if (outcome.delaySeconds !== undefined) {
+          message.retry({ delaySeconds: outcome.delaySeconds });
+        } else {
+          message.retry();
+        }
       } else {
         message.ack();
       }

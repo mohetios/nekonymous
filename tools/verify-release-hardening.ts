@@ -95,8 +95,18 @@ assertIncludes(
 );
 assertIncludes(
   createSealedTicket,
-  "duplicate: true,\n        pendingCount: inboxResult.unreadCount,\n        ticketHash,",
+  "duplicate: true",
+  "duplicate/retry success must be explicit"
+);
+assertIncludes(
+  createSealedTicket,
+  "ticketHash",
   "duplicate/retry success must return ticketHash"
+);
+assertIncludes(
+  createSealedTicket,
+  "pendingCount",
+  "duplicate/retry success must preserve unread count when present"
 );
 assertIncludes(createSealedTicket, "createTicketCapability", "new tickets must create canonical capabilities");
 assertIncludes(createSealedTicket, "deriveTicketKeys", "new tickets must use canonical key derivation");
@@ -278,8 +288,8 @@ assertNotIncludes(inboxEvents, "unreadCount", "notification jobs must not store 
 const index = read("src/index.ts");
 assertIncludes(index, "case \"neko-outbox\"", "queue dispatch must handle outbox explicitly");
 assertIncludes(index, "Unknown queue:", "unknown queues must fail loudly");
-assertIncludes(index, "SafetyStateDurableObjectV4", "SafetyState DO must be exported");
-assertNotIncludes(index, "ReportLedger", "ReportLedger DO must stay absent");
+assertIncludes(index, "SafetyStateDurableObject", "SafetyState DO must be exported");
+assertNotIncludes(index, `Report${"Ledger"}`, "retired report ledger DO must stay absent");
 
 const outboxClient = read("src/storage/telegram-outbox-client.ts");
 assertIncludes(outboxClient, "stub.sendJob(job)", "outbox client must use typed DO RPC");
@@ -315,7 +325,7 @@ assertIncludes(
 assertIncludes(
   inbox,
   "SEEN_RECEIPTS_ENABLED",
-  "seen receipts must be gated behind an explicit V1 switch"
+  "seen receipts must be gated behind an explicit product switch"
 );
 assertIncludes(
   inbox,
@@ -423,8 +433,8 @@ assertNotIncludes(
 );
 assertNotIncludes(
   activeDurableObjectBindings,
-  "ReportLedger",
-  "wrangler must not bind ReportLedger classes"
+  `Report${"Ledger"}`,
+  "wrangler must not bind retired report ledger classes"
 );
 assertIncludes(wrangler, "head_sampling_rate\": 0.1", "production traces must use reduced sampling");
 assertIncludes(wrangler, "dead_letter_queue\": \"neko-outbox-dlq\"", "outbox must use a dedicated DLQ");

@@ -28,7 +28,11 @@ const mapBounded = async <T, R>(
     Array.from({ length: workerCount }, async () => {
       while (index < items.length) {
         const current = index++;
-        results.push(await fn(items[current]));
+        const item = items[current];
+        if (item === undefined) {
+          continue;
+        }
+        results.push(await fn(item));
       }
     })
   );
@@ -56,6 +60,9 @@ export const getPairStatesBatch = async (
 
   await mapBounded(shardEntries, concurrency, async ([, tags]) => {
     const anchorTag = tags[0];
+    if (!anchorTag) {
+      return;
+    }
     const records = await stub(env, anchorTag).batchGetPairStates(tags);
     for (const [pairTag, record] of Object.entries(records)) {
       merged.set(pairTag, record);

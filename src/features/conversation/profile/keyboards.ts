@@ -120,6 +120,9 @@ export const resumeQuestionIndex = (session: {
 }): number => {
   for (let index = 0; index < PROFILE_QUESTIONS.length; index += 1) {
     const question = PROFILE_QUESTIONS[index];
+    if (!question) {
+      continue;
+    }
     if (session.answers[question.id] === undefined) {
       return index;
     }

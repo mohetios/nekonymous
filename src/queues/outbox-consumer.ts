@@ -46,7 +46,11 @@ const mapBounded = async <T>(
     Array.from({ length: workerCount }, async () => {
       while (index < items.length) {
         const current = index++;
-        await fn(items[current]);
+        const item = items[current];
+        if (item === undefined) {
+          continue;
+        }
+        await fn(item);
       }
     })
   );

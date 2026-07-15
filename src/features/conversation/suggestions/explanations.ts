@@ -98,8 +98,12 @@ export const buildSuggestionExplanation = (
       );
     }
     if (differences.length > 0) {
+      const [difference] = differences;
+      if (!difference) {
+        return parts.join(" ");
+      }
       parts.push(
-        `Different pace on ${DIMENSION_LABELS_EN[differences[0].dimension]}.`
+        `Different pace on ${DIMENSION_LABELS_EN[difference.dimension]}.`
       );
     }
     if (parts.length === 0) {
@@ -113,7 +117,11 @@ export const buildSuggestionExplanation = (
     parts.push(...aligned.map((entry) => `• ${DIMENSION_REASON_FA[entry.dimension]}`));
   }
   if (differences.length > 0) {
-    parts.push(`\nیک تفاوت احتمالی:\n• ${DIMENSION_DIFFERENCE_FA[differences[0].dimension]}`);
+    const [difference] = differences;
+    if (!difference) {
+      return parts.join("\n");
+    }
+    parts.push(`\nیک تفاوت احتمالی:\n• ${DIMENSION_DIFFERENCE_FA[difference.dimension]}`);
   }
   if (parts.length === 0) {
     parts.push("• سبک گفت‌وگوتون چند نقطه‌ی مشترک قابل شروع داره.");
@@ -121,7 +129,7 @@ export const buildSuggestionExplanation = (
   return parts.join("\n");
 };
 
-export const intentsAreCompatible = (
+export const intentsCanCoexist = (
   left: ConversationProfile["currentIntent"],
   right: ConversationProfile["currentIntent"]
 ): boolean => {
@@ -153,7 +161,7 @@ export const computeIntentAdjustment = (
   if (requester.currentIntent === candidate.currentIntent) {
     return INTENT_MATCH_BOOST;
   }
-  if (intentsAreCompatible(requester.currentIntent, candidate.currentIntent)) {
+  if (intentsCanCoexist(requester.currentIntent, candidate.currentIntent)) {
     return 0;
   }
   return INTENT_MISMATCH_PENALTY;

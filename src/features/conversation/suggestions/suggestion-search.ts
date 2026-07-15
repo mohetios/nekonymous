@@ -38,7 +38,11 @@ const mapBounded = async <T, R>(
     Array.from({ length: workerCount }, async () => {
       while (index < items.length) {
         const current = index++;
-        results.push(await fn(items[current]));
+        const item = items[current];
+        if (item === undefined) {
+          continue;
+        }
+        results.push(await fn(item));
       }
     })
   );
@@ -162,7 +166,9 @@ export const searchConversationSuggestions = async (
     return {
       ok: true,
       results,
-      remainingSearches: budget.remaining,
+      ...(budget.remaining !== undefined
+        ? { remainingSearches: budget.remaining }
+        : {}),
     };
   } catch (error) {
     logBotError("searchConversationSuggestions", error);

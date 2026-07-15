@@ -13,7 +13,7 @@ import { computeDirectionalFit } from "../src/features/conversation/suggestions/
 import {
   buildSuggestionExplanation,
   computeIntentAdjustment,
-  intentsAreCompatible,
+  intentsCanCoexist,
 } from "../src/features/conversation/suggestions/explanations.ts";
 import { fuseReciprocalScore } from "../src/features/conversation/suggestions/reciprocal-fit.ts";
 import { rankCandidateProfiles } from "../src/features/conversation/suggestions/ranking.ts";
@@ -57,11 +57,11 @@ if (fuseReciprocalScore(0, 0.9) !== 0) {
 
 const explanation = buildSuggestionExplanation(requester, closeCandidate, "fa");
 if (!explanation || explanation.includes("%") || explanation.includes("مچ")) {
-  fail("explanation must avoid forbidden compatibility copy");
+  fail("explanation must avoid forbidden fit copy");
 }
 
-if (!intentsAreCompatible("open", "deep") || !intentsAreCompatible("light", "exploration")) {
-  fail("compatible intents misclassified");
+if (!intentsCanCoexist("open", "deep") || !intentsCanCoexist("light", "exploration")) {
+  fail("intents that can coexist misclassified");
 }
 
 const intentPenalty = computeIntentAdjustment(

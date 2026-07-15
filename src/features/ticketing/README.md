@@ -35,7 +35,7 @@ TicketCapability
 | callback resolution and ownership verification | `resolve-ticket-action.ts`, `service.ts` |
 | reply/block/unblock/nickname/report handlers | `actions.ts` |
 | message/deep-link handlers | `handlers.ts` |
-| lifecycle and limits | `ticket-lifecycle.ts`, `inbox-constants.ts` |
+| lifecycle and limits | `ticket-lifecycle.ts`, `../../contracts/inbox/constants.ts` |
 | Telegram payload validation/normalization | `payload.ts` |
 
 ## Non-negotiable invariants

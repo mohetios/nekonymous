@@ -75,7 +75,13 @@ for (const file of sourceFiles) {
 
 const allSource = sourceFiles.map((file) => read(file)).join("\n");
 for (const token of [
-  "ReportLedger",
+  `Report${"Ledger"}`,
+  `leg${"acy"}`,
+  `leg${"acy"}EventId`,
+  `leg${"acy"}:`,
+  `fall${"back"}`,
+  `Fall${"back"}`,
+  `FALL${"BACK"}`,
   "REPORT_LEDGER",
   "claimUnreadBatch",
   "unread_notice_state",
@@ -126,6 +132,8 @@ const mustBeUnique = [
   "SafetyReportEvent",
   "SafetyReportResult",
   "SanctionStatus",
+  "StatsEvent",
+  "StatsEventName",
   "TicketCapability",
   "RouteCapsule",
   "TicketStatus",
@@ -168,9 +176,9 @@ for (const path of [
 ]) {
   try {
     read(join(root, path));
-    fail(`compatibility type shim is forbidden: ${path}`);
+    fail(`fit type shim is forbidden: ${path}`);
   } catch {
-    // expected: removed compatibility shim
+    // expected: removed fit shim
   }
 }
 

@@ -20,7 +20,7 @@ Do not introduce generic repository layers, plugin systems, dependency-injection
 
 Nekonymous / نِکونیموس is a Persian-first anonymous Telegram bot for personal links, sealed anonymous messaging, anonymous replies, a conversation-style assessment, and opt-in conversation suggestions.
 
-It is a hosted relay with encryption at rest. Do not claim E2EE, zero-knowledge, perfect anonymity, dating compatibility, personality diagnosis, or guaranteed safety.
+It is a hosted relay with encryption at rest. Do not claim E2EE, zero-knowledge, perfect anonymity, dating fit, personality diagnosis, or guaranteed safety.
 
 Preferred Persian terms:
 
@@ -73,17 +73,17 @@ Avoid positive use of:
 - D1: users, public links, aggregate statistics
 - KV: best-effort routing/cache only
 - Durable Objects (SQLite):
-  - `UserStateDurableObjectV4`
-  - `TelegramOutboxDurableObjectV4`
-  - `TicketVaultDurableObjectV4`
-  - `SafetyStateDurableObjectV4`
-  - `ProfileVaultShardDurableObjectV2`
-  - `ConversationVaultShardDurableObjectV2`
-  - `PairLedgerShardDurableObjectV2`
+  - `UserStateDurableObject`
+  - `TelegramOutboxDurableObject`
+  - `TicketVaultDurableObject`
+  - `SafetyStateDurableObject`
+  - `ProfileVaultShardDurableObject`
+  - `ConversationVaultShardDurableObject`
+  - `PairLedgerShardDurableObject`
 - Queues: `neko-outbox`, `neko-stats`, `neko-profile-index`
 - Vectorize: `CONVERSATION_VECTORS`, 8-dimensional controlled vectors
 - Web Crypto: HMAC, HKDF-SHA-256, AES-256-GCM
-- no Workers AI in Conversation Suggestions V2
+- no Workers AI in Conversation Suggestions
 
 ## Repository shape
 
@@ -114,7 +114,7 @@ docs/
   development.md
 ```
 
-Do not invent old files such as `src/types.ts`, `src/status.ts`, `ReportLedgerDO`, inbox pagination handlers, or V1 assessment/matching paths.
+Do not invent old files, retired safety ledgers, inbox pagination handlers, or retired assessment/matching paths.
 
 ## Worker and routing rules
 
@@ -168,11 +168,11 @@ Do not replace these with direct account ids or a shared global relationship key
 
 ## Conversation Suggestions invariants
 
-- profile version `v2`, 25 questions, 8 dimensions;
+- profile version `current`, 25 questions, 8 dimensions;
 - raw answers stay encrypted in active UserState session and are deleted after finalization;
 - finalized profile is encrypted in ProfileVault;
 - two controlled 8-dimensional Vectorize projections;
-- no D1 profile/request/pair graph and no D1 candidate fallback;
+- no D1 profile/request/pair graph and no D1 candidate retrieval path;
 - no Workers AI;
 - final ranking is deterministic TypeScript;
 - discoverability is explicit and off by default;

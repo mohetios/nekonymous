@@ -58,7 +58,7 @@ Unknown HTTP routes return `404`. Unknown queue names fail explicitly.
 | UserState DO | recipient-local unread queue, drafts, blocks, labels, rate limits, active profile session, discoverability and exposure state | global user database or plaintext inbox |
 | TicketVault DO | encrypted route, payload, metadata, owner proof, ticket lifecycle | plaintext message table or per-user index |
 | SafetyState DO | blind report events and sanction state for one abuse subject | reversible reporter/subject graph |
-| ProfileVault DO | encrypted finalized profile and index routing state | D1-compatible profile graph |
+| ProfileVault DO | encrypted finalized profile and index routing state | D1-fit profile graph |
 | ConversationVault DO | sealed suggestions, sealed requests, encrypted request intros | public relationship table |
 | PairLedger DO | blind pair locks, blocks, cooldowns, exposure state | reversible pair directory |
 | TelegramOutbox DO | per-chat paced, idempotent Telegram delivery with leases | unbounded delivery history |
@@ -269,7 +269,7 @@ The owner proof includes the internal account id, so old ticket actions stop wor
 
 ## Statistics
 
-Product events are best-effort Queue messages aggregated into D1 daily tables. Statistics do not scan TicketVault, UserState, ConversationVault, PairLedger, or SafetyState.
+Product events are best-effort Queue messages aggregated into D1 daily tables. Every stats Queue event carries an event id; the consumer records a 35-day D1 receipt before applying counters so at-least-once Queue retries do not double-count accepted events. Statistics do not scan TicketVault, UserState, ConversationVault, PairLedger, or SafetyState.
 
 Public statistics contain aggregate counts only. They do not expose top users, per-link activity, message bodies, ticket details, or timelines.
 

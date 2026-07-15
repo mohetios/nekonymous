@@ -8,7 +8,7 @@ import {
   restoreMainMenu,
 } from "../../bot/input-navigation";
 import { handleMainMenuCommand } from "../../bot/menu";
-import type { NekoContext } from "../../bot/context";
+import { getResolvedUser, type NekoContext } from "../../bot/context";
 import { logBotError, logBotTiming } from "../../utils/logs";
 import {
   HuhMessage,
@@ -28,7 +28,7 @@ import {
   USER_IS_BLOCKED_MESSAGE,
   WelcomeMessage,
 } from "../../i18n/messages";
-import { PEER_USER_FALLBACK } from "../../i18n/defaults";
+import { PEER_USER_DEFAULT } from "../../i18n/defaults";
 import {
   ContactLabelLimitError,
   sanitizeNickname,
@@ -43,7 +43,6 @@ import { enqueueInboxNotification } from "./inbox-notification";
 import {
   getActiveSlugForUser,
   getUserByPublicSlug,
-  resolveOrCreateUser,
   toBotUser,
   getUserById,
 } from "../identity/identity-service";
@@ -93,7 +92,7 @@ export const handleStartCommand = async (
   }
 
   try {
-    const d1User = await resolveOrCreateUser(ctx, env);
+    const d1User = await getResolvedUser(ctx, env);
     const user = await toBotUser(d1User, env);
 
     if (!ctx.match) {
@@ -144,7 +143,7 @@ export const handleStartCommand = async (
       await ctx.reply(
         RECIPIENT_PAUSED_MESSAGE.replace(
           "USER_NAME",
-          escapeHtml(publicDisplayName(recipient, PEER_USER_FALLBACK))
+          escapeHtml(publicDisplayName(recipient, PEER_USER_DEFAULT))
         ),
         withHtml()
       );
@@ -189,7 +188,7 @@ export const handleMessage = async (
 
   const startedAt = Date.now();
   try {
-    const d1User = await resolveOrCreateUser(ctx, env);
+    const d1User = await getResolvedUser(ctx, env);
     const afterIdentity = Date.now();
     const draft = await getDraft(env, d1User.id);
     const afterDraft = Date.now();
@@ -318,7 +317,9 @@ export const handleMessage = async (
       if (!hasDeliverablePayload(payload)) {
         await ctx.reply(UnsupportedMessageTypeMessage, {
           reply_markup: draftKeyboard,
-          reply_to_message_id: draft?.parent_message_id,
+          ...(draft?.parent_message_id !== undefined
+            ? { reply_to_message_id: draft.parent_message_id }
+            : {}),
         });
         return;
       }
@@ -330,7 +331,9 @@ export const handleMessage = async (
         payload,
         linkSlug,
         isThreadReply,
-        replyToMessageId: draft?.reply_to_message_id,
+        ...(draft?.reply_to_message_id !== undefined
+          ? { replyToMessageId: draft.reply_to_message_id }
+          : {}),
       });
       const afterSeal = Date.now();
 
@@ -344,7 +347,7 @@ export const handleMessage = async (
           await ctx.reply(
             RECIPIENT_PAUSED_MESSAGE.replace(
               "USER_NAME",
-              escapeHtml(PEER_USER_FALLBACK)
+              escapeHtml(PEER_USER_DEFAULT)
             ),
             withHtml({ reply_markup: mainMenu })
           );
@@ -357,7 +360,9 @@ export const handleMessage = async (
             : HuhMessage,
           {
             reply_markup: draftKeyboard,
-            reply_to_message_id: draft?.parent_message_id,
+            ...(draft?.parent_message_id !== undefined
+              ? { reply_to_message_id: draft.parent_message_id }
+              : {}),
           }
         );
         return;
@@ -366,8 +371,10 @@ export const handleMessage = async (
       const sentMessage =
         draft?.mode === "reply" ? REPLY_SENT_MESSAGE : MESSAGE_SENT_MESSAGE;
       await replyHtml(ctx, sentMessage, {
-        reply_to_message_id: draft?.parent_message_id,
         reply_markup: mainMenu,
+        ...(draft?.parent_message_id !== undefined
+          ? { reply_to_message_id: draft.parent_message_id }
+          : {}),
       });
       const afterAck = Date.now();
 

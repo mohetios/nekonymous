@@ -1,5 +1,5 @@
 import type { Environment } from "../contracts/runtime";
-import type { StatsEventName } from "./events";
+import type { StatsEventName } from "../contracts/stats/events";
 
 const safeStatKey = (statKey?: string): string | undefined => {
   if (!statKey) {
@@ -27,15 +27,16 @@ export const emitStat = async (
       ? Math.max(1, Math.floor(options.count))
       : 1;
   try {
+    const statKey = safeStatKey(options?.statKey);
+    const uniqueHash = safeUniqueHash(options?.uniqueHash);
     await env.NEKO_STATS_QUEUE.send(
       {
+        eventId: crypto.randomUUID(),
         eventName,
         at: options?.at ?? Date.now(),
         count,
-        ...(safeStatKey(options?.statKey) ? { statKey: safeStatKey(options?.statKey) } : {}),
-        ...(safeUniqueHash(options?.uniqueHash)
-          ? { uniqueHash: safeUniqueHash(options?.uniqueHash) }
-          : {}),
+        ...(statKey ? { statKey } : {}),
+        ...(uniqueHash ? { uniqueHash } : {}),
       },
       { contentType: "json" }
     );

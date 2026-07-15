@@ -1,10 +1,10 @@
 import type { Context } from "grammy";
 import type { Environment } from "../../../contracts/runtime";
+import { getResolvedUser } from "../../../bot/context";
 import { renderScreen } from "../../../bot/render-screen";
 import { formatSuggestionHubMessage } from "../../../i18n/matching";
 import { buildSuggestionHubKeyboard } from "./keyboards";
 import { buildSuggestionHubView } from "./hub-state.ts";
-import { resolveOrCreateUser } from "../../identity/identity-service";
 
 export const renderSuggestionHub = async (
   ctx: Context,
@@ -12,7 +12,7 @@ export const renderSuggestionHub = async (
   _telegramUserId: string,
   renderOptions?: { skipAnswer?: boolean }
 ): Promise<void> => {
-  const user = await resolveOrCreateUser(ctx, env);
+  const user = await getResolvedUser(ctx, env);
   const view = await buildSuggestionHubView(env, user.id);
 
   await renderScreen(

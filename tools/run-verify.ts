@@ -23,7 +23,7 @@ const CORE_SUITES = [
 ] as const;
 
 const CONVERSATION_SUITES = [
-  "verify-conversation-v2-resources.ts",
+  "verify-conversation-resources.ts",
   "verify-conversation-capabilities.ts",
   "verify-conversation-storage-leak.ts",
   "verify-conversation-profile.ts",

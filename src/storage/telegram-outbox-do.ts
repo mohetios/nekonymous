@@ -505,11 +505,11 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
   private toTelegramError(
     httpStatus: number,
     body: TelegramApiResponse,
-    fallback: string
+    defaultDescription: string
   ): TelegramApiError {
     const retryAfter = body.parameters?.retry_after;
     return new TelegramApiError(
-      body.description ?? fallback,
+      body.description ?? defaultDescription,
       isPermanentTelegramError(httpStatus, body.error_code),
       typeof retryAfter === "number" && Number.isFinite(retryAfter)
         ? Math.max(1, Math.ceil(retryAfter))
@@ -572,7 +572,7 @@ export class TelegramOutboxDurableObject extends DurableObject<Environment> {
     }
   }
 
-  async alarm(): Promise<void> {
+  override async alarm(): Promise<void> {
     this.cleanupRetainedRows(Date.now());
     await this.scheduleCleanupAlarm();
   }

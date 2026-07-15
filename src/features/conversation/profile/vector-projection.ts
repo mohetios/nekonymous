@@ -42,4 +42,4 @@ export const projectDesiredVector = (profile: ConversationProfile): number[] =>
 export const namespaceFor = (
   role: VectorRouteRole,
   locale: ProfileLocale
-): string => `${role}-v2-${locale}`;
+): string => `${role}-${locale}`;

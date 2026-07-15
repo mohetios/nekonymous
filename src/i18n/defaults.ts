@@ -1,6 +1,5 @@
-/** Shared fallback display names and user-facing defaults. */
-
-export const DISPLAY_NAME_EMPTY = "بدون نام";
-export const DISPLAY_NAME_FALLBACK = "کاربر";
-export const DISPLAY_NAME_UNSET = "تنظیم نشده";
-export const PEER_USER_FALLBACK = "این فرستنده";
+/** Shared display names and user-facing defaults. */
+export const DISPLAY_NAME_EMPTY = "بی‌نام";
+export const DISPLAY_NAME_DEFAULT = "یک کاربر";
+export const DISPLAY_NAME_UNSET = "هنوز انتخاب نشده";
+export const PEER_USER_DEFAULT = "این فرستنده";

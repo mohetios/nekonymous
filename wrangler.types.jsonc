@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nekonymous",
   "main": "src/index.ts",
-  "compatibility_date": "2026-06-25",
+  "compatibility_date": "2026-07-15",
   "workers_dev": true,
   "placement": {
     "mode": "smart"
@@ -75,52 +75,52 @@
     "bindings": [
       {
         "name": "USER_STATE_DO",
-        "class_name": "UserStateDurableObjectV4"
+        "class_name": "UserStateDurableObject"
       },
       {
         "name": "TELEGRAM_OUTBOX_DO",
-        "class_name": "TelegramOutboxDurableObjectV4"
+        "class_name": "TelegramOutboxDurableObject"
       },
       {
         "name": "TICKET_VAULT",
-        "class_name": "TicketVaultDurableObjectV4"
+        "class_name": "TicketVaultDurableObject"
       },
       {
         "name": "SAFETY_STATE_DO",
-        "class_name": "SafetyStateDurableObjectV4"
+        "class_name": "SafetyStateDurableObject"
       },
       {
         "name": "PROFILE_VAULT_DO",
-        "class_name": "ProfileVaultShardDurableObjectV2"
+        "class_name": "ProfileVaultShardDurableObject"
       },
       {
         "name": "CONVERSATION_VAULT_DO",
-        "class_name": "ConversationVaultShardDurableObjectV2"
+        "class_name": "ConversationVaultShardDurableObject"
       },
       {
         "name": "PAIR_LEDGER_DO",
-        "class_name": "PairLedgerShardDurableObjectV2"
+        "class_name": "PairLedgerShardDurableObject"
       }
     ]
   },
   "migrations": [
     {
-      "tag": "vitest-sqlite-durable-objects",
+      "tag": "test-durable-objects",
       "new_sqlite_classes": [
-        "UserStateDurableObjectV4",
-        "TelegramOutboxDurableObjectV4",
-        "TicketVaultDurableObjectV4",
-        "SafetyStateDurableObjectV4",
-        "ProfileVaultShardDurableObjectV2",
-        "ConversationVaultShardDurableObjectV2",
-        "PairLedgerShardDurableObjectV2"
+        "UserStateDurableObject",
+        "TelegramOutboxDurableObject",
+        "TicketVaultDurableObject",
+        "SafetyStateDurableObject",
+        "ProfileVaultShardDurableObject",
+        "ConversationVaultShardDurableObject",
+        "PairLedgerShardDurableObject"
       ]
     }
   ],
   "vectorize": [
     {
       "binding": "CONVERSATION_VECTORS",
-      "index_name": "nekonymous-conversation-v2"
+      "index_name": "nekonymous-conversation"
     }
   ]
 }

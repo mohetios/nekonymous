@@ -10,7 +10,7 @@
 - Telegram bot token from BotFather;
 - Cloudflare Workers, D1, KV, Durable Objects, Queues, and Vectorize.
 
-Workers AI is not required by Conversation Suggestions V2.
+Workers AI is not required by Conversation Suggestions.
 
 ## Install
 
@@ -55,17 +55,17 @@ Current runtime bindings:
 |---|---|
 | `DB` | D1 `nekonymous_core` |
 | `NEKO_KV` | routing/cache KV |
-| `USER_STATE_DO` | `UserStateDurableObjectV4` |
-| `TELEGRAM_OUTBOX_DO` | `TelegramOutboxDurableObjectV4` |
-| `TICKET_VAULT` | `TicketVaultDurableObjectV4` |
-| `SAFETY_STATE_DO` | `SafetyStateDurableObjectV4` |
-| `PROFILE_VAULT_DO` | `ProfileVaultShardDurableObjectV2` |
-| `CONVERSATION_VAULT_DO` | `ConversationVaultShardDurableObjectV2` |
-| `PAIR_LEDGER_DO` | `PairLedgerShardDurableObjectV2` |
+| `USER_STATE_DO` | `UserStateDurableObject` |
+| `TELEGRAM_OUTBOX_DO` | `TelegramOutboxDurableObject` |
+| `TICKET_VAULT` | `TicketVaultDurableObject` |
+| `SAFETY_STATE_DO` | `SafetyStateDurableObject` |
+| `PROFILE_VAULT_DO` | `ProfileVaultShardDurableObject` |
+| `CONVERSATION_VAULT_DO` | `ConversationVaultShardDurableObject` |
+| `PAIR_LEDGER_DO` | `PairLedgerShardDurableObject` |
 | `NEKO_OUTBOX_QUEUE` | `neko-outbox` |
 | `NEKO_STATS_QUEUE` | `neko-stats` |
 | `NEKO_PROFILE_INDEX_QUEUE` | `neko-profile-index` |
-| `CONVERSATION_VECTORS` | `nekonymous-conversation-v2` |
+| `CONVERSATION_VECTORS` | `nekonymous-conversation` |
 
 The committed `wrangler.jsonc` includes deployment-specific ids. For another Cloudflare account, start from `wrangler.jsonc.example` and replace resource identifiers deliberately.
 
@@ -99,7 +99,7 @@ Review every remote migration before applying it.
 
 `wrangler.jsonc` contains historical migration tags required by already deployed environments. Do not reorder, rename, or rewrite applied tags.
 
-The `v11-safety-state-replace-report-ledger-v4` tag exists for remotes that previously created `ReportLedgerDurableObjectV4`. Fresh environments may already create `SafetyStateDurableObjectV4` in the rewritten `v9` chain. Validate first-time deploys and existing remote histories separately.
+The public-release Durable Object migration creates the current storage classes for fresh deployments. Inspect remote state before resetting production resources.
 
 Before changing DO migration history:
 
@@ -111,10 +111,10 @@ wrangler deploy --dry-run
 
 Never assume a fresh environment and an existing production environment need the same history edit.
 
-## Conversation V2 resources
+## Conversation resources
 
 ```bash
-./tools/setup-conversation-v2-resources.sh
+./tools/setup-conversation-resources.sh
 ```
 
 Review the script and target account before running it. It can create or modify remote resources.
@@ -219,6 +219,8 @@ wrangler tail
 ```
 
 Observe webhook timing, Queue consumers, Outbox retry/rejection, and Durable Object failures without logging message bodies or identifiers.
+
+Stats Queue events are at-least-once. Each event includes a 35-day idempotency receipt in D1 so retry after a successful counter write does not increment the public aggregate twice.
 
 ## Safe observability
 

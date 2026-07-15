@@ -7,7 +7,7 @@ import type {
   UnreadSummary,
 } from "../contracts/inbox/model";
 import { resolveProcessedEventClaim } from "./processed-events-policy";
-import { INBOX_MAX_UNREAD } from "../features/ticketing/inbox-constants";
+import { INBOX_MAX_UNREAD } from "../contracts/inbox/constants";
 
 const INBOX_CLEANUP_LIMIT = 10;
 const UNREAD_DELIVERY_LEASE_MS = 60 * 1000;
@@ -101,9 +101,11 @@ const rowToDraft = (row: DraftRow): UserDraft => ({
   ...(row.pending_nickname_contact_tag
     ? { pendingNicknameContactTag: row.pending_nickname_contact_tag }
     : {}),
-  ...(row.pending_settings
+  ...(row.pending_settings !== null
     ? {
-        pendingSettings: row.pending_settings as UserDraft["pendingSettings"],
+        pendingSettings: row.pending_settings as NonNullable<
+          UserDraft["pendingSettings"]
+        >,
       }
     : {}),
   ...(row.expires_at !== null ? { expiresAt: row.expires_at } : {}),
@@ -142,7 +144,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       CREATE TABLE IF NOT EXISTS user_state (
         user_id TEXT PRIMARY KEY,
         locale TEXT NOT NULL DEFAULT 'fa',
-        locale_source TEXT NOT NULL DEFAULT 'fallback',
+        locale_source TEXT NOT NULL DEFAULT 'default',
         onboarding_completed INTEGER NOT NULL DEFAULT 0,
         paused INTEGER NOT NULL DEFAULT 0,
         display_name_ciphertext TEXT,
@@ -223,11 +225,11 @@ export class UserStateDurableObject extends DurableObject<Environment> {
        ON processed_events(status, lease_until)`
     );
 
-    this.ensureConversationV2UserStateSchema();
+    this.ensureConversationUserStateSchema();
     this.dropRemovedNotificationCycleTable();
   }
 
-  private ensureConversationV2UserStateSchema(): void {
+  private ensureConversationUserStateSchema(): void {
     const applied = this.ctx.storage.sql
       .exec<{ id: number }>(
         "SELECT id FROM _sql_schema_migrations WHERE id = 2 LIMIT 1"
@@ -366,7 +368,7 @@ export class UserStateDurableObject extends DurableObject<Environment> {
       profileCapabilityEnc: state.profile_capability_enc,
       draft: draftRows[0] ? rowToDraft(draftRows[0]) : null,
       blockTags: blocks,
-      lastMessageAt: rateRow?.last_at,
+      ...(rateRow?.last_at !== undefined ? { lastMessageAt: rateRow.last_at } : {}),
     };
   }
 

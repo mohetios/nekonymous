@@ -337,8 +337,8 @@ describe("TicketVault typed RPC", () => {
     const input = {
       ticketHash,
       ownerProofTag: "owner-proof-tag-12345678",
-      routeEnc: "route-ciphertext-v1",
-      payloadEnc: "payload-ciphertext-v1",
+      routeEnc: "route-ciphertext-current",
+      payloadEnc: "payload-ciphertext-current",
       createdAt: now,
       expiresAt: now + 60_000,
     };
@@ -348,8 +348,8 @@ describe("TicketVault typed RPC", () => {
 
     const second = await stub.storeTicket({
       ...input,
-      routeEnc: "route-ciphertext-v2",
-      payloadEnc: "payload-ciphertext-v2",
+      routeEnc: "route-ciphertext-current",
+      payloadEnc: "payload-ciphertext-current",
     });
     expect(second.status).toBe("existing");
 
@@ -361,8 +361,8 @@ describe("TicketVault typed RPC", () => {
     const loaded = await stub.getTicket(ticketHash);
     expect(loaded.status).toBe("found");
     if (loaded.status === "found") {
-      expect(loaded.record.routeEnc).toBe("route-ciphertext-v1");
-      expect(loaded.record.payloadEnc).toBe("payload-ciphertext-v1");
+      expect(loaded.record.routeEnc).toBe("route-ciphertext-current");
+      expect(loaded.record.payloadEnc).toBe("payload-ciphertext-current");
     }
   });
 

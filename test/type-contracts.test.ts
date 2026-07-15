@@ -14,7 +14,6 @@ import type {
   TicketHash,
   UnixMillis,
 } from "../src/contracts/primitives";
-import type { SafetyDecision } from "../src/contracts/safety/model";
 
 declare const contactTag: ContactTag;
 declare const blockTag: BlockTag;
@@ -37,7 +36,7 @@ describe("canonical type contracts", () => {
   });
 });
 
-const runCompileTimeChecks = (): void => {
+const _runCompileTimeChecks = (): void => {
   acceptBlockTag(blockTag);
   acceptAbuseSubjectTag(abuseSubjectTag);
   acceptEncodedCapability(encodedCapability);

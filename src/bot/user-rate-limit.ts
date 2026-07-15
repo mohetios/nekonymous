@@ -4,10 +4,12 @@ import { resolveOrCreateUser } from "../features/identity/identity-service";
 import {
   RATE_LIMIT_CALLBACK_ALERT,
   RATE_LIMIT_MESSAGE,
+  HuhMessage,
 } from "../i18n/messages";
 import { consumeUserRateLimit } from "../storage/user-state-client";
 import { emitUserActive } from "../stats/emit-user-active";
-import { type NekoContext } from "./context";
+import { logBotError } from "../utils/logs";
+import { setResolvedUser, type NekoContext } from "./context";
 
 const isUserInputUpdate = (ctx: Context): boolean =>
   ctx.message !== undefined || ctx.callbackQuery !== undefined;
@@ -26,8 +28,10 @@ export const createUserRateLimitMiddleware =
       const user = await resolveOrCreateUser(ctx, env);
       userId = user.id;
       actorHash = user.telegram_user_hash;
-    } catch {
-      await next();
+      setResolvedUser(ctx, user);
+    } catch (error) {
+      logBotError("rate-limit:identity", error, { retryable: true });
+      await replyTemporarilyUnavailable(ctx);
       return;
     }
 
@@ -53,5 +57,19 @@ const replyRateLimited = async (ctx: Context): Promise<void> => {
 
   if (ctx.message) {
     await ctx.reply(RATE_LIMIT_MESSAGE);
+  }
+};
+
+const replyTemporarilyUnavailable = async (ctx: Context): Promise<void> => {
+  if (ctx.callbackQuery) {
+    await ctx.answerCallbackQuery({
+      text: HuhMessage,
+      show_alert: false,
+    });
+    return;
+  }
+
+  if (ctx.message) {
+    await ctx.reply(HuhMessage);
   }
 };

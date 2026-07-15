@@ -1,6 +1,7 @@
 import type { Context } from "grammy";
 import type { BotUser } from "../../contracts/identity/model";
 import type { Environment } from "../../contracts/runtime";
+import { getResolvedUser } from "../../bot/context";
 import { mainMenu } from "../../bot/keyboards";
 import {
   buildDraftCancelKeyboard,
@@ -41,7 +42,6 @@ import {
 } from "../../features/identity/user";
 import {
   clearUserAccountAndRecreate,
-  resolveOrCreateUser,
   toBotUser,
 } from "../identity/identity-service";
 import { encryptDisplayName } from "../ticketing/ticketing-service";
@@ -82,7 +82,7 @@ export const handleSettingsCommand = async (
   }
 
   try {
-    const d1User = await resolveOrCreateUser(ctx, env);
+    const d1User = await getResolvedUser(ctx, env);
     const user = await toBotUser(d1User, env);
     await renderSettingsHome(ctx, user);
   } catch (error) {
@@ -188,7 +188,7 @@ export const handleSettingsCallback = async (
   }
 
   try {
-    const d1User = await resolveOrCreateUser(ctx, env);
+    const d1User = await getResolvedUser(ctx, env);
     const user = await toBotUser(d1User, env);
 
     if (data === SETTINGS_CALLBACK.home) {

@@ -1,5 +1,4 @@
 /** Reply-keyboard and inline button labels shown in Telegram UI. */
-
 export const MENU = {
   link: "🔗 لینک من",
   inbox: "📥 صندوق پیام‌ها",
@@ -35,10 +34,10 @@ export const INPUT_PLACEHOLDERS = {
 
 export const BOT_COMMAND_DESCRIPTIONS = {
   start: "شروع و دریافت لینک پیام ناشناس",
-  inbox: "باز کردن صندوق پیام‌ها",
+  inbox: "دیدن صندوق پیام‌ها",
   settings: "تنظیمات و حریم خصوصی",
   assessment: "ارزیابی سبک گفت‌وگو",
-  match: "پیشنهاد گفت‌وگو",
+  match: "پیشنهادهای گفت‌وگو",
 } as const;
 
 export const BACK_BUTTON = {
@@ -48,7 +47,7 @@ export const BACK_BUTTON = {
 
 /** Inline-only confirmation labels (never on reply keyboard). */
 export const CONFIRM_BUTTON = {
-  yesDelete: "بله، حسابم رو پاک کن",
+  yesDelete: "بله، حسابم پاک بشه",
   confirmClearBlocks: "رفع همه‌ی مسدودی‌ها",
   confirmResetMatch: "بازنشانی پیشنهادها",
   cancel: "↩️ لغو",
@@ -63,11 +62,11 @@ export const INBOX_BUTTON = {
 } as const;
 
 /** Inbox notification CTA — delivers current unread via ib:d. */
-export const DELIVER_INBOX_BUTTON = "📥 تحویل نامه‌ها";
+export const DELIVER_INBOX_BUTTON = "📥 دیدن پیام‌های تازه";
 
 /** Prefix for delivered anonymous messages (nickname inserted). */
 export const DELIVERY_HEADER_FROM = (nickname: string): string =>
-  `💬 پیام از ${nickname}:`;
+  `پیام ناشناس از ${nickname}:`;
 
 const MAIN_MENU_LABELS = new Set<string>([
   MENU.link,
@@ -76,8 +75,7 @@ const MAIN_MENU_LABELS = new Set<string>([
   MENU.settings,
 ]);
 
-export const isMainMenuLabel = (text: string): boolean =>
-  MAIN_MENU_LABELS.has(text);
+export const isMainMenuLabel = (text: string): boolean => MAIN_MENU_LABELS.has(text);
 
 export const MATCH_BUTTON = {
   search: "🔎 دیدن پیشنهادها",
@@ -109,5 +107,6 @@ export const isReservedDisplayName = (text: string): boolean => {
   if (!trimmed) {
     return true;
   }
+
   return trimmed.startsWith("/");
 };

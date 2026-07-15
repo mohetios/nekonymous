@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import type { Environment } from "../../contracts/runtime";
+import { getResolvedUser } from "../../bot/context";
 import { createMessageKeyboard } from "../../bot/keyboards";
 import {
   buildDraftCancelKeyboard,
@@ -24,7 +25,6 @@ import {
 import {
   getActiveSlugForUser,
   getUserByTelegramHash,
-  resolveOrCreateUser,
   toBotUser,
 } from "../identity/identity-service";
 import {
@@ -78,7 +78,7 @@ export const handleReplyAction = async (
   }
 
   try {
-    const d1User = await resolveOrCreateUser(ctx, env);
+    const d1User = await getResolvedUser(ctx, env);
     const user = await toBotUser(d1User, env);
     const resolved = await loadAction(
       ctx,
@@ -140,7 +140,9 @@ export const handleReplyAction = async (
       toUserId: senderD1.id,
       linkSlug: senderSlug,
       parent_message_id: callbackMessageId,
-      reply_to_message_id: resolved.route.parentMessageId,
+      ...(resolved.route.parentMessageId !== undefined
+        ? { reply_to_message_id: resolved.route.parentMessageId }
+        : {}),
     });
 
     const replyPrompt = senderLabel
@@ -170,7 +172,7 @@ export const handleBlockAction = async (
   }
 
   try {
-    const d1User = await resolveOrCreateUser(ctx, env);
+    const d1User = await getResolvedUser(ctx, env);
     const user = await toBotUser(d1User, env);
     const resolved = await loadAction(
       ctx,
@@ -227,7 +229,7 @@ export const handleUnblockAction = async (
   }
 
   try {
-    const d1User = await resolveOrCreateUser(ctx, env);
+    const d1User = await getResolvedUser(ctx, env);
     const user = await toBotUser(d1User, env);
     const resolved = await loadAction(
       ctx,
@@ -286,7 +288,7 @@ export const handleNicknameAction = async (
   }
 
   try {
-    const d1User = await resolveOrCreateUser(ctx, env);
+    const d1User = await getResolvedUser(ctx, env);
     const user = await toBotUser(d1User, env);
     const resolved = await loadAction(
       ctx,
@@ -341,7 +343,7 @@ export const handleReportAction = async (
   }
 
   try {
-    const d1User = await resolveOrCreateUser(ctx, env);
+    const d1User = await getResolvedUser(ctx, env);
     const resolved = await loadAction(
       ctx,
       env,

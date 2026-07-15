@@ -12,6 +12,7 @@ import {
   getContactLabelCiphertext,
   setContactLabel as setLabelInDo,
 } from "../../storage/user-state-client";
+import { stripControlCharacters, truncateGraphemes } from "../../utils/text";
 
 export const NICKNAME_MAX_LENGTH = 32;
 export const NICKNAME_DRAFT_TTL = 10 * 60 * 1000;
@@ -23,12 +24,12 @@ export {
 };
 
 export const sanitizeNickname = (input: string): string => {
-  const cleaned = input.replace(/[\u0000-\u001F\u007F]/g, "").trim();
+  const cleaned = stripControlCharacters(input).trim();
   if (!cleaned || cleaned === "-" || cleaned === "−" || cleaned === "حذف") {
     return "";
   }
 
-  return [...cleaned].slice(0, NICKNAME_MAX_LENGTH).join("");
+  return truncateGraphemes(cleaned, NICKNAME_MAX_LENGTH);
 };
 
 /** Decrypt a single contact nickname; never bulk-loads all labels. */

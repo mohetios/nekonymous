@@ -1,4 +1,4 @@
--- Nekonymous V2 core schema (identity + aggregate stats only)
+-- Nekonymous public core schema (identity + aggregate stats only)
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   telegram_chat_ciphertext TEXT NOT NULL,
 
   locale TEXT NOT NULL DEFAULT 'fa',
-  locale_source TEXT NOT NULL DEFAULT 'fallback',
+  locale_source TEXT NOT NULL DEFAULT 'default',
   onboarding_completed INTEGER NOT NULL DEFAULT 0,
 
   status TEXT NOT NULL DEFAULT 'active',
@@ -59,8 +59,18 @@ CREATE TABLE IF NOT EXISTS platform_daily_unique_stats (
   PRIMARY KEY (day, event_name, unique_hash)
 );
 
+CREATE TABLE IF NOT EXISTS platform_stats_event_receipts (
+  event_id TEXT PRIMARY KEY,
+  day TEXT NOT NULL,
+  event_name TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_platform_daily_stats_day_event
 ON platform_daily_stats (day, event_name);
 
 CREATE INDEX IF NOT EXISTS idx_platform_daily_unique_day_event
 ON platform_daily_unique_stats (day, event_name);
+
+CREATE INDEX IF NOT EXISTS idx_platform_stats_event_receipts_day_created
+ON platform_stats_event_receipts (day, created_at);

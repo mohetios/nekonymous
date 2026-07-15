@@ -2,7 +2,7 @@
 
 This directory is retained only so old links do not fail.
 
-There is no second or legacy architecture specification here. Current documentation lives in:
+There is one architecture specification here. Current documentation lives in:
 
 - [`../architecture.md`](../architecture.md)
 - [`../sealed-ticketing.md`](../sealed-ticketing.md)

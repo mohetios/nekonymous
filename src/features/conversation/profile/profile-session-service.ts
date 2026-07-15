@@ -18,7 +18,7 @@ import { PROFILE_QUESTIONS } from "./question-bank.ts";
 import { countAnsweredQuestions, hasCompleteAnswers } from "./validation.ts";
 import type { ProfileAnswers, ProfileSession, ProfileSessionStatus, ConversationIntent } from "../../../contracts/conversation/profile";
 
-const sessionScope = (userId: string): string => `profile-session:v2:${userId}`;
+const sessionScope = (userId: string): string => `profile-session:${userId}`;
 
 const encryptAnswers = async (
   userId: string,

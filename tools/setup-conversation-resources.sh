@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Idempotent Cloudflare Vectorize setup for Conversation Suggestions V2.
+# Idempotent Cloudflare Vectorize setup for Conversation Suggestions.
 #
 # Creates the conversation profile Vectorize index when missing. Safe to re-run.
 # Requires: wrangler auth, project wrangler.jsonc bindings.
 #
 # Usage:
-#   ./tools/setup-conversation-v2-resources.sh
+#   ./tools/setup-conversation-resources.sh
 #
 # Queue setup lives in ./tools/setup-queues.sh.
 
@@ -15,7 +15,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 WRANGLER=(pnpm exec wrangler)
-VECTOR_INDEX="nekonymous-conversation-v2"
+VECTOR_INDEX="nekonymous-conversation"
 VECTOR_DIM=32
 VECTOR_METRIC="euclidean"
 
@@ -23,7 +23,7 @@ vector_exists() {
   "${WRANGLER[@]}" vectorize get "$VECTOR_INDEX" >/dev/null 2>&1
 }
 
-echo "Nekonymous Conversation V2 vector setup"
+echo "Nekonymous Conversation vector setup"
 echo
 
 if vector_exists; then

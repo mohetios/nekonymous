@@ -304,7 +304,7 @@ export class TicketVaultDurableObject extends DurableObject<Environment> {
     await this.scheduleNextExpiryAlarm();
   }
 
-  async alarm(): Promise<void> {
+  override async alarm(): Promise<void> {
     this.expireDueTickets();
     await this.scheduleNextExpiryAlarm();
   }

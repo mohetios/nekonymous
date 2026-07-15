@@ -117,7 +117,9 @@ export const createSealedTicket = async (
       maxChars: 4096,
     },
     parentMessageId: input.payload.telegramMessageId,
-    replyToMessageId: input.isThreadReply ? input.replyToMessageId : undefined,
+    ...(input.isThreadReply && input.replyToMessageId !== undefined
+      ? { replyToMessageId: input.replyToMessageId }
+      : {}),
   };
   const meta = {
     displayNumber: displayNumberForTicketHash(ticketHash),
@@ -210,7 +212,7 @@ export const createSealedTicket = async (
       return {
         ok: false,
         status: inboxResult.status,
-        reason: inboxResult.status === 429 ? "full" : undefined,
+        ...(inboxResult.status === 429 ? { reason: "full" as const } : {}),
       };
     }
 
@@ -221,8 +223,10 @@ export const createSealedTicket = async (
         ok: true,
         status: 200,
         duplicate: true,
-        pendingCount: inboxResult.unreadCount,
         ticketHash,
+        ...(inboxResult.unreadCount !== undefined
+          ? { pendingCount: inboxResult.unreadCount }
+          : {}),
       };
     }
 

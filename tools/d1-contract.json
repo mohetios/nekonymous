@@ -4,7 +4,8 @@
     "public_links",
     "platform_daily_stats",
     "platform_daily_stats_by_key",
-    "platform_daily_unique_stats"
+    "platform_daily_unique_stats",
+    "platform_stats_event_receipts"
   ],
   "forbiddenTables": [
     "assessment_profiles",

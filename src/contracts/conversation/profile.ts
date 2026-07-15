@@ -1,4 +1,4 @@
-export type ProfileSchemaVersion = "v2";
+export type ProfileSchemaVersion = "current";
 
 export type ConversationDimension =
   | "depth"

@@ -55,9 +55,9 @@ perfect anonymity
 Telegram cannot see messages
 Worker cannot see messages
 fully private or guaranteed safe
-dating compatibility
+dating fit
 personality/clinical diagnosis
-exact compatibility percentage
+exact fit percentage
 ```
 
 ## Ticketing invariants
@@ -82,7 +82,7 @@ exact compatibility percentage
 pnpm install
 cp .env.example .dev.vars
 pnpm db:migrations:apply:local
-./tools/setup-conversation-v2-resources.sh
+./tools/setup-conversation-resources.sh
 pnpm check
 pnpm dev
 ```

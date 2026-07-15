@@ -7,15 +7,15 @@ const textEncoder = new TextEncoder();
 const CAPABILITY_REF_BYTES = 24;
 
 const LOOKUP_DOMAIN = {
-  profile: "conversation-v2:profile-lookup:v1:",
-  vector: "conversation-v2:vector-lookup:v1:",
-  indexJob: "conversation-v2:index-job-lookup:v1:",
-  suggestion: "conversation-v2:suggestion-lookup:v1:",
-  request: "conversation-v2:request-lookup:v1:",
+  profile: "conversation:profile-lookup:",
+  vector: "conversation:vector-lookup:",
+  indexJob: "conversation:index-job-lookup:",
+  suggestion: "conversation:suggestion-lookup:",
+  request: "conversation:request-lookup:",
 } as const;
 
 const OWNER_PROOF_KEY_INFO = textEncoder.encode(
-  "nekonymous:conversation-v2:owner-proof-key:v1"
+  "nekonymous:conversation:owner-proof-key"
 );
 
 const ownerProofSecretCache = new Map<string, string>();
@@ -43,17 +43,17 @@ const deriveOwnerProofSecret = async (appMasterKey: string): Promise<string> => 
 
 
 const AES_INFO = {
-  profile: textEncoder.encode("nekonymous:conversation-v2:profile-enc:v1"),
-  profileRoute: textEncoder.encode("nekonymous:conversation-v2:profile-route:v1"),
-  vectorRoute: textEncoder.encode("nekonymous:conversation-v2:vector-route:v1"),
-  indexJobRoute: textEncoder.encode("nekonymous:conversation-v2:index-job-route:v1"),
+  profile: textEncoder.encode("nekonymous:conversation:profile-enc"),
+  profileRoute: textEncoder.encode("nekonymous:conversation:profile-route"),
+  vectorRoute: textEncoder.encode("nekonymous:conversation:vector-route"),
+  indexJobRoute: textEncoder.encode("nekonymous:conversation:index-job-route"),
   suggestionRoute: textEncoder.encode(
-    "nekonymous:conversation-v2:suggestion-route:v1"
+    "nekonymous:conversation:suggestion-route"
   ),
-  requestRoute: textEncoder.encode("nekonymous:conversation-v2:request-route:v1"),
-  requestIntro: textEncoder.encode("nekonymous:conversation-v2:request-intro:v1"),
+  requestRoute: textEncoder.encode("nekonymous:conversation:request-route"),
+  requestIntro: textEncoder.encode("nekonymous:conversation:request-intro"),
   suggestionExplanation: textEncoder.encode(
-    "nekonymous:conversation-v2:suggestion-explanation:v1"
+    "nekonymous:conversation:suggestion-explanation"
   ),
 } as const;
 
@@ -150,11 +150,11 @@ export const createRequestLookupHash = (
 ): Promise<string> => createLookupHash(appMasterKey, "request", requestRef);
 
 const PAIR_TAG_KEY_INFO = textEncoder.encode(
-  "nekonymous:conversation-v2:pair-tag-key:v1"
+  "nekonymous:conversation:pair-tag-key"
 );
 
 const EXPOSURE_KEY_INFO = textEncoder.encode(
-  "nekonymous:conversation-v2:exposure-token-key:v1"
+  "nekonymous:conversation:exposure-token-key"
 );
 
 const pairSecretCache = new Map<string, string>();
@@ -197,7 +197,7 @@ export const createConversationPairTag = async (
     PAIR_TAG_KEY_INFO,
     pairSecretCache
   );
-  return hmacBase64Url(secret, `conversation-v2:pair-tag:v1:${left}:${right}`);
+  return hmacBase64Url(secret, `conversation:pair-tag:${left}:${right}`);
 };
 
 export const createExposureTokenHash = async (
@@ -209,7 +209,7 @@ export const createExposureTokenHash = async (
     EXPOSURE_KEY_INFO,
     exposureSecretCache
   );
-  return hmacBase64Url(secret, `conversation-v2:exposure:v1:${pairTag}`);
+  return hmacBase64Url(secret, `conversation:exposure:${pairTag}`);
 };
 
 export const createConversationOwnerProofTag = async (
@@ -220,7 +220,7 @@ export const createConversationOwnerProofTag = async (
   const secret = await deriveOwnerProofSecret(appMasterKey);
   return hmacBase64Url(
     secret,
-    `conversation-v2:owner-proof:v1:${actorHash}:${recordHash}`
+    `conversation:owner-proof:${actorHash}:${recordHash}`
   );
 };
 
@@ -280,28 +280,28 @@ export const deriveSuggestionExplanationKey = (
   deriveRecordKey(appMasterKey, suggestionHash, AES_INFO.suggestionExplanation);
 
 export const profileEncAad = (profileHash: string): string =>
-  `conversation-v2:profile:v1:${profileHash}`;
+  `conversation:profile:${profileHash}`;
 
 export const profileRouteAad = (profileHash: string): string =>
-  `conversation-v2:profile-route:v1:${profileHash}`;
+  `conversation:profile-route:${profileHash}`;
 
 export const vectorRouteAad = (vectorHash: string): string =>
-  `conversation-v2:vector-route:v1:${vectorHash}`;
+  `conversation:vector-route:${vectorHash}`;
 
 export const indexJobRouteAad = (jobHash: string): string =>
-  `conversation-v2:index-job-route:v1:${jobHash}`;
+  `conversation:index-job-route:${jobHash}`;
 
 export const indexJobVectorsAad = (jobHash: string): string =>
-  `conversation-v2:index-job-vectors:v1:${jobHash}`;
+  `conversation:index-job-vectors:${jobHash}`;
 
 export const suggestionRouteAad = (suggestionHash: string): string =>
-  `conversation-v2:suggestion-route:v1:${suggestionHash}`;
+  `conversation:suggestion-route:${suggestionHash}`;
 
 export const requestRouteAad = (requestHash: string): string =>
-  `conversation-v2:request-route:v1:${requestHash}`;
+  `conversation:request-route:${requestHash}`;
 
 export const requestIntroAad = (requestHash: string): string =>
-  `conversation-v2:request-intro:v1:${requestHash}`;
+  `conversation:request-intro:${requestHash}`;
 
 export const suggestionExplanationAad = (suggestionHash: string): string =>
-  `conversation-v2:suggestion-explanation:v1:${suggestionHash}`;
+  `conversation:suggestion-explanation:${suggestionHash}`;

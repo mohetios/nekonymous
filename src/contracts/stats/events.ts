@@ -1,3 +1,6 @@
+// Queue contract for aggregate product statistics.
+// Producers emit this shape after durable product writes; the stats consumer
+// idempotently folds it into D1 using eventId as the delivery receipt key.
 export const STAT_EVENTS = {
   USER_CREATED: "user_created",
   USER_ACTIVE: "user_active",
@@ -39,6 +42,7 @@ export const STATS_EVENT_NAMES = Object.values(STAT_EVENTS) as [
 export type StatsEventName = (typeof STATS_EVENT_NAMES)[number];
 
 export type StatsEvent = {
+  eventId: string;
   eventName: StatsEventName;
   at: number;
   count?: number;

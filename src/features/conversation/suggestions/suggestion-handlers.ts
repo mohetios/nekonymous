@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import type { Environment } from "../../../contracts/runtime";
+import { getResolvedUser } from "../../../bot/context";
 import { mainMenu } from "../../../bot/keyboards";
 import {
   buildDraftCancelKeyboard,
@@ -39,7 +40,7 @@ import {
   setConversationDiscoverability,
 } from "../profile/profile-service";
 import { buildProfileSummaryText } from "../profile/profile-summary.ts";
-import { resolveOrCreateUser, getUserById } from "../../identity/identity-service";
+import { getUserById } from "../../identity/identity-service";
 import { setDraft } from "../../../storage/user-state-client";
 import { SUGGESTION_HUB_CALLBACK } from "./constants";
 import { buildSuggestionCandidateKeyboard } from "./keyboards";
@@ -187,7 +188,7 @@ export const handleMatchCallback = async (
   }
 
   try {
-    const user = await resolveOrCreateUser(ctx, env);
+    const user = await getResolvedUser(ctx, env);
     const actorHash = await hmacTelegramUserId(env.APP_HMAC_PEPPER, from.id);
 
     if (data === SUGGESTION_HUB_CALLBACK.search) {
@@ -322,7 +323,7 @@ export const handleSuggestionCallback = async (
     return;
   }
 
-  const user = await resolveOrCreateUser(ctx, env);
+  const user = await getResolvedUser(ctx, env);
   const prompt = await ctx.reply(
     MATCH_INTRO_PROMPT,
     withHtml({

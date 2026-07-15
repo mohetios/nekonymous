@@ -1,8 +1,8 @@
 # Conversation Suggestions
 
-**Status:** canonical specification for Conversation Suggestions V2.
+**Status:** canonical specification for Conversation Suggestions.
 
-Conversation Suggestions is an optional discovery system based on how users describe their own conversation style and what kind of conversation they currently want. It is not a personality test, psychological diagnosis, identity verifier, safety guarantee, dating system, or exact compatibility score.
+Conversation Suggestions is an optional discovery system based on how users describe their own conversation style and what kind of conversation they currently want. It is not a personality test, psychological diagnosis, identity verifier, safety guarantee, dating system, or exact fit score.
 
 ## Product loop
 
@@ -23,7 +23,7 @@ Completing a profile does not make the user discoverable. Discoverability is off
 ## Profile schema
 
 ```text
-version: v2
+version: current
 questions: 25
 dimensions: 8
 ```
@@ -90,7 +90,7 @@ A finalized profile has a monotonically increasing revision. Stale Queue work ca
 | PairLedger DO | blind pair locks, cooldowns, pair blocks, pair state | reversible pair members |
 | Profile-index Queue | action plus sealed index-job reference | profile JSON, user id, Telegram data |
 
-Vaults are sharded using bounded prefixes of blind lookup hashes. D1 is not a fallback profile or request database.
+Vaults are sharded using bounded prefixes of blind lookup hashes. D1 does not store profile or request records.
 
 ## Indexing
 
@@ -148,7 +148,7 @@ candidate self  ↔ requester desired
 
 The ranker uses dimension importance, no-preference flags, confidence/uncertainty, current intent, exposure fairness, freshness, and hard policy constraints.
 
-The product does not expose an exact compatibility percentage. Copy should describe current conversation options, not perfect matches.
+The product does not expose an exact fit percentage. Copy should describe current conversation options, not perfect matches.
 
 ## Suggestion lifecycle
 
@@ -249,7 +249,7 @@ Pair and request records follow bounded retention/cooldown rules and do not crea
 - ProfileVault resolution is batched and bounded;
 - final ranking is deterministic and CPU-bounded;
 - Queue payloads do not contain profile JSON;
-- no D1 candidate fallback or full vault scan;
+- no D1 candidate retrieval or full vault scan;
 - exposure and rate budgets are recipient-local or pair-local.
 
 ## Product language

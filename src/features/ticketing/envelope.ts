@@ -1,7 +1,7 @@
 import type { CipherEnvelope } from "../../contracts/crypto";
 import { decryptAesGcm, encryptAesGcm } from "./aes-gcm.ts";
 
-const DEFAULT_KID = "sealed:v1";
+const DEFAULT_KID = "sealed";
 
 const parseEnvelope = (wire: string): CipherEnvelope => {
   const parsed = JSON.parse(wire) as CipherEnvelope;

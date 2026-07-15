@@ -93,10 +93,10 @@ if (!noPrefDesired.every((value) => value === 0.5)) {
 }
 
 if (
-  namespaceFor("self", "fa") !== "self-v2-fa" ||
-  namespaceFor("desired", "fa") !== "desired-v2-fa" ||
-  namespaceFor("self", "en") !== "self-v2-en" ||
-  namespaceFor("desired", "en") !== "desired-v2-en"
+  namespaceFor("self", "fa") !== "self-fa" ||
+  namespaceFor("desired", "fa") !== "desired-fa" ||
+  namespaceFor("self", "en") !== "self-en" ||
+  namespaceFor("desired", "en") !== "desired-en"
 ) {
   fail("namespace mapping mismatch");
 }

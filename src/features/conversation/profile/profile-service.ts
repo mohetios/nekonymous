@@ -44,7 +44,7 @@ import {
   recordProfileIndexRequested,
 } from "../../../stats/product-events";
 
-const capabilityScope = (userId: string): string => `profile-capability:v2:${userId}`;
+const capabilityScope = (userId: string): string => `profile-capability:${userId}`;
 
 const encryptProfileRef = async (
   userId: string,

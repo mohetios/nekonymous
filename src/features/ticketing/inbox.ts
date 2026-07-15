@@ -2,6 +2,7 @@ import type { Context } from "grammy";
 import type { D1User } from "../../contracts/identity/model";
 import type { Environment } from "../../contracts/runtime";
 import type { MessagePayload } from "../../contracts/telegram/delivery";
+import { getResolvedUser } from "../../bot/context";
 import { createMessageKeyboard, mainMenu } from "../../bot/keyboards";
 import {
   HuhMessage,
@@ -9,10 +10,7 @@ import {
   INBOX_EMPTY_MESSAGE,
 } from "../../i18n/messages";
 import { logBotError } from "../../utils/logs";
-import {
-  getUserById,
-  resolveOrCreateUser,
-} from "../identity/identity-service";
+import { getUserById } from "../identity/identity-service";
 import { getContactLabel } from "./contact";
 import {
   deliveryContextFromResolvedTicket,
@@ -52,9 +50,9 @@ import {
   truncateUtf8,
 } from "../../bot/telegram-limits";
 
-/** V1 default: skip per-delivery seen receipts to limit TelegramOutbox load. */
+/** Product decision: skip per-delivery seen receipts to limit TelegramOutbox load. */
 const SEEN_RECEIPTS_ENABLED = false;
-import { INBOX_DELIVERY_LIMIT } from "./inbox-constants";
+import { INBOX_DELIVERY_LIMIT } from "../../contracts/inbox/constants";
 
 const textWithLabel = (
   payload: MessagePayload,
@@ -102,75 +100,123 @@ const deliveryJobForPayload = (
 
   switch (payload.message_type) {
     case "text":
+      if (!payload.message_text) {
+        return null;
+      }
+      {
+        const text = textWithLabel(payload, senderLabel);
+        if (!text) {
+          return null;
+        }
       return {
         ...base,
         method: "sendMessage",
         payload: {
-          text: textWithLabel(payload, senderLabel),
+          text,
           reply_markup: replyMarkup,
         },
       };
+      }
     case "photo":
+      if (!payload.photo_id) {
+        return null;
+      }
+      {
+        const caption = captionWithLabel(payload, senderLabel);
       return {
         ...base,
         method: "sendPhoto",
         payload: {
           photo: payload.photo_id,
-          caption: captionWithLabel(payload, senderLabel),
           reply_markup: replyMarkup,
+          ...(caption ? { caption } : {}),
         },
       };
+      }
     case "video":
+      if (!payload.video_id) {
+        return null;
+      }
+      {
+        const caption = captionWithLabel(payload, senderLabel);
       return {
         ...base,
         method: "sendVideo",
         payload: {
           video: payload.video_id,
-          caption: captionWithLabel(payload, senderLabel),
           reply_markup: replyMarkup,
+          ...(caption ? { caption } : {}),
         },
       };
+      }
     case "animation":
+      if (!payload.animation_id) {
+        return null;
+      }
+      {
+        const caption = captionWithLabel(payload, senderLabel);
       return {
         ...base,
         method: "sendAnimation",
         payload: {
           animation: payload.animation_id,
-          caption: captionWithLabel(payload, senderLabel),
           reply_markup: replyMarkup,
+          ...(caption ? { caption } : {}),
         },
       };
+      }
     case "document":
+      if (!payload.document_id) {
+        return null;
+      }
+      {
+        const caption = captionWithLabel(payload, senderLabel);
       return {
         ...base,
         method: "sendDocument",
         payload: {
           document: payload.document_id,
-          caption: captionWithLabel(payload, senderLabel),
           reply_markup: replyMarkup,
+          ...(caption ? { caption } : {}),
         },
       };
+      }
     case "voice":
+      if (!payload.voice_id) {
+        return null;
+      }
+      {
+        const caption = captionWithLabel(payload, senderLabel);
       return {
         ...base,
         method: "sendVoice",
         payload: {
           voice: payload.voice_id,
-          caption: captionWithLabel(payload, senderLabel),
           reply_markup: replyMarkup,
+          ...(caption ? { caption } : {}),
         },
       };
+      }
     case "audio":
+      if (!payload.audio_id) {
+        return null;
+      }
+      {
+        const caption = captionWithLabel(payload, senderLabel);
       return {
         ...base,
         method: "sendAudio",
         payload: {
           audio: payload.audio_id,
-          caption: captionWithLabel(payload, senderLabel),
           reply_markup: replyMarkup,
+          ...(caption ? { caption } : {}),
         },
       };
+      }
     case "sticker":
+      if (!payload.sticker_id) {
+        return null;
+      }
       return {
         ...base,
         method: "sendSticker",
@@ -180,6 +226,9 @@ const deliveryJobForPayload = (
         },
       };
     case "video_note":
+      if (!payload.video_note_id) {
+        return null;
+      }
       return {
         ...base,
         method: "sendVideoNote",
@@ -489,7 +538,7 @@ export const requestUnreadDelivery = async (
   if (!ctx.from) {
     return;
   }
-  const d1User = await resolveOrCreateUser(ctx, env);
+  const d1User = await getResolvedUser(ctx, env);
   await cleanupExpiredUnreadItems(env, d1User.id);
   const summary = await getUnreadSummary(env, d1User.id);
   if (summary.unreadCount <= 0) {

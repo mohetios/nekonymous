@@ -1,6 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import worker from "../src/index";
+import { handleWebhook } from "../src/bot/webhook";
+import type { Environment } from "../src/contracts/runtime";
 import { DurableObjectCallError } from "../src/storage/durable-object-call-error";
 
 const webhookEventShardName = (eventKey: string): string => {
@@ -31,6 +33,52 @@ describe("webhook routing", () => {
       body: JSON.stringify({ update_id: 1 }),
     });
     expect(response.status).toBe(401);
+  });
+
+  it("fails closed when BOT_SECRET_KEY is not configured", async () => {
+    const request = new Request("https://example.com/bot", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ update_id: 2 }),
+    });
+
+    const response = await handleWebhook(
+      request,
+      { ...env, BOT_SECRET_KEY: "" } as Environment,
+      {} as ExecutionContext
+    );
+
+    expect(response.status).toBe(503);
+  });
+
+  it("rejects non-json webhook bodies", async () => {
+    const response = await SELF.fetch("https://example.com/bot", {
+      method: "POST",
+      headers: {
+        "content-type": "text/plain",
+        "X-Telegram-Bot-Api-Secret-Token": env.BOT_SECRET_KEY,
+      },
+      body: JSON.stringify({ update_id: 3 }),
+    });
+
+    expect(response.status).toBe(415);
+  });
+
+  it("rejects oversized webhook bodies before parsing", async () => {
+    const body = JSON.stringify({
+      update_id: 4,
+      padding: "x".repeat(256 * 1024),
+    });
+    const response = await SELF.fetch("https://example.com/bot", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Telegram-Bot-Api-Secret-Token": env.BOT_SECRET_KEY,
+      },
+      body,
+    });
+
+    expect(response.status).toBe(413);
   });
 
   it("rejects POST /bot without update_id", async () => {

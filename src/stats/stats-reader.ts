@@ -1,5 +1,5 @@
 import type { Environment } from "../contracts/runtime";
-import { STAT_EVENTS } from "./events";
+import { STAT_EVENTS } from "../contracts/stats/events";
 
 const PUBLIC_STATS_CACHE_TTL_SECONDS = 60;
 
@@ -39,6 +39,16 @@ const utcDay = (timestamp: number): string =>
 
 const shiftUtcDay = (day: string, deltaDays: number): string => {
   const [year, month, date] = day.split("-").map(Number);
+  if (
+    year === undefined ||
+    month === undefined ||
+    date === undefined ||
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(date)
+  ) {
+    return day;
+  }
   const shifted = new Date(Date.UTC(year, month - 1, date + deltaDays));
   return shifted.toISOString().slice(0, 10);
 };
@@ -80,7 +90,7 @@ const ASSESSMENT_EVENT_NAMES = [
 ];
 
 const publicStatsCacheKey = (today: string): string =>
-  `cache:public-bot-stats:v2:${today}`;
+  `cache:public-bot-stats:${today}`;
 
 const isPeriodCounts = (value: unknown): value is PeriodCounts => {
   if (!value || typeof value !== "object") {
@@ -227,13 +237,18 @@ export const getPublicBotStats = async (
       active30Statement,
     ]);
 
-    usersCountRow = (usersResult.results?.[0] as { count: number } | undefined) ?? null;
-    dailyRows = (dailyResult.results as Array<DailyStatRow & { day: string }>) ?? [];
+    usersCountRow =
+      (usersResult?.results?.[0] as { count: number } | undefined) ?? null;
+    dailyRows =
+      (dailyResult?.results as Array<DailyStatRow & { day: string }> | undefined) ??
+      [];
     activeTodayRow =
-      (activeTodayResult.results?.[0] as { count: number } | undefined) ?? null;
-    active7Row = (active7Result.results?.[0] as { count: number } | undefined) ?? null;
+      (activeTodayResult?.results?.[0] as { count: number } | undefined) ??
+      null;
+    active7Row =
+      (active7Result?.results?.[0] as { count: number } | undefined) ?? null;
     active30Row =
-      (active30Result.results?.[0] as { count: number } | undefined) ?? null;
+      (active30Result?.results?.[0] as { count: number } | undefined) ?? null;
   } catch {
     // Aggregate tables may be missing in partial local setups; degrade gracefully.
   }

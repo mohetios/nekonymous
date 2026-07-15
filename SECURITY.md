@@ -5,7 +5,7 @@
 | Version | Status |
 |---|---|
 | current `master` | security reports accepted |
-| older experimental, pre-V2, and removed storage branches | unsupported |
+| older experimental, pre-current, and removed storage branches | unsupported |
 
 ## Reporting a vulnerability
 
@@ -52,7 +52,7 @@ The following are expected boundaries, not vulnerabilities by themselves:
 - recipients can copy, screenshot, forward, or publish messages;
 - infrastructure timing and row-count metadata exist;
 - rate limits, inbox caps, expiry, pacing, cooldowns, and automated sanction thresholds are intentional;
-- conversation suggestions are approximate product signals, not safety or compatibility guarantees;
+- conversation suggestions are approximate product signals, not safety or fit guarantees;
 - application guarantees do not survive compromise of the bot token, Worker code, Cloudflare account, `APP_MASTER_KEY`, or `APP_HMAC_PEPPER`.
 
 A documented limitation is reportable when the implementation exposes more data than documented, bypasses an intended authorization/policy check, or destroys/duplicates data contrary to the documented state machine.

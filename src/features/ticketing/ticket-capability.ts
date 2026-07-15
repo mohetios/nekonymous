@@ -14,7 +14,7 @@ export const TICKET_CAPABILITY_BYTES =
 export const TICKET_CAPABILITY_CHARS = 43;
 export const TICKET_CAPABILITY_PATTERN = `[A-Za-z0-9_-]{${TICKET_CAPABILITY_CHARS}}`;
 const DEDUPE_CAPABILITY_INFO = new TextEncoder().encode(
-  "nekonymous:ticket-capability-dedupe:v1"
+  "nekonymous:ticket-capability-dedupe"
 );
 
 const hasNonZeroByte = (bytes: Uint8Array): boolean =>

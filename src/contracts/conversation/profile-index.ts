@@ -1,6 +1,6 @@
 export type ProfileIndexAction = "upsert" | "delete" | "verify";
 
-export const PROFILE_INDEX_SCHEMA_VERSION = "v2" as const;
+export const PROFILE_INDEX_SCHEMA_VERSION = "current" as const;
 
 export type ProfileIndexJob = {
   action: ProfileIndexAction;

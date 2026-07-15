@@ -2,7 +2,7 @@
 
 This directory is the canonical technical documentation set for the current `master` branch.
 
-The documents describe implemented behavior. They are not a roadmap and must not preserve removed V1 storage paths, compatibility layers, or historical names.
+The documents describe implemented behavior. They are not a roadmap and must not preserve removed storage paths or historical names.
 
 ## Document ownership
 
@@ -10,7 +10,7 @@ The documents describe implemented behavior. They are not a roadmap and must not
 |---|---|
 | [Architecture](./architecture.md) | Worker runtime, Cloudflare planes, bot surfaces, queues, statistics, source boundaries, performance |
 | [Sealed Ticketing](./sealed-ticketing.md) | Anonymous ticket capability, TicketVault, unread inbox, notifications, actions, blind tags, safety routing, retention |
-| [Conversation Suggestions](./conversation-suggestions.md) | Profile V2, indexing, retrieval, deterministic ranking, suggestions, requests, accept idempotency |
+| [Conversation Suggestions](./conversation-suggestions.md) | Profile schema, indexing, retrieval, deterministic ranking, suggestions, requests, accept idempotency |
 | [Threat Model](./threat-model.md) | Assets, trust assumptions, storage exposure, threats, mitigations, retention, reset semantics, limitations |
 | [Development](./development.md) | Local setup, bindings, migrations, tests, deploy, observability, manual QA, troubleshooting |
 
@@ -48,7 +48,7 @@ All documents must reflect these current rules:
 - `/inbox` and `ib:d` drain the current actor's queue; there is no inbox list, pagination, or persistent inbox control card;
 - delivered ticket actions are capability-gated and actor/account-bound;
 - block, contact label, and abuse/report relationships use domain-separated blind tags;
-- `SafetyStateDO`, not `ReportLedgerDO`, owns report events and sanction state;
+- `SafetyStateDO` owns report events and sanction state;
 - Conversation Suggestions uses ProfileVault, ConversationVault, PairLedger, Vectorize, and deterministic TypeScript ranking;
 - Workers AI is not in the suggestion path;
 - hard reset creates a new internal identity and public link;

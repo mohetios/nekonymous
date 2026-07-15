@@ -1,4 +1,4 @@
-import { escapeMarkdownV2 } from "../../utils/text";
+import { escapeTelegramMarkdown } from "../../utils/text";
 import { DELIVERY_HEADER_FROM } from "../../i18n/labels";
 
 export const buildDeliveryHeaderLine = (nickname: string): string =>
@@ -8,4 +8,4 @@ export const buildDeliveryHeader = (nickname: string): string =>
   `${buildDeliveryHeaderLine(nickname)}\n\n`;
 
 export const buildDeliveryHeaderMarkdown = (nickname: string): string =>
-  `${escapeMarkdownV2(buildDeliveryHeaderLine(nickname))}\n\n`;
+  `${escapeTelegramMarkdown(buildDeliveryHeaderLine(nickname))}\n\n`;

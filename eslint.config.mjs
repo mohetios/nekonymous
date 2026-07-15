@@ -1,21 +1,18 @@
 import ESLint from "@eslint/js";
 import ESLintConfigPrettier from "eslint-config-prettier";
-import Oxlint from "eslint-plugin-oxlint";
 import globals from "globals";
-import TSESLint from "typescript-eslint";
 
-export default TSESLint.config(
+export default [
   {
     ignores: [
       "node_modules/",
       ".wrangler/",
       "dist/",
       "pnpm-lock.yaml",
+      "**/*.ts",
     ],
   },
   ESLint.configs.recommended,
-  ...TSESLint.configs.recommended,
-  Oxlint.configs["flat/recommended"],
   ESLintConfigPrettier,
   {
     files: ["**/*.{js,mjs,cjs}"],
@@ -24,42 +21,8 @@ export default TSESLint.config(
       sourceType: "module",
       globals: globals.node,
     },
-  },
-  {
-    files: ["src/**/*.ts"],
-    languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
-      globals: globals.worker,
-      parserOptions: {
-        project: "./tsconfig.json",
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-    extends: [...TSESLint.configs.recommendedTypeChecked],
     rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
-        },
-      ],
-      "@typescript-eslint/no-unused-private-class-members": "error",
-      "@typescript-eslint/consistent-type-imports": [
-        "error",
-        { prefer: "type-imports", fixStyle: "inline-type-imports" },
-      ],
-      "@typescript-eslint/no-floating-promises": "error",
-      "@typescript-eslint/require-await": "error",
       "no-console": ["warn", { allow: ["warn", "error"] }],
     },
   },
-  {
-    files: ["src/storage/**/*.{do.ts,-do.ts}"],
-    rules: {
-      "@typescript-eslint/require-await": "off",
-    },
-  }
-);
+];

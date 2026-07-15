@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import type { Environment } from "../../../contracts/runtime";
+import { getResolvedUser } from "../../../bot/context";
 import { mainMenu } from "../../../bot/keyboards";
 import { renderScreen } from "../../../bot/render-screen";
 import { HuhMessage } from "../../../i18n/messages";
@@ -12,7 +13,6 @@ import {
   PROFILE_STATUS_HEADER,
   PROFILE_SUBMIT_READY,
 } from "../../../i18n/conversation-profile-ui";
-import { resolveOrCreateUser } from "../../identity/identity-service";
 import { hmacTelegramUserId } from "../../ticketing/ticketing-service";
 import {
   recordProfileStarted,
@@ -161,7 +161,7 @@ export const handleAssessmentCommand = async (
   }
 
   try {
-    const user = await resolveOrCreateUser(ctx, env);
+    const user = await getResolvedUser(ctx, env);
     await sendProfileDashboard(ctx, user.id, env);
   } catch (error) {
     logBotError("profile.command", error);
@@ -181,7 +181,7 @@ export const handleAssessmentCallback = async (
   }
 
   try {
-    const user = await resolveOrCreateUser(ctx, env);
+    const user = await getResolvedUser(ctx, env);
 
     if (data === PROFILE_CALLBACK.hub) {
       await renderSuggestionHub(ctx, env, from.id.toString());
@@ -262,7 +262,7 @@ export const handleAssessmentCallback = async (
     if (intent) {
       const session = await getProfileSession(env, user.id);
       const question = PROFILE_QUESTIONS[PROFILE_QUESTIONS.length - 1];
-      if (!session || !isConversationIntent(intent)) {
+      if (!session || !question || !isConversationIntent(intent)) {
         await sendProfileDashboard(ctx, user.id, env);
         return;
       }

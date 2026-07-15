@@ -1,6 +1,6 @@
 import type { OutboxQueueJob } from "./queues/events";
 import type { ProfileIndexJob } from "./conversation/profile-index";
-import type { StatsEvent } from "../stats/events";
+import type { StatsEvent } from "./stats/events";
 
 export interface Environment extends CloudflareEnv {
   NEKO_OUTBOX_QUEUE: Queue<OutboxQueueJob>;

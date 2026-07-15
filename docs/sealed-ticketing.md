@@ -33,7 +33,7 @@ Canonical encoding:
 [A-Za-z0-9_-]{43}
 ```
 
-There is no capability version byte or legacy format.
+The capability has one canonical encoding and no fit format.
 
 Two creation modes exist:
 

@@ -70,7 +70,7 @@ It is **not**:
 - end-to-end encrypted;
 - zero-knowledge;
 - a perfect-anonymity system;
-- a dating or compatibility product;
+- a dating or fit product;
 - a personality test or clinical assessment.
 
 Telegram sees message plaintext while users send and receive it. The Worker sees plaintext while processing, encrypting, decrypting, and delivering it. Encryption at rest does not change this processing boundary.
@@ -124,7 +124,7 @@ See [Sealed Ticketing](./docs/sealed-ticketing.md).
 
 ## Conversation suggestions
 
-Conversation Suggestions V2 uses:
+Conversation Suggestions uses:
 
 - 25 Persian-first questions;
 - 8 conversation dimensions;
@@ -156,7 +156,7 @@ cp .env.example .dev.vars
 # Fill local secrets.
 
 pnpm db:migrations:apply:local
-./tools/setup-conversation-v2-resources.sh
+./tools/setup-conversation-resources.sh
 
 pnpm check
 pnpm dev

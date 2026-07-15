@@ -27,10 +27,11 @@ import {
   recordUserCreated,
 } from "../../stats/product-events";
 import {
+  DISPLAY_NAME_DEFAULT,
   DISPLAY_NAME_EMPTY,
-  DISPLAY_NAME_FALLBACK,
 } from "../../i18n/defaults";
 import { logBotError } from "../../utils/logs";
+import { stripControlCharacters, truncateGraphemes } from "../../utils/text";
 
 const isTelegramUserHashConflict = (error: unknown): boolean => {
   if (!(error instanceof Error)) {
@@ -153,11 +154,11 @@ const initialDisplayName = (firstName: string | undefined): string => {
   if (!firstName) {
     return DISPLAY_NAME_EMPTY;
   }
-  const cleaned = firstName.replace(/[\u0000-\u001F\u007F]/g, "").trim();
+  const cleaned = stripControlCharacters(firstName).trim();
   if (!cleaned) {
-    return DISPLAY_NAME_FALLBACK;
+    return DISPLAY_NAME_DEFAULT;
   }
-  return [...cleaned].slice(0, DISPLAY_NAME_MAX_CHARS).join("");
+  return truncateGraphemes(cleaned, DISPLAY_NAME_MAX_CHARS);
 };
 
 const cacheUserRouting = async (
@@ -325,7 +326,7 @@ export const createUserFromTelegram = async (
             id, telegram_user_hash, telegram_chat_ciphertext,
             locale, locale_source, onboarding_completed,
             status, bucket_id, created_at, updated_at
-          ) VALUES (?, ?, ?, 'fa', 'fallback', 0, 'active', ?, ?, ?)`
+          ) VALUES (?, ?, ?, 'fa', 'default', 0, 'active', ?, ?, ?)`
         ).bind(
           userId,
           telegramHash,
@@ -480,8 +481,12 @@ export const toBotUser = async (
     displayName,
     paused: state.paused,
     blockTags: state.blockTags,
-    draft: state.draft ?? undefined,
-    pendingSettings: state.draft?.pendingSettings,
-    lastMessageAt: state.lastMessageAt,
+    ...(state.draft ? { draft: state.draft } : {}),
+    ...(state.draft?.pendingSettings
+      ? { pendingSettings: state.draft.pendingSettings }
+      : {}),
+    ...(state.lastMessageAt !== undefined
+      ? { lastMessageAt: state.lastMessageAt }
+      : {}),
   };
 };

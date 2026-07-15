@@ -73,7 +73,7 @@ const decrypted = await decryptScopedPayload(
 }
 
 const profileSessionScope =
-  "profile-session:v2:01932abc-def0-7890-abcd-ef1234567890";
+  "profile-session:01932abc-def0-7890-abcd-ef1234567890";
 const profileAnswers = "{}";
 const profileCiphertext = await encryptScopedPayload(
   profileSessionScope,

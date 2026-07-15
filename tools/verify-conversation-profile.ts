@@ -36,11 +36,6 @@ if (PROFILE_QUESTIONS.length !== PROFILE_QUESTION_COUNT) {
   fail("question bank must contain 25 questions");
 }
 
-const dimensionSet = new Set(
-  PROFILE_QUESTIONS.flatMap((question) =>
-    question.dimension ? [question.dimension] : []
-  )
-);
 for (const dimension of CONVERSATION_DIMENSIONS) {
   const selfCount = PROFILE_QUESTIONS.filter(
     (question) => question.kind === "self" && question.dimension === dimension

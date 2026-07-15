@@ -12,31 +12,16 @@ import type { OutboxQueueJob, QueueEvent } from "./contracts/queues/events";
 import { handleProfileIndexBatch } from "./queues/profile-index-consumer";
 import type { ProfileIndexJob } from "./contracts/conversation/profile-index";
 import { handleStatsBatch } from "./stats/stats-consumer";
-import type { StatsEvent } from "./stats/events";
+import type { StatsEvent } from "./contracts/stats/events";
 
-export class UserStateDurableObjectV2 extends UserStateDurableObjectBase {}
-export class TelegramOutboxDurableObjectV2 extends TelegramOutboxDurableObjectBase {
-}
-export class TicketVaultDurableObjectV2 extends TicketVaultDurableObjectBase {}
-export class SafetyStateDurableObjectV2 extends SafetyStateDurableObjectBase {}
-
-export class UserStateDurableObjectV3 extends UserStateDurableObjectBase {}
-export class TelegramOutboxDurableObjectV3 extends TelegramOutboxDurableObjectBase {}
-export class TicketVaultDurableObjectV3 extends TicketVaultDurableObjectBase {}
-export class SafetyStateDurableObjectV3 extends SafetyStateDurableObjectBase {}
-
-export class UserStateDurableObjectV4 extends UserStateDurableObjectBase {}
-export class TelegramOutboxDurableObjectV4 extends TelegramOutboxDurableObjectBase {}
-export class TicketVaultDurableObjectV4 extends TicketVaultDurableObjectBase {}
-export class SafetyStateDurableObjectV4 extends SafetyStateDurableObjectBase {}
+export class UserStateDurableObject extends UserStateDurableObjectBase {}
+export class TelegramOutboxDurableObject extends TelegramOutboxDurableObjectBase {}
+export class TicketVaultDurableObject extends TicketVaultDurableObjectBase {}
+export class SafetyStateDurableObject extends SafetyStateDurableObjectBase {}
 
 export class ProfileVaultShardDurableObject extends ProfileVaultShardDurableObjectBase {}
 export class ConversationVaultShardDurableObject extends ConversationVaultShardDurableObjectBase {}
 export class PairLedgerShardDurableObject extends PairLedgerShardDurableObjectBase {}
-
-export class ProfileVaultShardDurableObjectV2 extends ProfileVaultShardDurableObjectBase {}
-export class ConversationVaultShardDurableObjectV2 extends ConversationVaultShardDurableObjectBase {}
-export class PairLedgerShardDurableObjectV2 extends PairLedgerShardDurableObjectBase {}
 
 export default {
   fetch: async (request: Request, env: Environment, ctx: ExecutionContext) => {

@@ -1,5 +1,5 @@
 /**
- * Validates migrations/0001_init.sql matches V2 D1 contract.
+ * Validates migrations/0001_init.sql matches current D1 contract.
  * Run: pnpm test:d1-schema
  */
 
@@ -23,7 +23,7 @@ for (const table of contract.requiredTables) {
 for (const table of contract.forbiddenTables) {
   assert(
     !new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, "i").test(sql),
-    `forbidden V1 table in migration: ${table}`
+    `forbidden removed table in migration: ${table}`
   );
 }
 
@@ -39,7 +39,7 @@ assert(
 
 assert(
   !/profile_summary|match_request|assessment_/.test(sql),
-  "migration must not reference V1 profile/match columns"
+  "migration must not reference removed profile/match columns"
 );
 
 console.log("verify-d1-schema: OK");

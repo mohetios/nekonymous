@@ -1,20 +1,30 @@
 export const TELEGRAM_MESSAGE_TEXT_MAX = 4096;
 export const TELEGRAM_CAPTION_MAX = 1024;
 
+const textEncoder = new TextEncoder();
+const ELLIPSIS = "…";
+const ELLIPSIS_BYTES = textEncoder.encode(ELLIPSIS).byteLength;
+
 export const truncateUtf8 = (text: string, maxBytes: number): string => {
-  const bytes = new TextEncoder().encode(text);
-  if (bytes.length <= maxBytes) {
+  const limit = Math.max(0, Math.floor(maxBytes));
+  if (textEncoder.encode(text).byteLength <= limit) {
     return text;
   }
 
-  let end = text.length;
-  while (end > 0) {
-    const slice = text.slice(0, end);
-    if (new TextEncoder().encode(slice).length <= maxBytes - 3) {
-      return `${slice}…`;
-    }
-    end -= 1;
+  if (limit < ELLIPSIS_BYTES) {
+    return "";
   }
 
-  return "…";
+  let output = "";
+  let usedBytes = ELLIPSIS_BYTES;
+  for (const char of text) {
+    const charBytes = textEncoder.encode(char).byteLength;
+    if (usedBytes + charBytes > limit) {
+      break;
+    }
+    output += char;
+    usedBytes += charBytes;
+  }
+
+  return `${output}${ELLIPSIS}`;
 };

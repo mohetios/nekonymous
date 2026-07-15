@@ -11,11 +11,15 @@ export const messageToPayload = (message: Message): MessagePayload => {
     return { ...base, message_type: "text", message_text: message.text };
   }
   if (message.photo) {
+    const photo = message.photo.at(-1);
+    if (!photo) {
+      return base;
+    }
     return {
       ...base,
       message_type: "photo",
-      photo_id: message.photo[message.photo.length - 1].file_id,
-      caption: message.caption,
+      photo_id: photo.file_id,
+      ...(message.caption ? { caption: message.caption } : {}),
     };
   }
   if (message.video) {
@@ -23,7 +27,7 @@ export const messageToPayload = (message: Message): MessagePayload => {
       ...base,
       message_type: "video",
       video_id: message.video.file_id,
-      caption: message.caption,
+      ...(message.caption ? { caption: message.caption } : {}),
     };
   }
   if (message.animation) {
@@ -31,7 +35,7 @@ export const messageToPayload = (message: Message): MessagePayload => {
       ...base,
       message_type: "animation",
       animation_id: message.animation.file_id,
-      caption: message.caption,
+      ...(message.caption ? { caption: message.caption } : {}),
     };
   }
   if (message.document) {
@@ -39,7 +43,7 @@ export const messageToPayload = (message: Message): MessagePayload => {
       ...base,
       message_type: "document",
       document_id: message.document.file_id,
-      caption: message.caption,
+      ...(message.caption ? { caption: message.caption } : {}),
     };
   }
   if (message.sticker) {
@@ -68,7 +72,7 @@ export const messageToPayload = (message: Message): MessagePayload => {
       ...base,
       message_type: "audio",
       audio_id: message.audio.file_id,
-      caption: message.caption,
+      ...(message.caption ? { caption: message.caption } : {}),
     };
   }
 

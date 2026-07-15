@@ -1,6 +1,6 @@
 import type { Environment } from "../contracts/runtime";
 import { hmacBase64Url } from "../features/ticketing/hmac";
-import { STAT_EVENTS } from "./events";
+import { STAT_EVENTS } from "../contracts/stats/events";
 import { emitStat } from "./emit-stat";
 
 export const emitUserActive = async (

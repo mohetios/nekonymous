@@ -1,6 +1,6 @@
 import { MENU } from "../src/i18n/labels.ts";
 import { SETTINGS_CALLBACK } from "../src/features/settings/constants.ts";
-import { STAT_EVENTS } from "../src/stats/events.ts";
+import { STAT_EVENTS } from "../src/contracts/stats/events.ts";
 
 const assert = (condition: boolean, message: string): void => {
   if (!condition) {
@@ -114,12 +114,24 @@ assert(
   "emitStat must swallow queue failures"
 );
 
-// 7) stats consumer aggregates in batch and acks invalid events
+// 7) stats consumer deduplicates at-least-once delivery and acks invalid events
 assert(
-  consumerSource.includes("counters.set") &&
+  consumerSource.includes("platform_stats_event_receipts") &&
+    consumerSource.includes("changes() > 0") &&
     consumerSource.includes("message.ack()") &&
     consumerSource.includes("batch.ackAll"),
-  "stats consumer must aggregate batch counters and ack invalid events"
+  "stats consumer must receipt event ids, dedupe counters, and ack invalid events"
+);
+assert(
+  consumerSource.includes("const eventId = safeEventId(record.eventId)") &&
+    consumerSource.includes("if (!eventId)") &&
+    !consumerSource.includes(`leg${"acy"}EventId`) &&
+    !consumerSource.includes(`leg${"acy"}:`),
+  "stats consumer must reject events without producer eventId"
+);
+assert(
+  emitSource.includes("eventId: crypto.randomUUID()"),
+  "stats producer must attach a stable eventId before queue delivery"
 );
 
 // 8) stats reader source only references aggregate tables
@@ -212,8 +224,8 @@ for (const eventName of [
 }
 
 assert(
-  readerSource.includes("cache:public-bot-stats:v2:"),
-  "public stats cache key must use v2 schema"
+  readerSource.includes("cache:public-bot-stats:"),
+  "public stats cache key must use the public schema"
 );
 assert(
   readerSource.includes("STAT_EVENTS.MESSAGE_EXPIRED"),

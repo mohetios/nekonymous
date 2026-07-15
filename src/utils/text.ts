@@ -2,7 +2,7 @@ import type { Context } from "grammy";
 
 type ReplyOptions = NonNullable<Parameters<Context["reply"]>[1]>;
 
-export const escapeMarkdownV2 = (text: string): string =>
+export const escapeTelegramMarkdown = (text: string): string =>
   text.replace(/[_*[\]()~`>#+-=|{}.!\\]/g, "\\$&");
 
 export const escapeHtml = (text: string): string =>
@@ -12,6 +12,34 @@ export const escapeHtml = (text: string): string =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+
+export const stripControlCharacters = (text: string): string =>
+  Array.from(text)
+    .filter((char) => {
+      const code = char.codePointAt(0);
+      return code === undefined || (code > 0x1f && code !== 0x7f);
+    })
+    .join("");
+
+export const truncateGraphemes = (text: string, maxLength: number): string => {
+  if (maxLength <= 0) {
+    return "";
+  }
+  if (typeof Intl.Segmenter === "function") {
+    const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    let output = "";
+    let count = 0;
+    for (const { segment } of segmenter.segment(text)) {
+      if (count >= maxLength) {
+        break;
+      }
+      output += segment;
+      count += 1;
+    }
+    return output;
+  }
+  return Array.from(text).slice(0, maxLength).join("");
+};
 
 export const withHtml = (
   options: Record<string, unknown> = {}

@@ -88,7 +88,11 @@ const selfText = (
     ],
   };
 
-  return copy[dimension][item - 1];
+  const text = copy[dimension][item - 1];
+  if (!text) {
+    throw new Error("conversation profile question copy missing");
+  }
+  return text;
 };
 
 const desiredText = (

@@ -7,11 +7,11 @@ import { deriveAesGcmKey } from "./hkdf.ts";
  * display names, dedupe HMACs, and opaque ids.
  */
 const GCM_IV_BYTES = 12;
-const MASTER_KID = "master:v1";
+const MASTER_KID = "master";
 
-const AES_INFO = new TextEncoder().encode("nekonymous:aes:v1");
-const CHAT_INFO = new TextEncoder().encode("nekonymous:chat:v1");
-const HMAC_INFO = new TextEncoder().encode("nekonymous:tg-user:v1");
+const AES_INFO = new TextEncoder().encode("nekonymous:aes");
+const CHAT_INFO = new TextEncoder().encode("nekonymous:chat");
+const HMAC_INFO = new TextEncoder().encode("nekonymous:tg-user");
 
 const textEncoder = new TextEncoder();
 

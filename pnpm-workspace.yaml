@@ -13,6 +13,7 @@ minimumReleaseAgeExclude:
   - miniflare
   - workerd
   - wrangler
+  - '@cloudflare/vitest-pool-workers@0.18.5'
 
 allowBuilds:
   esbuild: true

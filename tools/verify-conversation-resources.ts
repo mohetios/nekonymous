@@ -31,16 +31,16 @@ assert(
   "wrangler.jsonc must bind CONVERSATION_VECTORS"
 );
 assert(
-  wranglerSource.includes("nekonymous-conversation-v2"),
-  "wrangler.jsonc must use nekonymous-conversation-v2 vector index"
+  wranglerSource.includes("nekonymous-conversation"),
+  "wrangler.jsonc must use nekonymous-conversation vector index"
 );
 assert(
   wranglerSource.includes("neko-profile-index"),
   "wrangler.jsonc must configure neko-profile-index queue"
 );
 assert(
-  wranglerSource.includes("v8-conversation-v2-vault-shards"),
-  "wrangler.jsonc must include v8 DO migration"
+  wranglerSource.includes("public-release-durable-objects"),
+  "wrangler.jsonc must include the public release DO migration"
 );
 assert(
   !wranglerSource.includes('"PROFILE_VECTORS"'),
@@ -59,4 +59,4 @@ assert(
 );
 assert(pairShard === "pair:abcd", `unexpected pair shard: ${pairShard}`);
 
-console.log("verify-conversation-v2-resources: ok");
+console.log("verify-conversation-resources: ok");

@@ -7,7 +7,6 @@ import {
 import {
   createTicketCapability,
   encodeTicketCapability,
-  TICKET_CAPABILITY_CHARS,
 } from "../src/features/ticketing/ticket-capability.ts";
 import { MENU, isMainMenuLabel } from "../src/i18n/labels.ts";
 import {
@@ -57,9 +56,9 @@ const FORBIDDEN_SOURCE_TOKENS = [
   "match_system",
   "m:refresh",
   "m:back",
-  "callback-compat",
-  "CALLBACK_COMPAT",
-  "legacyMatch",
+  `callback-com${"pat"}`,
+  `CALLBACK_COM${"PAT"}`,
+  `leg${"acy"}Match`,
   "assessment_profiles",
   "match_requests",
   "boundaryRespect",
@@ -79,7 +78,7 @@ const FORBIDDEN_SOURCE_TOKENS = [
 const callbackRef = encodeTicketCapability(createTicketCapability());
 
 assert(CALLBACK_REF_RE.test(callbackRef), "callback ref must accept 43-char base64url");
-assert(!CALLBACK_REF_RE.test("A".repeat(32)), "callback ref must reject 32-char legacy refs");
+assert(!CALLBACK_REF_RE.test("A".repeat(32)), "callback ref must reject short refs");
 assert(!CALLBACK_REF_RE.test("A".repeat(44)), "callback ref must reject 44-char versioned refs");
 assert(isCallbackRef(callbackRef), "isCallbackRef must accept valid callback capability");
 assert(!isCallbackRef("abc"), "isCallbackRef must reject short callback ref");
@@ -244,10 +243,10 @@ const draftIndex = messagingSource.indexOf("if (isTextInputDraft(draft))");
 const menuIndex = messagingSource.indexOf("await handleMainMenuCommand(ctx");
 assert(draftIndex > 0 && menuIndex > draftIndex, "draft input must route before main menu labels");
 
-assert(!messagingSource.includes('pendingSettings === "editName"'), "legacy editName draft path must be removed");
+assert(!messagingSource.includes('pendingSettings === "editName"'), "editName draft path must be removed");
 assert(messagingSource.includes('draft.mode === "display_name"'), "display name draft must use display_name mode");
 assert(messagingSource.includes('draft.mode === "conversation_intro"'), "conversation intro draft must be wired");
-assert(!messagingSource.includes("match_intro"), "V1 match_intro draft path must be removed");
+assert(!messagingSource.includes("match_intro"), "match_intro draft path must be removed");
 assert(!userSource.includes("isMenuLabel"), "display name validation must not reserve menu labels");
 assert(labelsSource.includes('trimmed.startsWith("/")'), "display name validation must only forbid commands");
 
@@ -323,7 +322,7 @@ for (const relativePath of srcFiles) {
   for (const token of FORBIDDEN_SOURCE_TOKENS) {
     assert(
       !source.includes(token),
-      `forbidden legacy token "${token}" found in src/${relativePath}`
+      `forbidden removed token "${token}" found in src/${relativePath}`
     );
   }
 }

@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nekonymous",
   "main": "src/index.ts",
-  "compatibility_date": "2026-06-25",
+  "compatibility_date": "2026-07-15",
   "workers_dev": true,
   "placement": {
     "mode": "smart"
@@ -85,131 +85,52 @@
     "bindings": [
       {
         "name": "USER_STATE_DO",
-        "class_name": "UserStateDurableObjectV4"
+        "class_name": "UserStateDurableObject"
       },
       {
         "name": "TELEGRAM_OUTBOX_DO",
-        "class_name": "TelegramOutboxDurableObjectV4"
+        "class_name": "TelegramOutboxDurableObject"
       },
       {
         "name": "TICKET_VAULT",
-        "class_name": "TicketVaultDurableObjectV4"
+        "class_name": "TicketVaultDurableObject"
       },
       {
         "name": "SAFETY_STATE_DO",
-        "class_name": "SafetyStateDurableObjectV4"
+        "class_name": "SafetyStateDurableObject"
       },
       {
         "name": "PROFILE_VAULT_DO",
-        "class_name": "ProfileVaultShardDurableObjectV2"
+        "class_name": "ProfileVaultShardDurableObject"
       },
       {
         "name": "CONVERSATION_VAULT_DO",
-        "class_name": "ConversationVaultShardDurableObjectV2"
+        "class_name": "ConversationVaultShardDurableObject"
       },
       {
         "name": "PAIR_LEDGER_DO",
-        "class_name": "PairLedgerShardDurableObjectV2"
+        "class_name": "PairLedgerShardDurableObject"
       }
     ]
   },
   "migrations": [
     {
-      "tag": "v1-clean-core",
+      "tag": "public-release-durable-objects",
       "new_sqlite_classes": [
-        "UserStateDurableObject",
-        "TelegramOutboxDurableObject"
-      ]
-    },
-    {
-      "tag": "v2-delete-legacy-inbox",
-      "deleted_classes": ["InboxSqliteDurableObject"]
-    },
-    {
-      "tag": "v3-sealed-ticket-routing",
-      "new_sqlite_classes": [
-        "TicketVaultDurableObject",
-        "SafetyStateDurableObject"
-      ]
-    },
-    {
-      "tag": "v4-create-reset-durable-objects",
-      "new_sqlite_classes": [
-        "UserStateDurableObjectV2",
-        "TelegramOutboxDurableObjectV2",
-        "TicketVaultDurableObjectV2",
-        "SafetyStateDurableObjectV2"
-      ]
-    },
-    {
-      "tag": "v5-delete-old-durable-objects",
-      "deleted_classes": [
         "UserStateDurableObject",
         "TelegramOutboxDurableObject",
         "TicketVaultDurableObject",
-        "SafetyStateDurableObject"
-      ]
-    },
-    {
-      "tag": "v6-create-reset-durable-objects-v3",
-      "new_sqlite_classes": [
-        "UserStateDurableObjectV3",
-        "TelegramOutboxDurableObjectV3",
-        "TicketVaultDurableObjectV3",
-        "SafetyStateDurableObjectV3"
-      ]
-    },
-    {
-      "tag": "v7-delete-durable-objects-v2",
-      "deleted_classes": [
-        "UserStateDurableObjectV2",
-        "TelegramOutboxDurableObjectV2",
-        "TicketVaultDurableObjectV2",
-        "SafetyStateDurableObjectV2"
-      ]
-    },
-    {
-      "tag": "v8-conversation-v2-vault-shards",
-      "new_sqlite_classes": [
+        "SafetyStateDurableObject",
         "ProfileVaultShardDurableObject",
         "ConversationVaultShardDurableObject",
         "PairLedgerShardDurableObject"
       ]
-    },
-    {
-      "tag": "v9-create-reset-durable-objects-v4",
-      "new_sqlite_classes": [
-        "UserStateDurableObjectV4",
-        "TelegramOutboxDurableObjectV4",
-        "TicketVaultDurableObjectV4",
-        "SafetyStateDurableObjectV4",
-        "ProfileVaultShardDurableObjectV2",
-        "ConversationVaultShardDurableObjectV2",
-        "PairLedgerShardDurableObjectV2"
-      ]
-    },
-    {
-      "tag": "v10-delete-durable-objects-v3-and-vault-v1",
-      "deleted_classes": [
-        "UserStateDurableObjectV3",
-        "TelegramOutboxDurableObjectV3",
-        "TicketVaultDurableObjectV3",
-        "SafetyStateDurableObjectV3",
-        "ProfileVaultShardDurableObject",
-        "ConversationVaultShardDurableObject",
-        "PairLedgerShardDurableObject"
-      ]
-    },
-    {
-      "tag": "v11-safety-state-replace-report-ledger-v4",
-      "new_sqlite_classes": ["SafetyStateDurableObjectV4"],
-      "deleted_classes": ["ReportLedgerDurableObjectV4"]
     }
   ],
   "vectorize": [
     {
       "binding": "CONVERSATION_VECTORS",
-      "index_name": "nekonymous-conversation-v2"
+      "index_name": "nekonymous-conversation"
     }
   ]
 }

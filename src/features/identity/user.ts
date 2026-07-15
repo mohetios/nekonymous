@@ -1,9 +1,10 @@
 import type { BotUser } from "../../contracts/identity/model";
 import {
+  DISPLAY_NAME_DEFAULT,
   DISPLAY_NAME_EMPTY,
-  DISPLAY_NAME_FALLBACK,
 } from "../../i18n/defaults";
 import { isReservedDisplayName } from "../../bot/menu";
+import { stripControlCharacters, truncateGraphemes } from "../../utils/text";
 
 export {
   buildUserDeepLink,
@@ -13,21 +14,21 @@ export {
 const DISPLAY_NAME_MAX_CHARS = 64;
 
 export const sanitizeDisplayName = (input: string): string | null => {
-  const cleaned = input.replace(/[\u0000-\u001F\u007F]/g, "").trim();
+  const cleaned = stripControlCharacters(input).trim();
   if (!cleaned || isReservedDisplayName(cleaned)) {
     return null;
   }
 
-  return [...cleaned].slice(0, DISPLAY_NAME_MAX_CHARS).join("");
+  return truncateGraphemes(cleaned, DISPLAY_NAME_MAX_CHARS);
 };
 
 export const publicDisplayName = (
   user: BotUser | null | undefined,
-  fallback = DISPLAY_NAME_FALLBACK
+  defaultName = DISPLAY_NAME_DEFAULT
 ): string => {
   const name = user?.displayName?.trim();
   if (!name || name === DISPLAY_NAME_EMPTY || isReservedDisplayName(name)) {
-    return fallback;
+    return defaultName;
   }
 
   return name;

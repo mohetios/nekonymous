@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>نِکونیموس — صندوق پیام ناشناس با تیکت‌های مستقل</title>
+    <title>نِکونیموس — پیام ناشناس در تلگرام، با کنترل و مرزهای روشن</title>
     <meta
       name="description"
-      content="نِکونیموس یک ربات تلگرام فارسی‌محور و متن‌باز برای لینک پیام ناشناس، پاسخ ناشناس، بلاک و گزارش، نام خصوصی و پیشنهاد گفت‌وگوی اختیاری است."
+      content="نِکونیموس یک ربات تلگرام فارسی‌محور و متن‌باز برای ساخت لینک شخصی، دریافت و پاسخ به پیام ناشناس، کنترل مزاحمت و پیشنهاد گفت‌وگوی اختیاری است."
     />
     <meta name="theme-color" content="#07111f" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
@@ -19,19 +19,19 @@
     <meta property="og:site_name" content="Nekonymous" />
     <meta property="og:locale" content="fa_IR" />
     <meta property="og:url" content="https://mohetios.github.io/Nekonymous/" />
-    <meta property="og:title" content="نِکونیموس — صندوق پیام ناشناس با تیکت‌های مستقل" />
+    <meta property="og:title" content="نِکونیموس — پیام ناشناس در تلگرام، با کنترل و مرزهای روشن" />
     <meta
       property="og:description"
-      content="یک لینک برای دریافت پیام ناشناس؛ با تیکت‌های مستقل، صندوق تحویل محدود و کنترل‌های بلاک، گزارش و پاسخ."
+      content="یک لینک شخصی برای دریافت پیام ناشناس؛ با پاسخ، نام خصوصی، مسدودسازی، گزارش و طراحی کم‌داده."
     />
     <meta property="og:image" content="https://mohetios.github.io/Nekonymous/nekonymous-hero.webp" />
-    <meta property="og:image:alt" content="نِکونیموس؛ گربه‌ی نارنجی با ماسک ناشناس و نامه" />
+    <meta property="og:image:alt" content="نِکونیموس؛ گربه‌ی نارنجی پیام‌های ناشناس با ماسک و نامه" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="نِکونیموس — صندوق پیام ناشناس با تیکت‌های مستقل" />
+    <meta name="twitter:title" content="نِکونیموس — پیام ناشناس در تلگرام" />
     <meta
       name="twitter:description"
-      content="ربات پیام ناشناس فارسی‌محور و متن‌باز، ساخته‌شده روی Cloudflare Workers."
+      content="ربات پیام ناشناس فارسی‌محور و متن‌باز، ساخته‌شده روی Cloudflare Workers با مرزهای حریم خصوصی روشن."
     />
     <meta name="twitter:image" content="https://mohetios.github.io/Nekonymous/nekonymous-hero.webp" />
 
@@ -46,7 +46,9 @@
         "url": "https://mohetios.github.io/Nekonymous/",
         "downloadUrl": "https://t.me/nekonymous_bot",
         "codeRepository": "https://github.com/mohetios/Nekonymous",
-        "description": "Persian-first anonymous Telegram bot with independent sealed tickets and an opt-in conversation suggestion system.",
+        "description": "Persian-first anonymous Telegram bot with sealed message tickets, bounded inbox delivery, and opt-in conversation suggestions.",
+        "isAccessibleForFree": true,
+        "license": "https://github.com/mohetios/Nekonymous/blob/master/LICENSE",
         "author": {
           "@type": "Organization",
           "name": "Mohetios",
@@ -76,6 +78,9 @@
         --blue-soft: #e0f2fe;
         --warning: #b45309;
         --shadow: 0 24px 80px rgba(15, 23, 42, 0.08);
+        --radius-sm: 12px;
+        --radius: 18px;
+        --radius-lg: 24px;
       }
 
       html[data-theme="dark"] {
@@ -106,6 +111,7 @@
 
       html {
         scroll-behavior: smooth;
+        scroll-padding-top: 92px;
       }
 
       body {
@@ -124,6 +130,7 @@
           "Segoe UI",
           sans-serif;
         line-height: 1.85;
+        text-rendering: optimizeLegibility;
       }
 
       body::before {
@@ -150,7 +157,8 @@
       }
 
       a:focus-visible,
-      button:focus-visible {
+      button:focus-visible,
+      summary:focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 4px;
       }
@@ -164,6 +172,24 @@
         background: color-mix(in srgb, var(--panel) 86%, var(--accent-soft));
         font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
         font-size: 0.9em;
+      }
+
+      .skip-link {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        z-index: 100;
+        border-radius: 999px;
+        padding: 9px 14px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 850;
+        transform: translateY(-180%);
+        transition: transform 140ms ease;
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
       }
 
       .wrap {
@@ -223,6 +249,7 @@
         color: var(--muted);
         font-size: 0.93rem;
         font-weight: 750;
+        white-space: nowrap;
       }
 
       .links a::after {
@@ -252,21 +279,27 @@
 
       .nav-actions {
         display: flex;
+        flex-wrap: nowrap;
         align-items: center;
-        gap: 7px;
+        flex-shrink: 0;
+        gap: 6px;
       }
 
       .icon-link,
       .theme-toggle {
-        width: 42px;
-        height: 42px;
+        box-sizing: border-box;
+        flex: 0 0 40px;
+        width: 40px;
+        height: 40px;
+        padding: 0;
         border: 1px solid transparent;
         border-radius: 999px;
-        display: grid;
+        display: inline-grid;
         place-items: center;
         background: transparent;
         color: var(--muted);
         cursor: pointer;
+        line-height: 0;
         transition: transform 140ms ease, color 140ms ease, background 140ms ease;
       }
 
@@ -283,15 +316,25 @@
 
       .icon,
       .theme-icon {
+        box-sizing: border-box;
         width: 20px;
         height: 20px;
+        display: block;
+        flex-shrink: 0;
+      }
+
+      /* GitHub mark fills its viewBox more densely than Telegram; match visual weight. */
+      .icon-github {
+        width: 18px;
+        height: 18px;
       }
 
       .theme-icon {
         display: none;
         place-items: center;
-        font-size: 20px;
+        font-size: 18px;
         line-height: 1;
+        text-align: center;
       }
 
       html[data-theme="light"] .theme-icon-light,
@@ -354,15 +397,19 @@
         font-size: clamp(1.03rem, 1.7vw, 1.17rem);
       }
 
+      .hero-note,
+      .callout {
+        border: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
+        border-right: 4px solid var(--accent);
+        border-radius: 15px;
+        background: color-mix(in srgb, var(--panel) 76%, transparent);
+        color: var(--muted);
+      }
+
       .hero-note {
         max-width: 820px;
         margin: 26px 0;
-        border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
-        border-right: 4px solid var(--accent);
-        border-radius: 15px;
         padding: 16px 18px;
-        background: color-mix(in srgb, var(--panel) 56%, transparent);
-        color: var(--muted);
         backdrop-filter: blur(10px);
       }
 
@@ -451,11 +498,11 @@
       }
 
       section {
-        padding: 48px 0;
+        padding: 52px 0;
       }
 
       .section-head {
-        margin-bottom: 23px;
+        margin-bottom: 24px;
       }
 
       .section-head h2 {
@@ -463,35 +510,62 @@
       }
 
       .section-copy {
-        max-width: 770px;
+        max-width: 780px;
         margin: 12px 0 0;
         color: var(--muted);
       }
 
-      .grid {
+      .steps,
+      .grid,
+      .trust-grid,
+      .architecture-grid,
+      .doc-list {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
       }
 
-      .grid.two {
+      .steps {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .trust-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .architecture-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .doc-list {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .card,
-      .panel,
       .step,
-      .doc-link {
+      .panel,
+      .architecture-card,
+      .doc-link,
+      details {
         border: 1px solid var(--line);
-        border-radius: 17px;
+        border-radius: var(--radius);
         background: color-mix(in srgb, var(--panel) 94%, transparent);
       }
 
-      .card {
+      .card,
+      .step,
+      .panel,
+      .architecture-card {
         padding: 18px;
       }
 
-      .card p {
+      .card p,
+      .step p,
+      .panel p,
+      .architecture-card span {
         margin-bottom: 0;
         color: var(--muted);
       }
@@ -503,48 +577,17 @@
         font-weight: 900;
       }
 
-      .steps {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 11px;
-      }
-
-      .step {
-        position: relative;
-        padding: 18px;
-      }
-
-      .step strong {
-        display: block;
-        margin-bottom: 7px;
-      }
-
-      .step p {
-        margin: 0;
-        color: var(--muted);
-      }
-
       .step-index {
         display: inline-grid;
         place-items: center;
-        width: 30px;
-        height: 30px;
+        width: 32px;
+        height: 32px;
         margin-bottom: 13px;
         border-radius: 999px;
         background: var(--accent-soft);
         color: var(--accent-strong);
         font-size: 0.84rem;
         font-weight: 900;
-      }
-
-      .split {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 13px;
-      }
-
-      .panel {
-        padding: 20px;
       }
 
       .panel.good {
@@ -562,47 +605,48 @@
       }
 
       .panel li + li {
-        margin-top: 6px;
+        margin-top: 7px;
       }
 
       .callout {
         margin: 18px 0 0;
-        border: 1px solid var(--line);
-        border-right: 4px solid var(--accent);
-        border-radius: 14px;
         padding: 15px 17px;
-        background: color-mix(in srgb, var(--panel) 91%, var(--accent-soft));
+      }
+
+      .product-quote {
+        margin: 22px 0 0;
+        border: 1px dashed color-mix(in srgb, var(--accent) 48%, var(--line));
+        border-radius: var(--radius);
+        padding: 18px;
+        background: color-mix(in srgb, var(--panel-soft) 72%, transparent);
         color: var(--muted);
       }
 
-      .flow {
-        direction: ltr;
-        display: flex;
-        gap: 9px;
-        overflow-x: auto;
-        padding: 9px 0 20px;
+      .product-quote strong {
+        color: var(--text);
       }
 
-      .flow span {
-        flex: 0 0 auto;
-        border: 1px solid var(--line);
-        border-radius: 11px;
-        padding: 10px 12px;
-        background: var(--panel);
-        white-space: nowrap;
-      }
-
-      .architecture-grid {
+      .suggestions {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        gap: 14px;
+        align-items: stretch;
       }
 
-      .architecture-card {
+      .dimension-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 15px;
+      }
+
+      .dimension-list span {
         border: 1px solid var(--line);
-        border-radius: 15px;
-        padding: 15px;
-        background: color-mix(in srgb, var(--panel) 93%, transparent);
+        border-radius: 999px;
+        padding: 7px 11px;
+        background: color-mix(in srgb, var(--panel) 91%, var(--blue-soft));
+        color: var(--muted);
+        font-size: 0.88rem;
       }
 
       .architecture-card strong {
@@ -611,54 +655,67 @@
       }
 
       .architecture-card span {
-        color: var(--muted);
         font-size: 0.93rem;
       }
 
-      .ticket-strip {
-        direction: ltr;
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 9px;
+      .technical-details {
+        margin-top: 14px;
       }
 
-      .ticket-strip span {
+      details {
+        overflow: hidden;
+      }
+
+      details + details {
+        margin-top: 10px;
+      }
+
+      summary {
+        position: relative;
+        cursor: pointer;
+        list-style: none;
+        padding: 16px 48px 16px 18px;
+        color: var(--text);
+        font-weight: 850;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      summary::before {
+        position: absolute;
+        right: 18px;
+        top: 50%;
+        width: 22px;
+        height: 22px;
+        display: grid;
+        place-items: center;
         border-radius: 999px;
-        padding: 8px 10px;
         background: var(--accent-soft);
         color: var(--accent-strong);
-        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-        font-size: 0.84rem;
-        font-weight: 800;
-        text-align: center;
+        content: "+";
+        transform: translateY(-50%);
+        transition: transform 140ms ease;
       }
 
-      .suggestion-layout {
-        display: grid;
-        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-        gap: 13px;
+      details[open] summary::before {
+        content: "−";
       }
 
-      .dimension-list {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
-        margin-top: 15px;
-      }
-
-      .dimension-list span {
-        border: 1px solid var(--line);
-        border-radius: 11px;
-        padding: 8px 10px;
-        background: color-mix(in srgb, var(--panel) 91%, var(--blue-soft));
+      .details-body {
+        border-top: 1px solid var(--line);
+        padding: 15px 18px 18px;
         color: var(--muted);
-        font-size: 0.9rem;
       }
 
-      .doc-list {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+      .details-body p:last-child,
+      .details-body ul:last-child {
+        margin-bottom: 0;
+      }
+
+      .details-body ul {
+        padding-right: 20px;
       }
 
       .doc-link {
@@ -688,8 +745,8 @@
         gap: 22px;
         align-items: center;
         border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line));
-        border-radius: 20px;
-        padding: clamp(20px, 4vw, 30px);
+        border-radius: var(--radius-lg);
+        padding: clamp(22px, 4vw, 32px);
         background:
           linear-gradient(135deg, color-mix(in srgb, var(--panel) 88%, var(--accent-soft)), var(--panel));
         box-shadow: var(--shadow);
@@ -729,7 +786,7 @@
 
       @media (max-width: 960px) {
         .hero-grid,
-        .suggestion-layout {
+        .suggestions {
           grid-template-columns: 1fr;
         }
 
@@ -747,13 +804,13 @@
         .quick-facts {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
-
-        .ticket-strip {
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
       }
 
       @media (max-width: 760px) {
+        html {
+          scroll-padding-top: 142px;
+        }
+
         .nav {
           min-height: auto;
           align-items: flex-start;
@@ -767,6 +824,11 @@
           gap: 14px;
           overflow-x: auto;
           padding-bottom: 5px;
+          scrollbar-width: none;
+        }
+
+        .links::-webkit-scrollbar {
+          display: none;
         }
 
         .links a {
@@ -777,6 +839,7 @@
           position: absolute;
           left: 0;
           top: 11px;
+          flex-wrap: nowrap;
         }
 
         .hero {
@@ -784,14 +847,11 @@
         }
 
         .grid,
-        .grid.two,
         .steps,
-        .split,
+        .trust-grid,
         .architecture-grid,
         .quick-facts,
-        .doc-list,
-        .dimension-list,
-        .ticket-strip {
+        .doc-list {
           grid-template-columns: 1fr;
         }
 
@@ -803,34 +863,54 @@
           align-items: flex-start;
         }
       }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+        }
+      }
     </style>
 
     <script>
       (() => {
-        const stored = localStorage.getItem("theme");
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const dark = stored === "dark" || (stored !== "light" && prefersDark);
-        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        try {
+          const stored = localStorage.getItem("theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const dark = stored === "dark" || (stored !== "light" && prefersDark);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
       })();
     </script>
   </head>
 
   <body>
+    <a class="skip-link" href="#main">رفتن به محتوای اصلی</a>
+
     <header class="header">
       <nav class="wrap nav" aria-label="ناوبری اصلی">
-        <a class="brand" href="#intro">
+        <a class="brand" href="#intro" aria-label="نِکونیموس؛ بازگشت به ابتدای صفحه">
           <span class="brand-mark" aria-hidden="true"></span>
           <span>نِکونیموس</span>
           <span class="brand-sub">/ مُهتیوس</span>
         </a>
 
         <div class="links">
-          <a class="is-active" href="#intro">معرفی</a>
-          <a href="#product">قابلیت‌ها</a>
+          <a class="is-active" href="#intro" aria-current="page">معرفی</a>
           <a href="#how">نحوه‌ی کار</a>
-          <a href="#privacy">مرزها</a>
-          <a href="#architecture">معماری</a>
-          <a href="#docs">مستندات</a>
+          <a href="#controls">کنترل‌ها</a>
+          <a href="#privacy">حریم خصوصی</a>
+          <a href="#docs">بیشتر بخوان</a>
         </div>
 
         <div class="nav-actions" aria-label="لینک‌های اصلی">
@@ -849,7 +929,7 @@
             href="https://github.com/mohetios/Nekonymous"
             aria-label="مشاهده‌ی کد در GitHub"
           >
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="icon icon-github" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.2.8-.6v-2.1c-3.3.7-4-1.4-4-1.4-.5-1.3-1.2-1.6-1.2-1.6-1-.7.1-.7.1-.7 1.1.1 1.7 1.2 1.7 1.2 1 .1.8 2.3 3.4 1.6.1-.7.4-1.2.7-1.5-2.6-.3-5.4-1.3-5.4-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0C17.9 6.2 19 6.5 19 6.5c.6 1.6.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6A12 12 0 0 0 12 .5Z" />
             </svg>
           </a>
@@ -868,280 +948,193 @@
       </nav>
     </header>
 
-    <main>
-      <section class="hero wrap" id="intro">
+    <main id="main">
+      <section class="hero wrap" id="intro" aria-labelledby="hero-title">
         <div class="hero-grid">
           <div class="hero-copy">
-            <p class="eyebrow">پیام ناشناس · تیکت مستقل · فارسی‌محور · متن‌باز</p>
-            <h1>یک مسیر ناشناس برای حرف‌هایی که راحت گفته نمی‌شوند</h1>
+            <p class="eyebrow">میو، نکو اینجاست 🐾</p>
+            <h1 id="hero-title">پیام ناشناس بگیر؛ بدون اینکه تلگرامت به طرف مقابل نمایش داده بشه</h1>
             <p class="lead">
-              نِکونیموس یک لینک شخصی داخل تلگرام به تو می‌دهد. دیگران می‌توانند بدون نمایش
-              مشخصات تلگرامی‌شان برایت پیام بفرستند؛ تو هم می‌توانی پیام‌ها را تحویل بگیری،
-              ناشناس پاسخ بدهی، فرستنده را بلاک یا گزارش کنی و برای شناختنش نام خصوصی بگذاری.
+              نِکونیموس، گربه‌ی نارنجی پیام‌های ناشناسه. یک لینک شخصی بهت می‌ده تا بقیه
+              از داخل تلگرام برات پیام بفرستن. پیام‌ها رو در صندوقت می‌گیری و خودت تصمیم
+              می‌گیری جواب بدی، فرستنده رو بشناسی، مسدودش کنی یا گزارش بدی.
             </p>
 
             <p class="hero-note">
-              نکو صندوق را به آرشیو دائمی مکالمه تبدیل نمی‌کند. هر پیام یک
-              <strong>تیکت مستقل و مهروموم‌شده</strong> است؛ تا زمان تحویل در یک صف محدود می‌ماند
-              و payload آن بعد از ارسال موفق از storage نکو پاک می‌شود.
+              نکو پیام‌ها رو مثل یک چت دائمی نگه نمی‌داره. هر پیام یک تیکت مستقل داره؛
+              متنش فقط تا تحویل موفق در فضای ذخیره‌سازی نکو می‌مونه و بعد پاک می‌شه.
             </p>
 
             <div class="actions">
-              <a class="button primary" href="https://t.me/nekonymous_bot">شروع با نِکو</a>
-              <a
-                class="button"
-                href="https://mohetios.dev/fa/lab/nekonymous-anonymous-messaging-technical-lab"
-              >آزمایشگاه فنی</a>
+              <a class="button primary" href="https://t.me/nekonymous_bot">ساخت لینک پیام ناشناس</a>
               <a
                 class="button"
                 href="https://mohetios.dev/fa/blog/building-nekonymous-anonymous-telegram-bot"
               >داستان ساخت</a>
-              <a class="button" href="https://github.com/mohetios/Nekonymous">کد منبع</a>
+              <a
+                class="button"
+                href="https://mohetios.dev/fa/lab/nekonymous-anonymous-messaging-technical-lab"
+              >آزمایشگاه فنی</a>
             </div>
 
             <div class="quick-facts" aria-label="ویژگی‌های کلیدی">
-              <div class="fact"><strong>هر پیام</strong><span>یک تیکت مستقل</span></div>
-              <div class="fact"><strong>صندوق</strong><span>صف تحویل محدود</span></div>
-              <div class="fact"><strong>کنترل</strong><span>پاسخ، نام، بلاک، گزارش</span></div>
-              <div class="fact"><strong>زیرساخت</strong><span>Cloudflare-native</span></div>
+              <div class="fact"><strong>فارسی‌محور</strong><span>برای تجربه‌ی طبیعی داخل تلگرام</span></div>
+              <div class="fact"><strong>متن‌باز</strong><span>کد و مرزهای فنی قابل بررسی‌اند</span></div>
+              <div class="fact"><strong>هر پیام</strong><span>یک تیکت مستقل و محدود</span></div>
+              <div class="fact"><strong>اختیاری</strong><span>پیشنهاد گفت‌وگو فقط با انتخاب تو</span></div>
             </div>
           </div>
 
           <figure class="hero-visual">
             <img
               src="nekonymous-hero.webp"
-              alt="نِکونیموس؛ گربه‌ی نارنجی با ماسک ناشناس و نامه"
+              alt="نِکونیموس؛ گربه‌ی نارنجی پیام‌های ناشناس با ماسک و نامه"
               width="640"
               height="960"
               loading="eager"
               decoding="async"
+              fetchpriority="high"
             />
           </figure>
         </div>
       </section>
 
-      <section class="wrap" id="product">
+      <section class="wrap" id="how" aria-labelledby="how-title">
         <div class="section-head">
-          <p class="eyebrow">داخل ربات</p>
-          <h2>یک صندوق ناشناس، با کنترل‌هایی که واقعاً لازم‌اند</h2>
+          <p class="eyebrow">ساده از بیرون، محدود از داخل</p>
+          <h2 id="how-title">از لینک تا پیام، در سه قدم</h2>
           <p class="section-copy">
-            مسیر اصلی ساده مانده است: لینک را می‌سازی، پیام می‌گیری و خودت تصمیم می‌گیری
-            گفت‌وگو ادامه پیدا کند یا نه. جزئیات فنی پشت صحنه‌اند؛ کنترل محصول در دست کاربر می‌ماند.
-          </p>
-        </div>
-
-        <div class="grid">
-          <article class="card">
-            <p class="num">۰۱</p>
-            <h3>لینک ناشناس شخصی</h3>
-            <p>یک deep link برای پروفایل‌ها و شبکه‌های اجتماعی می‌گیری؛ فرستنده وارد ربات می‌شود و پیام را همان‌جا می‌فرستد.</p>
-          </article>
-
-          <article class="card">
-            <p class="num">۰۲</p>
-            <h3>اعلان با شمارنده‌ی زنده</h3>
-            <p>برای هر پیام تازه یک اعلان جدید می‌گیری و نکو تعداد فعلی پیام‌های تحویل‌نشده را هنگام ارسال اعلان محاسبه می‌کند.</p>
-          </article>
-
-          <article class="card">
-            <p class="num">۰۳</p>
-            <h3>تحویل مستقیم از صندوق</h3>
-            <p>با دکمه‌ی صندوق، پیام‌های فعلی به‌ترتیب تحویل می‌شوند. صندوق صفحه‌ی تاریخچه، لیست یا آرشیو دائمی نیست.</p>
-          </article>
-
-          <article class="card">
-            <p class="num">۰۴</p>
-            <h3>متن و رسانه</h3>
-            <p>علاوه بر متن، مسیر فعلی از عکس، ویدئو، فایل، صدا، ویس، استیکر، انیمیشن و ویدئونوت پشتیبانی می‌کند.</p>
-          </article>
-
-          <article class="card">
-            <p class="num">۰۵</p>
-            <h3>پاسخ و نام خصوصی</h3>
-            <p>می‌توانی ناشناس جواب بدهی و برای یک فرستنده نامی بگذاری که فقط خودت در تحویل‌های بعدی می‌بینی.</p>
-          </article>
-
-          <article class="card">
-            <p class="num">۰۶</p>
-            <h3>بلاک، گزارش و توقف</h3>
-            <p>دریافت پیام را متوقف کن، یک مسیر ناشناس را بلاک کن یا گزارش سوءاستفاده بفرست؛ بدون نمایش هویت فرستنده در رابط معمول.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="wrap" id="how">
-        <div class="section-head">
-          <p class="eyebrow">جریان محصول</p>
-          <h2>از لینک تا تحویل، در چهار مرحله</h2>
-          <p class="section-copy">
-            نکو در رابط کاربری ساده است، اما پشت هر مرحله state محدود و قابل retry دارد تا یک failure موقت پیام سالم را حذف نکند.
+            لازم نیست چیزی نصب کنی یا حساب جدا بسازی. تمام تجربه داخل همان تلگرامی است که استفاده می‌کنی.
           </p>
         </div>
 
         <div class="steps">
           <article class="step">
             <span class="step-index">۱</span>
-            <strong>لینک را می‌فرستی</strong>
-            <p>هرکس لینک را باز کند وارد مسیر ارسال خصوصی همان حساب می‌شود.</p>
+            <h3>لینکت رو می‌گیری</h3>
+            <p>نکو یک لینک شخصی می‌سازه؛ می‌تونی در پروفایل یا شبکه‌های اجتماعی به اشتراکش بذاری.</p>
           </article>
 
           <article class="step">
             <span class="step-index">۲</span>
-            <strong>پیام تیکت می‌شود</strong>
-            <p>متن یا رسانه به یک capability مستقل با route و payload رمزنگاری‌شده تبدیل می‌شود.</p>
+            <h3>پیام ناشناس می‌رسه</h3>
+            <p>فرستنده متن یا رسانه‌ی پشتیبانی‌شده رو می‌فرسته و نکو تعداد پیام‌های تحویل‌نشده رو بهت خبر می‌ده.</p>
           </article>
 
           <article class="step">
             <span class="step-index">۳</span>
-            <strong>صندوق خبرت می‌کند</strong>
-            <p>یک اعلان تازه با تعداد فعلی پیام‌های تحویل‌نشده دریافت می‌کنی.</p>
-          </article>
-
-          <article class="step">
-            <span class="step-index">۴</span>
-            <strong>پیام تحویل می‌شود</strong>
-            <p>بعد از ارسال موفق به Telegram، payload از storage نکو پاک و unread موقت حذف می‌شود.</p>
+            <h3>تصمیم با توئه</h3>
+            <p>پیام رو می‌خونی، ناشناس جواب می‌دی، نام خصوصی می‌ذاری یا مسیر رو مسدود و گزارش می‌کنی.</p>
           </article>
         </div>
 
-        <p class="callout">
-          پاسخ، یک رکورد جدید در یک transcript دائمی نیست. هر پاسخ دوباره به یک تیکت مستقل در جهت مقابل تبدیل می‌شود.
+        <p class="product-quote">
+          <strong>صندوق نکو آرشیو مکالمه نیست.</strong>
+          پیام‌های تحویل‌نشده رو نگه می‌داره، آن‌ها رو به تلگرام تحویل می‌ده و بعد متن کامل رو از فضای ذخیره‌سازی خودش پاک می‌کنه.
         </p>
       </section>
 
-      <section class="wrap" id="privacy">
+      <section class="wrap" id="controls" aria-labelledby="controls-title">
         <div class="section-head">
-          <p class="eyebrow">مرزهای واقعی</p>
-          <h2>کمتر ذخیره‌کردن، نه ادعای بزرگ‌تر</h2>
+          <p class="eyebrow">کنترل در دست گیرنده</p>
+          <h2 id="controls-title">چیزهایی که برای یک صندوق ناشناس لازم داری</h2>
           <p class="section-copy">
-            نکو مشخصات تلگرامی دو طرف را در جریان عادی به هم نشان نمی‌دهد و storage را طوری تقسیم می‌کند که داده‌ی قابل اتصال کمتری ساخته شود. این با «ناشناسی کامل» یا E2EE یکی نیست.
+            نِکونیموس قرار نیست یک شبکه‌ی اجتماعی بزرگ باشد. مسیر را کوچک نگه می‌دارد و روی کنترل پیام تمرکز می‌کند.
           </p>
         </div>
 
-        <div class="split">
+        <div class="grid">
+          <article class="card">
+            <p class="num">۰۱</p>
+            <h3>لینک شخصی</h3>
+            <p>یک لینک عادی تلگرام برای دریافت پیام ناشناس؛ بدون نمایش مشخصات تلگرامی دو طرف در رابط معمول بات.</p>
+          </article>
+
+          <article class="card">
+            <p class="num">۰۲</p>
+            <h3>متن و رسانه</h3>
+            <p>پیام متنی و رسانه‌های پشتیبانی‌شده‌ی تلگرام از همان مسیر تیکتی تحویل داده می‌شوند.</p>
+          </article>
+
+          <article class="card">
+            <p class="num">۰۳</p>
+            <h3>پاسخ ناشناس</h3>
+            <p>جوابت از همان مسیر برمی‌گردد؛ بدون اینکه یک transcript دائمی از مکالمه در دیتابیس اصلی ساخته شود.</p>
+          </article>
+
+          <article class="card">
+            <p class="num">۰۴</p>
+            <h3>نام خصوصی</h3>
+            <p>برای فرستنده یک نام محلی می‌گذاری که فقط خودت می‌بینی و در پیام‌های بعدی کمکت می‌کند بشناسیش.</p>
+          </article>
+
+          <article class="card">
+            <p class="num">۰۵</p>
+            <h3>مسدودسازی و گزارش</h3>
+            <p>برای مزاحمت‌ها مسیر را ببند یا گزارش بفرست. سیستم گزارش با سیگنال‌های کور طراحی شده، نه فهرست عمومی رابطه‌ی کاربران.</p>
+          </article>
+
+          <article class="card">
+            <p class="num">۰۶</p>
+            <h3>توقف دریافت پیام</h3>
+            <p>هر وقت خواستی پیام‌های تازه را متوقف کن؛ بدون اینکه مجبور باشی حساب و لینک خودت را همان لحظه پاک کنی.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="wrap" id="privacy" aria-labelledby="privacy-title">
+        <div class="section-head">
+          <p class="eyebrow">مرزهای حریم خصوصی</p>
+          <h2 id="privacy-title">کمتر ذخیره‌کردن، نه ادعای ناشناسی کامل</h2>
+          <p class="section-copy">
+            طراحی نکو تلاش می‌کند داده‌ی قابل اتصال کمتری بسازد و مشخصات دو طرف را از هم پنهان نگه دارد؛ اما محدودیت‌ها را هم پنهان نمی‌کند.
+          </p>
+        </div>
+
+        <div class="trust-grid">
           <article class="panel good">
-            <h3>چیزی که عمداً ساخته نمی‌شود</h3>
+            <h3>نکو چه کاری انجام می‌دهد؟</h3>
             <ul>
-              <li>متن پیام ناشناس در D1 یا KV قرار نمی‌گیرد.</li>
-              <li>جدول دائمی <code>sender → recipient → message</code> وجود ندارد.</li>
-              <li>capability خام یا <code>ticketHash</code> داخل inbox کاربر ذخیره نمی‌شود.</li>
-              <li>پروفایل کامل، intro و request graph در D1 نگه‌داری نمی‌شوند.</li>
-              <li>آمار عمومی از eventهای تجمیعی می‌آید، نه scan کردن vaultها یا رتبه‌بندی کاربران.</li>
+              <li>نام کاربری، شناسه و پروفایل تلگرامی دو طرف را در رابط معمول به هم نشان نمی‌دهد.</li>
+              <li>هر پیام را به یک تیکت مستقل با route و payload رمزنگاری‌شده تبدیل می‌کند.</li>
+              <li>متن پیام را در D1 یا KV و در قالب جدول دائمی فرستنده‌ـ‌گیرنده ذخیره نمی‌کند.</li>
+              <li>بعد از تحویل موفق، متن کامل را از فضای ذخیره‌سازی نکو پاک می‌کند.</li>
+              <li>آمار عمومی را به‌صورت تجمیعی نگه می‌دارد، نه به شکل رتبه‌بندی یا تاریخچه‌ی کاربران.</li>
             </ul>
           </article>
 
           <article class="panel boundary">
-            <h3>مرزهایی که باید روشن بمانند</h3>
+            <h3>چه چیزی تضمین نمی‌شود؟</h3>
             <ul>
-              <li>Telegram و Worker پیام را برای انتقال و پردازش می‌بینند.</li>
-              <li>نکو E2EE، zero-knowledge یا تضمین ناشناسی کامل نیست.</li>
+              <li>پیام برای تحویل از تلگرام و هسته‌ی نکو عبور و همان لحظه پردازش می‌شود.</li>
+              <li>نکو پیام‌رسان رمزنگاری سرتاسری، zero-knowledge یا سیستم ناشناسی کامل نیست.</li>
               <li>گیرنده می‌تواند پیام تحویل‌شده را ذخیره، forward یا منتشر کند.</li>
-              <li>دستگاه آلوده، حساب تلگرام در اختیار دیگری و compromise شدن زیرساخت خارج از حفاظت این مدل‌اند.</li>
-              <li>metadata مانند زمان، اندازه‌ی ciphertext و count کاملاً ناپدید نمی‌شود.</li>
+              <li>دستگاه آلوده، حساب تلگرام در اختیار دیگری یا لو رفتن لینک خارج از حفاظت این مدل‌اند.</li>
+              <li>بخشی از metadata عملیاتی مثل زمان، اندازه‌ی داده و شمارنده‌ها کاملاً ناپدید نمی‌شود.</li>
             </ul>
           </article>
         </div>
 
         <p class="callout">
-          هدف فنی این نیست که سیستم هیچ چیز نداند؛ هدف این است که storage به‌سادگی به دفترچه‌ی «چه کسی با چه کسی چه گفته» تبدیل نشود.
+          هدف این نیست که هسته‌ی نکو هنگام تحویل «هیچ چیزی نداند»؛ هدف این است که داده‌ها به‌سادگی به دفترچه‌ی دائمیِ «چه کسی با چه کسی چه گفته» تبدیل نشوند.
         </p>
       </section>
 
-      <section class="wrap" id="architecture">
+      <section class="wrap" id="suggestions" aria-labelledby="suggestions-title">
         <div class="section-head">
-          <p class="eyebrow">زیر پوست نکو</p>
-          <h2>یک Worker، چند مرز کوچک و مشخص</h2>
+          <p class="eyebrow">پیشنهاد گفت‌وگو</p>
+          <h2 id="suggestions-title">شروع یک گفت‌وگوی تازه، فقط با انتخاب دو طرف</h2>
           <p class="section-copy">
-            Durable Objectها state ترتیبی و تراکنشی را نگه می‌دارند؛ Queueها کار retryپذیر را جدا می‌کنند؛ D1 فقط ساختار قابل query را نگه می‌دارد و Vectorize صرفاً candidate retrieval انجام می‌دهد.
+            این بخش جدا از پیام ناشناسه و به‌صورت پیش‌فرض خاموشه. نه مچ‌یابی عاشقانه است، نه تست شخصیت و نه درصد سازگاری.
           </p>
         </div>
 
-        <div class="flow" aria-label="جریان زیرساخت">
-          <span>Telegram</span>
-          <span>→</span>
-          <span>Cloudflare Worker</span>
-          <span>→</span>
-          <span>TicketVault + UserState</span>
-          <span>→</span>
-          <span>Queues</span>
-          <span>→</span>
-          <span>TelegramOutbox</span>
-          <span>→</span>
-          <span>Telegram</span>
-        </div>
-
-        <div class="architecture-grid">
-          <div class="architecture-card">
-            <strong>Worker + grammY</strong>
-            <span>وب‌هوک تلگرام، validation، routing و منطق اصلی محصول.</span>
-          </div>
-          <div class="architecture-card">
-            <strong>TicketVault</strong>
-            <span>route، payload و metadata رمزنگاری‌شده‌ی هر تیکت.</span>
-          </div>
-          <div class="architecture-card">
-            <strong>UserState</strong>
-            <span>unread موقت، draft، block، nickname و state محلی کاربر.</span>
-          </div>
-          <div class="architecture-card">
-            <strong>SafetyState</strong>
-            <span>سیگنال‌های blind گزارش و sanction یک abuse subject.</span>
-          </div>
-          <div class="architecture-card">
-            <strong>TelegramOutbox</strong>
-            <span>ارسال paced و idempotent با lease و retry محدود.</span>
-          </div>
-          <div class="architecture-card">
-            <strong>D1 + KV</strong>
-            <span>D1 مرجع هویت و لینک؛ KV فقط cache best-effort.</span>
-          </div>
-          <div class="architecture-card">
-            <strong>Queues</strong>
-            <span>outbox، آمار و profile indexing با مدل at-least-once.</span>
-          </div>
-          <div class="architecture-card">
-            <strong>Vectorize</strong>
-            <span>retrieval محدود روی دو بردار کنترل‌شده‌ی ۸بعدی.</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="wrap" id="tickets">
-        <div class="section-head">
-          <p class="eyebrow">Sealed Ticket</p>
-          <h2>هر پیام، کلید و چرخه‌ی عمر خودش را دارد</h2>
-          <p class="section-copy">
-            capability تیکت ۳۲ بایت است: یک بخش برای lookup کور و یک بخش برای مشتق‌کردن کلیدها. raw capability داخل TicketVault یا D1 نگه‌داری نمی‌شود.
-          </p>
-        </div>
-
-        <div class="ticket-strip" aria-label="اجزای sealed ticket">
-          <span>lookupNonce</span>
-          <span>keySeed</span>
-          <span>ticketHash</span>
-          <span>ownerProof</span>
-          <span>route / payload / meta</span>
-        </div>
-
-        <p class="callout">
-          داشتن capability به‌تنهایی مجوز نیست. هر action به actor تلگرام و internal account فعلی گیرنده نیز bind می‌شود؛ بنابراین hard reset callbackهای قبلی را بی‌اعتبار می‌کند.
-        </p>
-      </section>
-
-      <section class="wrap" id="suggestions">
-        <div class="section-head">
-          <p class="eyebrow">Conversation Suggestions V2</p>
-          <h2>پیشنهاد برای شروع یک گفت‌وگو، نه امتیازدهی به آدم‌ها</h2>
-          <p class="section-copy">
-            این بخش اختیاری است. کاربر بعد از تکمیل پروفایل هم تا زمانی که discoverability را روشن نکند در پیشنهادها دیده نمی‌شود، و هیچ مکالمه‌ای بدون پذیرش طرف مقابل شروع نمی‌شود.
-          </p>
-        </div>
-
-        <div class="suggestion-layout">
+        <div class="suggestions">
           <article class="panel">
-            <h3>پروفایل محدود و قابل توضیح</h3>
+            <h3>پروفایل گفت‌وگو</h3>
             <p>
-              ۲۵ سؤال در ۸ بُعد، سبک خود کاربر و چیزی را که در یک گفت‌وگو می‌خواهد خلاصه می‌کند. این یک تست شخصیت یا تشخیص روان‌شناختی نیست.
+              با ۲۵ سؤال فارسی در ۸ بُعد، نکو یک خلاصه‌ی محدود از سبک خودت و چیزی که از گفت‌وگو می‌خوای می‌سازه.
+              نتیجه، تشخیص روان‌شناختی یا تعریف قطعی شخصیتت نیست.
             </p>
             <div class="dimension-list" aria-label="ابعاد پروفایل گفت‌وگو">
               <span>عمق گفت‌وگو</span>
@@ -1156,79 +1149,118 @@
           </article>
 
           <article class="panel">
-            <h3>retrieval جدا از ranking</h3>
-            <p>
-              Vectorize فقط یک مجموعه‌ی محدود از candidateهای نزدیک را پیدا می‌کند. بعد از آن، eligibility، block، cooldown، exposure و رتبه‌بندی متقابل در کد TypeScript بررسی می‌شوند.
-            </p>
-            <div class="flow" aria-label="جریان پیشنهاد گفت‌وگو">
-              <span>Profile</span>
-              <span>→</span>
-              <span>Opt-in</span>
-              <span>→</span>
-              <span>Vectorize retrieval</span>
-              <span>→</span>
-              <span>Deterministic ranking</span>
-              <span>→</span>
-              <span>Request</span>
-              <span>→</span>
-              <span>Consent</span>
-            </div>
-            <p class="callout">
-              نتیجه به شکل «درصد سازگاری» نمایش داده نمی‌شود. request پذیرفته‌شده فقط یک intro ticket معمولی می‌سازد.
-            </p>
+            <h3>اختیاری و پذیرش‌محور</h3>
+            <ul>
+              <li>نمایش در پیشنهادها به‌صورت پیش‌فرض خاموش است.</li>
+              <li>کاندیداهای اولیه به‌شکل محدود پیدا می‌شوند و رتبه‌بندی نهایی با منطق قطعی انجام می‌شود.</li>
+              <li>به کاربر درصد سازگاری یا برچسب «بهترین مچ» نمایش داده نمی‌شود.</li>
+              <li>شروع گفت‌وگو نیازمند پیام شروع و پذیرش طرف مقابل است.</li>
+              <li>درخواست پذیرفته‌شده مثل یک پیام ناشناس عادی و تیکت مستقل ادامه پیدا می‌کند.</li>
+            </ul>
           </article>
         </div>
       </section>
 
-      <section class="wrap" id="docs">
+      <section class="wrap" id="architecture" aria-labelledby="architecture-title">
         <div class="section-head">
-          <p class="eyebrow">کد و مستندات</p>
-          <h2>پروژه را از سطح مناسب بخوان</h2>
+          <p class="eyebrow">زیر پوست نکو</p>
+          <h2 id="architecture-title">Cloudflare-native، برای state محدود و تحویل قابل retry</h2>
           <p class="section-copy">
-            صفحه‌ی معرفی برای فهم محصول است؛ آزمایشگاه فنی برای منطق معماری؛ و repository مرجع نهایی implementation و threat model است.
+            رابط محصول فقط تلگرامه. پشت صحنه، یک Cloudflare Worker درخواست‌ها را می‌گیرد و هر نوع داده را به فضای مناسب خودش می‌فرستد.
+          </p>
+        </div>
+
+        <div class="architecture-grid">
+          <article class="architecture-card">
+            <strong>Cloudflare Worker</strong>
+            <span>وب‌هوک تلگرام، routing و منطق اصلی بات.</span>
+          </article>
+          <article class="architecture-card">
+            <strong>Durable Objects</strong>
+            <span>stateهای حساس و عملیات‌هایی که باید هماهنگ و ترتیبی بمانند.</span>
+          </article>
+          <article class="architecture-card">
+            <strong>Queues + Outbox</strong>
+            <span>ارسال‌های retryپذیر، idempotent و جدا از مسیر سریع webhook.</span>
+          </article>
+          <article class="architecture-card">
+            <strong>D1، KV و Vectorize</strong>
+            <span>ساختار حساب و آمار، cache مسیریابی و retrieval محدود؛ نه transcript پیام‌ها.</span>
+          </article>
+        </div>
+
+        <div class="technical-details">
+          <details>
+            <summary>تیکت مهروموم‌شده دقیقاً یعنی چی؟</summary>
+            <div class="details-body">
+              <p>
+                هر پیام یک capability مستقل ۳۲ بایتی دارد. بخشی از آن lookup کور را می‌سازد و بخش دیگر برای مشتق‌کردن کلیدهای route، payload و metadata استفاده می‌شود. capability خام در D1 یا رکورد TicketVault ذخیره نمی‌شود.
+              </p>
+              <p>
+                دسترسی به actionهای پیام فقط با capability کافی نیست؛ ticket به actor تلگرام و حساب داخلی فعلی گیرنده هم bind شده است. به همین دلیل hard reset، actionهای قدیمی را بی‌اعتبار می‌کند.
+              </p>
+            </div>
+          </details>
+
+          <details>
+            <summary>بعد از خواندن پیام چه چیزی باقی می‌ماند؟</summary>
+            <div class="details-body">
+              <p>
+                پس از تحویل موفق به تلگرام، payload کامل پاک و اشاره‌گر unread حذف می‌شود. route رمزنگاری‌شده تا پایان عمر محدود تیکت باقی می‌ماند تا پاسخ، نام خصوصی، مسدودسازی و گزارش همچنان کار کنند.
+              </p>
+            </div>
+          </details>
+
+          <details>
+            <summary>چرا Cloudflare Workers و Durable Objects؟</summary>
+            <div class="details-body">
+              <p>
+                Worker مسیر webhook را سبک نگه می‌دارد. Durable Objects برای stateهای هماهنگ و ذخیره‌سازی transactional استفاده می‌شوند و Queueها کارهای پس‌زمینه را با retry از مسیر پاسخ سریع جدا می‌کنند. این انتخاب به معنی «بدون خطا بودن» نیست؛ معماری برای مدیریت خطای موقت و جلوگیری از تکرار ناخواسته طراحی شده است.
+              </p>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section class="wrap" id="docs" aria-labelledby="docs-title">
+        <div class="section-head">
+          <p class="eyebrow">کد، روایت و جزئیات فنی</p>
+          <h2 id="docs-title">از سطحی که برات مناسبه شروع کن</h2>
+          <p class="section-copy">
+            این صفحه برای فهم محصوله. داستان ساخت درباره‌ی تصمیم‌ها و مسیر پروژه حرف می‌زنه؛ Lab و GitHub هم جزئیات فنی و مرزهای امنیتی را نگه می‌دارند.
           </p>
         </div>
 
         <div class="doc-list">
           <a class="doc-link" href="https://mohetios.dev/fa/blog/building-nekonymous-anonymous-telegram-bot">
             <strong>داستان ساخت نِکونیموس</strong>
-            <span>مسئله‌ی محصول، تصمیم‌ها، مسیر ساخت و دلیل انتخاب معماری کم‌داده.</span>
+            <span>مسئله‌ی محصول، تصمیم‌های اصلی و اینکه چرا نکو از اول کم‌داده طراحی شد.</span>
           </a>
 
           <a class="doc-link" href="https://mohetios.dev/fa/lab/nekonymous-anonymous-messaging-technical-lab">
             <strong>آزمایشگاه فنی</strong>
-            <span>Sealed ticket، inbox delivery، Outbox، SafetyState، reset و پیشنهاد گفت‌وگو.</span>
+            <span>تیکت‌ها، صندوق تحویل، Outbox، Safety، reset و پیشنهاد گفت‌وگو.</span>
           </a>
 
-          <a class="doc-link" href="https://github.com/mohetios/Nekonymous/blob/master/docs/architecture.md">
-            <strong>معماری runtime</strong>
-            <span>مرز Worker، Durable Objectها، D1، KV، Queue و Vectorize.</span>
-          </a>
-
-          <a class="doc-link" href="https://github.com/mohetios/Nekonymous/blob/master/docs/sealed-ticketing.md">
-            <strong>Sealed Ticketing</strong>
-            <span>فرمت capability، کلیدها، unread، delivery و actionهای بعد از تحویل.</span>
-          </a>
-
-          <a class="doc-link" href="https://github.com/mohetios/Nekonymous/blob/master/docs/conversation-suggestions.md">
-            <strong>Conversation Suggestions</strong>
-            <span>پروفایل، retrieval، ranker قطعی، suggestion و request idempotent.</span>
+          <a class="doc-link" href="https://github.com/mohetios/Nekonymous">
+            <strong>کد منبع و README</strong>
+            <span>وضعیت فعلی master، اجرای محلی، تست‌ها و نقشه‌ی مستندات پروژه.</span>
           </a>
 
           <a class="doc-link" href="https://github.com/mohetios/Nekonymous/blob/master/docs/threat-model.md">
             <strong>مدل تهدید</strong>
-            <span>چیزی که محافظت می‌شود، چیزی که محافظت نمی‌شود و ریسک‌های باقی‌مانده.</span>
+            <span>چه چیزی محافظت می‌شود، چه چیزی محافظت نمی‌شود و ریسک‌های باقی‌مانده.</span>
           </a>
         </div>
       </section>
 
-      <section class="wrap" id="start">
+      <section class="wrap" id="start" aria-labelledby="start-title">
         <div class="release-panel">
           <div>
-            <p class="eyebrow">نکو آماده‌ی شنیدن است</p>
-            <h2>لینکت را بساز و مسیر ناشناس خودت را باز کن</h2>
+            <p class="eyebrow">میو، نکو آماده‌ست 🐾</p>
+            <h2 id="start-title">لینک پیام ناشناست رو بساز</h2>
             <p>
-              استفاده از ربات ساده است؛ معماری و محدودیت‌ها هم برای بررسی عمومی در GitHub مستند شده‌اند.
+              چند ثانیه بیشتر طول نمی‌کشه. بعدش می‌تونی لینکت رو هرجایی که دوست داری به اشتراک بذاری و پیام‌ها رو مستقیم داخل تلگرام تحویل بگیری.
             </p>
           </div>
           <div class="actions">
@@ -1242,7 +1274,7 @@
     <footer class="footer">
       <div class="wrap footer-grid">
         <p class="footer-copy">
-          حریم خصوصی با ادعای بزرگ‌تر ساخته نمی‌شود؛ با داده‌ی کمتر، مرز روشن‌تر و state محدودتر ساخته می‌شود.
+          نِکونیموس تلاش می‌کند پیام ناشناس را با داده‌ی کمتر، کنترل بیشتر و مرزهای روشن‌تری تحویل بدهد.
           <a href="https://mohetios.dev">© ۱۴۰۵ مُهتیوس</a>
         </p>
         <p class="footer-brand"><strong>Mohetios.dev</strong> — Where ideas unfold into systems.</p>
@@ -1256,7 +1288,14 @@
 
         if (!button) return;
 
-        const storedMode = () => localStorage.getItem("theme");
+        const storedMode = () => {
+          try {
+            return localStorage.getItem("theme");
+          } catch {
+            return null;
+          }
+        };
+
         const resolvedMode = () => {
           const stored = storedMode();
           if (stored === "dark" || stored === "light") return stored;
@@ -1276,7 +1315,11 @@
 
         button.addEventListener("click", () => {
           const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-          localStorage.setItem("theme", next);
+          try {
+            localStorage.setItem("theme", next);
+          } catch {
+            // Theme still works for this page load when storage is unavailable.
+          }
           apply(next);
         });
 
@@ -1298,7 +1341,10 @@
 
         const setActive = (id) => {
           links.forEach((link) => {
-            link.classList.toggle("is-active", link.getAttribute("href") === `#${id}`);
+            const active = link.getAttribute("href") === `#${id}`;
+            link.classList.toggle("is-active", active);
+            if (active) link.setAttribute("aria-current", "page");
+            else link.removeAttribute("aria-current");
           });
         };
 

@@ -65,7 +65,7 @@ Senders and recipients may be malicious. Recipients can copy, screenshot, forwar
 
 | Plane | Stored data | Important exclusions |
 |---|---|---|
-| D1 | active user rows with HMACed Telegram actor hash, encrypted chat route, public links, aggregate daily statistics | message bodies, ticket capabilities, finalized profiles, suggestions, request intros, pair graph |
+| D1 | active user rows with HMACed Telegram actor hash, encrypted chat route, public links, aggregate daily statistics, bounded stats event receipts | message bodies, ticket capabilities, finalized profiles, suggestions, request intros, pair graph |
 | KV | best-effort `tg:{hash}` and `link:{slug}` routing cache, short stats cache | message/profile/inbox authority, plaintext Telegram id |
 | UserState DO | sealed unread capabilities, blind dedupe, delivery leases, drafts, block tags, encrypted nicknames, rate state, encrypted active profile session, discoverability/exposure state | message body, ticket hash, plaintext capability, global relation graph |
 | TicketVault DO | blind ticket hash, owner proof, encrypted route/payload/meta, status and expiry | raw capability, direct sender/recipient ids, transcript |
@@ -271,6 +271,7 @@ Residual risk: a compromised recipient Telegram account can use callbacks availa
 | Suggestion/request | bounded capability/status lifecycle |
 | Block/nickname | until recipient changes it or resets |
 | Aggregate statistics | retained as anonymous aggregates and not decremented on reset |
+| Stats event receipt | 35-day bounded idempotency marker for aggregate Queue processing |
 
 ## Explicit non-goals
 

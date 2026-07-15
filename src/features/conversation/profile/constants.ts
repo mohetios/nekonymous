@@ -1,6 +1,6 @@
 import type { ConversationDimension } from "../../../contracts/conversation/profile";
 
-export const PROFILE_SCHEMA_VERSION = "v2" as const;
+export const PROFILE_SCHEMA_VERSION = "current" as const;
 
 export const PROFILE_QUESTION_COUNT = 25;
 
